@@ -1,0 +1,144 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Project Setup and Database Foundation",
+        "description": "Initialize Next.js 14+ project with TypeScript, configure tooling, and establish SQLite database with core schema",
+        "details": "1. Initialize Next.js 14+ with TypeScript and App Router: `npx create-next-app@latest puffin --typescript --tailwind --eslint --app`\n2. Install dependencies: `npm install better-sqlite3 @types/better-sqlite3 bcrypt @types/bcrypt tailwindcss @tailwindcss/forms`\n3. Configure shadcn/ui: `npx shadcn-ui@latest init`\n4. Set up Vitest: `npm install -D vitest @vitejs/plugin-react jsdom`\n5. Create database schema with tables: LocalUser, Transaction, UpperCategory, SubCategory, Budget, AutoCategoryRule, SyncLog\n6. Implement database initialization script with default upper categories (Income, Expense, Saving, Bill, Debt, Transfer)\n7. Create lib/database.ts with connection utilities and backup functions\n8. Set up project structure: app/, components/, lib/, types/\n9. Configure environment variables for database path",
+        "testStrategy": "Unit tests for database connection, schema creation, and seeding. Verify all tables created correctly with proper foreign key constraints. Test database backup/restore functionality.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Local Authentication System",
+        "description": "Implement bcrypt-based local password authentication with session management",
+        "details": "1. Create LocalUser model with password_hash field using bcrypt\n2. Build login page with password input form\n3. Implement password setup flow for first-time users\n4. Create API routes: POST /api/auth/login, POST /api/auth/setup, POST /api/auth/logout\n5. Set up session management using HTTP-only cookies with iron-session or similar\n6. Create middleware to protect routes requiring authentication\n7. Hash passwords with bcrypt.hash() with salt rounds of 12\n8. Implement session validation and automatic logout\n9. Create auth context for managing login state",
+        "testStrategy": "Test password hashing/verification, session creation/validation, protected route access, and first-time setup flow. Verify sessions persist across browser refreshes and expire appropriately.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Core API Routes and Data Models",
+        "description": "Build essential CRUD API endpoints for transactions and categories with validation",
+        "details": "1. Create Transaction model with UUID, date, description, amount, notes, sub_category_id, is_split, parent_transaction_id, is_deleted fields\n2. Implement API routes:\n   - GET/POST/PATCH/DELETE /api/transactions\n   - GET/POST/PATCH/DELETE /api/categories\n   - GET/POST/PATCH/DELETE /api/budgets\n3. Add input validation using Zod schemas\n4. Implement soft delete for transactions (is_deleted flag)\n5. Create database query functions for filtering, sorting, and aggregation\n6. Add error handling with proper HTTP status codes\n7. Implement transaction amount validation (negative for expenses, positive for income)\n8. Create utility functions for date handling and UUID generation",
+        "testStrategy": "API endpoint testing with various payloads, validation error handling, soft delete functionality, and database constraint verification. Test CRUD operations for all models.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "UI Shell and Navigation Framework",
+        "description": "Create responsive layout with navigation and routing structure using shadcn/ui components",
+        "details": "1. Install shadcn/ui components: `npx shadcn-ui@latest add button card input table navigation-menu`\n2. Create main layout component with navigation sidebar/header\n3. Implement routing structure with Next.js App Router:\n   - /dashboard (default landing page)\n   - /monthly (budget view)\n   - /inbox (uncategorised transactions)\n   - /settings (configuration)\n4. Create navigation component with active state highlighting\n5. Implement responsive design with mobile-friendly navigation\n6. Add loading states and error boundaries\n7. Create reusable UI components: PageHeader, DataTable, FormField\n8. Set up Tailwind CSS custom theme matching design requirements\n9. Add 'Last synced' banner placeholder in header",
+        "testStrategy": "Test navigation between pages, responsive behavior on different screen sizes, loading states, and accessibility compliance. Verify routing works correctly with authentication.",
+        "priority": "medium",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Transaction Import System with CSV Processing",
+        "description": "Build CSV import functionality with column mapping, preview, and duplicate detection",
+        "details": "1. Create CSV parser using built-in Node.js capabilities or papaparse library\n2. Build file upload component with drag-and-drop support\n3. Implement column mapping interface with dropdowns for Date, Description, Amount, Ignore\n4. Create preview table showing parsed data with row selection checkboxes\n5. Add date format detection and parsing (DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY)\n6. Implement duplicate detection algorithm (exact match: date + amount + description)\n7. Create import confirmation flow with duplicate warnings\n8. Build API route POST /api/transactions/import with file processing\n9. Add validation for required fields and amount format\n10. Handle encoding issues and malformed CSV gracefully",
+        "testStrategy": "Test various CSV formats, date formats, duplicate detection accuracy, column mapping functionality, and error handling for malformed files. Verify import preview matches actual import results.",
+        "priority": "high",
+        "dependencies": [
+          3,
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Transaction Management and Manual Entry",
+        "description": "Create transaction list view and manual entry form with categorization support",
+        "details": "1. Build transaction list component with sortable columns (date, description, amount, category)\n2. Create manual transaction entry form with date picker, description input, amount input, notes field\n3. Implement inline editing for transaction categorization\n4. Add transaction filtering and search functionality\n5. Create category dropdown component grouped by upper categories\n6. Build uncategorised inbox view filtering transactions where sub_category_id is null\n7. Add transaction count badges in navigation\n8. Implement transaction deletion with confirmation modal\n9. Create transaction detail view/modal for editing\n10. Add bulk operations for multiple transaction selection",
+        "testStrategy": "Test manual entry validation, inline editing, filtering, sorting, and bulk operations. Verify category assignment updates correctly and uncategorised count updates in real-time.",
+        "priority": "high",
+        "dependencies": [
+          3,
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Category Management and Transaction Splitting",
+        "description": "Build category CRUD interface and implement transaction splitting functionality",
+        "details": "1. Create category management page in settings with upper and sub-category lists\n2. Implement upper category renaming functionality\n3. Build sub-category CRUD operations (create, rename, delete with transaction reassignment)\n4. Create transaction splitting modal allowing division into 2-3 parts\n5. Implement split validation ensuring amounts sum to original transaction\n6. Create child transactions linked to parent with parent_transaction_id\n7. Add unsplit functionality to reverse splits and restore original transaction\n8. Build category assignment interface for split portions\n9. Add visual indicators for split transactions in transaction lists\n10. Implement category deletion protection when transactions exist",
+        "testStrategy": "Test category CRUD operations, transaction splitting math validation, unsplit functionality, and referential integrity. Verify split transactions display correctly and maintain proper relationships.",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Auto-Categorisation Rules Engine",
+        "description": "Create rule management interface and automatic categorisation system",
+        "details": "1. Build rules management page with list of existing rules\n2. Create rule creation form with match text input and category selection\n3. Implement drag-and-drop reordering for rule priority\n4. Build rule application engine using 'contains exact text' matching\n5. Apply rules during CSV import processing (first match wins)\n6. Create API routes: GET/POST/PATCH/DELETE /api/rules\n7. Add rule testing functionality to preview matches\n8. Implement rule editing and deletion with confirmation\n9. Create rule statistics showing match counts\n10. Add rule validation preventing conflicts and empty rules",
+        "testStrategy": "Test rule creation, priority ordering, automatic application during import, and rule matching accuracy. Verify rules apply in correct priority order and don't interfere with manual categorisation.",
+        "priority": "medium",
+        "dependencies": [
+          5,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Monthly Budget View and Budget Management",
+        "description": "Build monthly budget interface with actual vs budget comparison and budget entry features",
+        "details": "1. Create monthly view with month navigation (previous/next buttons)\n2. Build category aggregation API to calculate monthly totals by sub-category\n3. Implement budget entry interface with inline editing\n4. Create budget comparison display with red highlighting for over-budget items\n5. Add budget carry-over functionality from previous months\n6. Implement budget watermarks showing historical averages (3, 6 months)\n7. Build transaction list filtered by month with category editing\n8. Create click-through from category totals to filtered transaction view\n9. Add budget templates and quick-fill options\n10. Implement budget vs actual percentage calculations",
+        "testStrategy": "Test monthly aggregation accuracy, budget entry and persistence, over-budget highlighting, carry-over functionality, and transaction filtering. Verify calculations match expected totals.",
+        "priority": "high",
+        "dependencies": [
+          6,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Dashboard Analytics and Google Drive Sync",
+        "description": "Create analytics dashboard with charts and implement Google Drive synchronization",
+        "details": "1. Install Recharts: `npm install recharts`\n2. Build analytics API endpoints for dashboard data:\n   - Income percentage breakdown by sub-category\n   - Monthly spending trends\n   - Upper category trends over time\n3. Create dashboard layout with summary cards (total income, expenses, net)\n4. Implement charts: line chart for trends, pie chart for income allocation\n5. Add period selectors (3, 6, 12 months) for trend analysis\n6. Install Google APIs: `npm install googleapis`\n7. Implement Google Drive OAuth2 authentication flow\n8. Create sync functionality: push (upload) and pull (download) database\n9. Add local backup creation before sync operations\n10. Build sync UI with manual trigger buttons and status indicators\n11. Implement blocking sync modal on app close\n12. Add 'Last synced' timestamp display in header",
+        "testStrategy": "Test chart rendering with various data sets, Google Drive authentication flow, sync upload/download functionality, backup creation, and conflict resolution. Verify analytics calculations are accurate and sync preserves data integrity.",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-12-16T10:23:48.489Z",
+      "updated": "2025-12-16T10:23:48.489Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
