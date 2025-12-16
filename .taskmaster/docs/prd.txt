@@ -1,0 +1,688 @@
+<context>
+# Overview
+
+Puffin (Personal Unified Finance Framework & Investment Navigator) is a locally-hosted personal budgeting application for tracking expenses, categorising transactions, and monitoring spending against budgets. It solves the problem of expense tracking without relying on cloud-based services or subscription fees, while enabling multi-device access through Google Drive database synchronisation.
+
+The application is designed for individuals or households who want full control over their financial data, prefer local-first software, and need to access their budget from multiple computers. Unlike YNAB or GoodBudget, Puffin keeps all data local with optional manual sync to a shared Google Drive location.
+
+**Target User:** Privacy-conscious individuals comfortable with self-hosted applications who want detailed expense tracking with budget comparison capabilities.
+
+**Core Value Proposition:**
+- Full data ownership with local SQLite database
+- No subscription fees or cloud lock-in
+- Multi-device access via Google Drive sync
+- Flexible categorisation with auto-categorisation rules
+- Clear visibility of spending as percentage of income
+
+# Core Features
+
+## 1. Transaction Import & Entry
+
+**What it does:** Allows users to import transactions from CSV files or manually enter them.
+
+**Why it's important:** The foundation of expense tracking — getting transaction data into the system efficiently and accurately.
+
+**How it works:**
+- Import simple or extended CSV files via file upload
+- Preview imported data in a table format with dropdown column mappers (date, description, amount)
+- Option to remove unwanted rows before import
+- Duplicate detection flags matching transactions (same date, amount, description) with option to skip
+- Manual transaction entry form for accounts without export functionality
+- Fields: date, description, amount, optional notes
+- All transactions treated as single pool regardless of source account
+
+## 2. Transaction Categorisation
+
+**What it does:** Enables users to assign categories to transactions, with support for auto-categorisation rules.
+
+**Why it's important:** Categorisation transforms raw transaction data into meaningful spending insights.
+
+**How it works:**
+- Two-tier category system: upper categories (renameable, default: Expense, Saving, Bill, Debt, Income, Transfer) and user-defined sub-categories
+- Uncategorised inbox showing all unassigned transactions sorted by date (newest first)
+- Auto-categorisation rules using "contains exact text" matching with drag-to-reorder priority
+- Rules applied silently on import; categories always editable
+- Transaction splitting: divide one transaction into up to 3 parts by amount, creating separate linked transactions with reversible history
+- Transfer category ignored in reporting calculations
+
+## 3. Monthly Budget View
+
+**What it does:** Displays a month's transactions organised by category with actual vs budget comparison.
+
+**Why it's important:** The primary view for understanding monthly spending and staying within budget.
+
+**How it works:**
+- Upper categories as section headers, sub-categories listed beneath
+- Two columns per sub-category: Actual (calculated) and Budget (user-entered)
+- Actual highlighted red when exceeding budget
+- Budget entry options: fresh entry, carry over from last month, or reference watermark showing last month/average of 3 or 6 months
+- Sub-categories with no budget show 0
+- All month's transactions listed below category summary, editable for re-categorisation
+- Click-through from sub-category totals to filtered transaction list
+
+## 4. Dashboard & Analytics
+
+**What it does:** Provides overview of financial health with key metrics and visualisations.
+
+**Why it's important:** Enables quick assessment of spending patterns and trends without navigating multiple views.
+
+**How it works:**
+- Default landing page on app open
+- Percentage-of-income breakdown showing how income divides across sub-categories (actuals only)
+- Line graph: monthly spending trends over time
+- Pie chart: income allocation across sub-categories
+- Line graphs: trends for each upper category
+- Month-over-month and year-over-year tables with selectable periods (3, 6, or 12 months)
+- Drill-down to monthly or yearly detail views
+
+## 5. Auto-Categorisation Rules Management
+
+**What it does:** Allows users to create, edit, and prioritise rules that automatically categorise matching transactions.
+
+**Why it's important:** Reduces manual categorisation effort for recurring transactions.
+
+**How it works:**
+- Settings page listing all rules
+- Each rule: match text (exact contains) → assigns sub-category
+- Drag-to-reorder for priority (first match wins)
+- Add, edit, delete rules
+- Rules cannot auto-assign splits
+
+## 6. Google Drive Sync
+
+**What it does:** Synchronises the local database to a shared Google Drive location for multi-device access.
+
+**Why it's important:** Enables access from multiple computers without complex server infrastructure.
+
+**How it works:**
+- Manual sync trigger (not automatic background sync)
+- On app open: prompt to pull latest from Google Drive
+- On app close: block closing until sync completed
+- "Last synced" banner displayed at all times
+- Local backup created before each sync
+- Conflict resolution: last-write-wins
+- Supports two Google accounts accessing same shared location (not simultaneously)
+
+## 7. Undo System
+
+**What it does:** Allows reversal of recent actions including deletions.
+
+**Why it's important:** Provides safety net for mistakes, especially for destructive actions.
+
+**How it works:**
+- Soft-delete for transactions (recoverable)
+- Undo last action button (Ctrl+Z pattern)
+- Split transactions reversible to original single transaction
+
+# User Experience
+
+## User Persona
+
+**Primary User:** Individual or household member managing personal/family finances. Technically comfortable (can run local web applications), values data privacy and ownership, accesses budget from home desktop and laptop. Wants clear visibility of where money goes without subscription fees.
+
+## Key User Flows
+
+### First-Time Setup
+1. Launch application (localhost:3000)
+2. Configure Google Drive sync location
+3. Rename upper categories if desired
+4. Create initial sub-categories
+5. Import first CSV file
+6. Map columns and confirm import
+7. Categorise transactions in inbox
+
+### Regular Usage (Weekly/Fortnightly)
+1. Open app → sync from Google Drive
+2. Import new transactions from bank CSV
+3. Review duplicate warnings, skip as needed
+4. Process uncategorised inbox
+5. Set/adjust monthly budgets
+6. Review dashboard for spending insights
+7. Sync to Google Drive before closing
+
+### Month-End Review
+1. Open monthly view for completed month
+2. Review actual vs budget per category
+3. Adjust next month's budgets based on actuals
+4. Check dashboard trends
+5. Create new sub-categories if spending patterns changed
+
+## UI/UX Considerations
+
+- Clean, minimal interface prioritising data clarity
+- Consistent navigation: Dashboard, Monthly View, Inbox, Settings
+- Import wizard: step-by-step with preview table
+- Red highlighting for over-budget items (clear visual alert)
+- Watermarks for budget history (subtle, non-intrusive)
+- Sync status always visible
+- Blocking sync prompt on close (modal, cannot dismiss without syncing)
+- Responsive design for different screen sizes
+
+</context>
+<PRD>
+# Technical Architecture
+
+## System Components
+
+### Frontend
+- **Framework:** Next.js 14+ with TypeScript
+- **Styling:** Tailwind CSS
+- **Component Library:** shadcn/ui (built on Radix primitives)
+- **Charts:** Recharts
+- **State Management:** React Context (upgrade to Zustand if complexity warrants)
+
+### Backend
+- **Runtime:** Node.js via Next.js API routes
+- **Database:** SQLite (single file, portable)
+- **Database Library:** better-sqlite3 (synchronous, lightweight)
+- **Authentication:** Local password protection (hashed, stored in database)
+
+### Storage & Sync
+- **Local Storage:** SQLite database file in application directory
+- **Remote Storage:** Google Drive API for database file sync
+- **Backup:** Local timestamped copies before sync
+
+### Development & Testing
+- **Package Manager:** npm
+- **Testing Framework:** Vitest
+- **Linting:** ESLint with Next.js config
+- **Formatting:** Prettier
+
+## Data Models
+
+### LocalUser
+```
+id: INTEGER PRIMARY KEY
+password_hash: String (bcrypt)
+created_at: Timestamp
+updated_at: Timestamp
+```
+*Single row table for local authentication*
+
+### Transaction
+```
+id: UUID
+date: Date
+description: String
+amount: Decimal (negative for expenses, positive for income)
+notes: String (nullable)
+sub_category_id: FK (nullable - null means uncategorised)
+is_split: Boolean
+parent_transaction_id: UUID (nullable - for split children)
+is_deleted: Boolean (soft delete)
+created_at: Timestamp
+updated_at: Timestamp
+```
+
+### UpperCategory
+```
+id: UUID
+name: String
+display_order: Integer
+is_transfer: Boolean (excluded from reporting)
+created_at: Timestamp
+```
+
+### SubCategory
+```
+id: UUID
+name: String
+upper_category_id: FK
+created_at: Timestamp
+```
+
+### Budget
+```
+id: UUID
+sub_category_id: FK
+month: Date (first of month)
+amount: Decimal
+created_at: Timestamp
+updated_at: Timestamp
+```
+
+### AutoCategoryRule
+```
+id: UUID
+match_text: String (exact contains match)
+sub_category_id: FK
+priority: Integer (lower = higher priority)
+created_at: Timestamp
+```
+
+### SyncLog
+```
+id: UUID
+sync_type: Enum (push, pull)
+timestamp: Timestamp
+status: Enum (success, failed)
+backup_path: String (nullable)
+```
+
+## APIs and Integrations
+
+### Internal API Routes (Next.js)
+- `POST /api/transactions/import` - Process CSV upload
+- `GET/POST/PATCH/DELETE /api/transactions` - CRUD operations
+- `POST /api/transactions/:id/split` - Split transaction
+- `POST /api/transactions/:id/unsplit` - Reverse split
+- `GET/POST/PATCH/DELETE /api/categories` - Category management
+- `GET/POST/PATCH/DELETE /api/rules` - Auto-categorisation rules
+- `GET/POST /api/budgets` - Budget management
+- `POST /api/sync/push` - Push to Google Drive
+- `POST /api/sync/pull` - Pull from Google Drive
+- `GET /api/analytics/*` - Dashboard data endpoints
+
+### External Integrations
+- **Google Drive API:** OAuth2 authentication, file upload/download for database sync
+- **No other external dependencies**
+
+## Infrastructure Requirements
+
+- Node.js 18+ runtime
+- Local filesystem access for SQLite and backups
+- Google account with Drive API access configured
+- Browser for UI access
+- Default port: 3000 (configurable)
+- Works entirely offline; sync only when manually triggered
+
+# Development Roadmap
+
+## Phase 1: Foundation & Data Layer
+
+**Scope:** Core database structure, basic transaction management, and minimal UI shell.
+
+### 1.1 Project Setup
+- Initialise Next.js 14+ project with TypeScript and App Router
+- Configure Tailwind CSS and shadcn/ui
+- Set up SQLite with better-sqlite3
+- Create database schema and initialisation scripts
+- Configure Vitest for testing
+- Establish project structure (app/, components/, lib/, api/)
+
+### 1.2 Local Authentication
+- LocalUser table with bcrypt password hash
+- Password setup flow on first launch
+- Login page with password entry
+- Session management (HTTP-only cookie or similar)
+- Protected route middleware
+
+### 1.3 Database Models
+- Implement all data models (LocalUser, Transaction, UpperCategory, SubCategory, Budget, AutoCategoryRule, SyncLog)
+- Seed default upper categories (Expense, Saving, Bill, Debt, Income, Transfer)
+- Create database utility functions (connection, backup, restore)
+
+### 1.4 Basic API Routes
+- Transaction CRUD endpoints
+- Category CRUD endpoints
+- Basic error handling and validation
+
+### 1.5 Minimal UI Shell
+- Layout component with navigation (Dashboard, Monthly, Inbox, Settings placeholders)
+- Basic routing structure
+- Placeholder pages for each main section
+
+## Phase 2: Transaction Import & Entry
+
+**Scope:** Get transactions into the system via CSV import and manual entry.
+
+### 2.1 CSV Parser
+- Parse simple CSV format (comma-separated, standard encoding)
+- Parse extended CSV format (handle additional columns gracefully)
+- Validate required fields present
+- Handle date format variations (DD/MM/YYYY, YYYY-MM-DD, etc.)
+
+### 2.2 Import UI
+- File upload component
+- Preview table showing parsed data
+- Dropdown column mapper for each column (Date, Description, Amount, Ignore)
+- Mutually exclusive selection (selecting Date removes it from other dropdowns)
+- Row removal checkboxes
+- Import confirmation button
+
+### 2.3 Duplicate Detection
+- Algorithm to identify potential duplicates (exact match: date + amount + description)
+- UI to flag duplicates during import preview
+- Skip/include toggle for each flagged duplicate
+
+### 2.4 Manual Transaction Entry
+- Form: date picker, description input, amount input, optional notes
+- Validation (required fields, valid amount)
+- Add to transaction list
+
+### 2.5 Transaction List View
+- Basic table of all transactions
+- Sortable by date
+- Display: date, description, amount, category (or "Uncategorised")
+
+## Phase 3: Categorisation System
+
+**Scope:** Two-tier categories, manual categorisation, and uncategorised inbox.
+
+### 3.1 Category Management
+- Upper category rename functionality
+- Sub-category CRUD (create, rename, delete)
+- Assign sub-categories to upper categories
+- Settings page UI for category management
+
+### 3.2 Uncategorised Inbox
+- Filter transactions where sub_category_id is null
+- Display as list sorted by date (newest first)
+- Category assignment dropdown per transaction
+- Count badge in navigation
+
+### 3.3 Transaction Categorisation UI
+- Dropdown to select sub-category (grouped by upper category)
+- Inline editing in transaction lists
+- Visual update on categorisation
+
+### 3.4 Transaction Splitting
+- Split button on transaction row
+- Modal: specify 2-3 amounts that sum to original
+- Assign category to each split portion
+- Create child transactions linked to parent
+- Mark parent as is_split=true
+- Unsplit action: delete children, restore parent, clear is_split flag
+
+## Phase 4: Auto-Categorisation Rules
+
+**Scope:** Rule creation, management, and automatic application.
+
+### 4.1 Rule Data Layer
+- Rule CRUD API endpoints
+- "Contains exact text" matching function
+- Priority ordering logic
+
+### 4.2 Rules Management UI (Settings)
+- List all rules with match text, target category, priority
+- Add new rule form
+- Edit existing rule
+- Delete rule with confirmation
+- Drag-and-drop reordering for priority
+
+### 4.3 Rule Application
+- On transaction import: apply rules to uncategorised transactions
+- Process in priority order, first match wins
+- Rules applied silently (no confirmation needed)
+
+## Phase 5: Monthly Budget View
+
+**Scope:** Month view with category breakdown and budget comparison.
+
+### 5.1 Monthly Data Aggregation
+- API to aggregate transactions by sub-category for given month
+- Calculate totals per sub-category and upper category
+- Fetch budget amounts for month
+
+### 5.2 Monthly View UI
+- Month selector (previous/next navigation)
+- Upper category sections with sub-categories listed beneath
+- Two columns: Actual (calculated), Budget (editable input)
+- Red highlighting when Actual > Budget
+- Sub-category totals sum to upper category totals
+
+### 5.3 Budget Entry
+- Inline editable budget amounts
+- "Carry over from last month" button
+- Watermark showing last month's budget
+- Option to show 3-month or 6-month average as watermark
+- Save on blur or explicit save button
+
+### 5.4 Transaction List in Monthly View
+- All transactions for selected month listed below category summary
+- Editable category per transaction
+- Click sub-category total to filter transaction list to that category
+
+## Phase 6: Dashboard & Analytics
+
+**Scope:** Overview dashboard with charts and trend analysis.
+
+### 6.1 Analytics API
+- Percentage of income calculation (per sub-category)
+- Monthly spending totals over time
+- Upper category trends over time
+- Month-over-month data (3, 6, 12 month views)
+- Year-over-year comparison
+
+### 6.2 Dashboard Layout
+- Summary cards (total income, total expenses, net this month)
+- Percentage-of-income breakdown panel
+- Chart containers
+
+### 6.3 Charts Implementation
+- Line chart: monthly spending trends
+- Pie chart: income allocation by sub-category
+- Line charts: per upper category trends
+- Period selector for trend charts
+
+### 6.4 Tabular Reports
+- Month-over-month table by upper category
+- Year-over-year table
+- Period selector (3, 6, 12 months)
+
+## Phase 7: Google Drive Sync
+
+**Scope:** Manual sync to/from Google Drive with conflict handling.
+
+### 7.1 Google Drive API Integration
+- OAuth2 setup and token management
+- File upload function (push database)
+- File download function (pull database)
+- Check file modified timestamp
+
+### 7.2 Sync Logic
+- Local backup before any sync operation
+- Push: upload local database to Drive
+- Pull: download Drive database, replace local
+- Last-write-wins conflict resolution
+- Update SyncLog on each operation
+
+### 7.3 Sync UI
+- "Last synced" banner (always visible)
+- Manual sync buttons (push/pull)
+- Sync status indicator (syncing, success, error)
+
+### 7.4 Sync Prompts
+- On app open: modal prompting to pull from Drive
+- On app close: blocking modal requiring sync before close
+- Cannot dismiss close modal without completing sync
+
+### 7.5 Settings: Google Drive Configuration
+- Connect Google account flow
+- Select/create sync folder location
+- Disconnect account option
+
+## Phase 8: Polish & Undo System
+
+**Scope:** Soft delete, undo functionality, and UI refinements.
+
+### 8.1 Soft Delete
+- Mark transactions as is_deleted instead of removing
+- Filter deleted transactions from normal views
+- Optional: "Deleted items" view in settings
+
+### 8.2 Undo System
+- Action history stack (in-memory, cleared on page refresh)
+- Undo button (Ctrl+Z keyboard shortcut)
+- Undoable actions: categorise, split, unsplit, delete, budget change
+- Visual feedback on undo
+
+### 8.3 UI Polish
+- Loading states for all async operations
+- Error handling with user-friendly messages
+- Empty states for inbox, transaction list
+- Responsive design adjustments
+- Keyboard navigation improvements
+
+## Future Enhancements (Post-MVP)
+
+- QIF file format support
+- Custom date range views
+- Export functionality
+- Additional chart types
+- Mobile-optimised views
+- Transaction search
+- Recurring transaction detection
+- Goals/savings targets
+
+# Logical Dependency Chain
+
+## Layer 1: Foundation (Must Build First)
+1. **Project setup, tooling & database schema** — Everything depends on this
+2. **Local authentication** — Protects access before any data entry
+3. **Basic API routes for transactions** — Required for any data entry
+4. **Minimal UI shell with navigation** — Required frame for all features
+
+## Layer 2: Data Entry (First Usable Frontend)
+5. **Manual transaction entry** — Simplest way to get data in, validates data model works
+6. **Transaction list view** — See what's in the database, confirm entry works
+7. **CSV import with column mapping** — Primary data entry method
+8. **Duplicate detection** — Prevents data quality issues early
+
+## Layer 3: Organisation
+9. **Category management (upper & sub)** — Required before categorisation
+10. **Uncategorised inbox** — Central workflow for processing transactions
+11. **Transaction categorisation UI** — Core functionality
+12. **Transaction splitting** — Enhances categorisation flexibility
+
+## Layer 4: Automation
+13. **Auto-categorisation rules management** — Settings UI
+14. **Rule application on import** — Reduces manual work
+
+## Layer 5: Budgeting
+15. **Monthly view with category aggregation** — Display spending by category
+16. **Budget entry and comparison** — Core budgeting feature
+17. **Budget carry-over and watermarks** — Convenience features
+
+## Layer 6: Insights
+18. **Analytics API endpoints** — Data for dashboard
+19. **Dashboard layout and summary cards** — Quick overview
+20. **Charts (line, pie)** — Visual trends
+21. **Tabular reports (MoM, YoY)** — Detailed comparison
+
+## Layer 7: Sync
+22. **Google Drive API integration** — Technical foundation
+23. **Sync logic with backup** — Core sync functionality
+24. **Sync UI and prompts** — User-facing sync controls
+25. **Blocking close modal** — Ensures data safety
+
+## Layer 8: Refinement
+26. **Soft delete implementation** — Safe deletion
+27. **Undo system** — Error recovery
+28. **UI polish and error handling** — Production readiness
+
+## Atomic Feature Builds
+
+Each numbered item above is designed to be:
+- Completable independently (given dependencies met)
+- Testable in isolation
+- Providing incremental value
+
+**Earliest Usable State:** After Layer 2 (items 1-8), users can log in, import transactions and view them — basic expense tracking is functional.
+
+**Core Value Delivered:** After Layer 5 (items 1-17), full budgeting workflow is available without sync or advanced analytics.
+
+# Risks and Mitigations
+
+## Technical Challenges
+
+### SQLite Concurrent Access
+**Risk:** SQLite has limitations with concurrent writes; if sync doesn't complete properly, database corruption possible.
+**Mitigation:** 
+- Single-user access model (blocking sync on close)
+- Local backup before every sync operation
+- Implement WAL mode for better reliability
+
+### Google Drive API Complexity
+**Risk:** OAuth2 flow and token refresh can be complex; API rate limits possible.
+**Mitigation:**
+- Use established library (googleapis npm package)
+- Implement token refresh handling
+- Manual-only sync reduces API call frequency
+
+### CSV Parsing Edge Cases
+**Risk:** Bank CSV formats vary widely; parsing failures frustrate users.
+**Mitigation:**
+- Preview table allows users to verify parsing before import
+- Column mapping puts control in user hands
+- Start with simple CSV; add format support iteratively
+
+## MVP Scope Risks
+
+### Feature Creep
+**Risk:** Adding features delays usable product.
+**Mitigation:**
+- Strict phase separation; complete each phase before moving on
+- Layer 2 provides minimal usable product
+- Future enhancements explicitly deferred
+
+### Over-Engineering Sync
+**Risk:** Complex sync logic delays core budgeting features.
+**Mitigation:**
+- Sync is Phase 7; full budgeting works without it
+- Last-write-wins is simplest conflict resolution
+- Can use manual file copy as interim solution
+
+## Resource Constraints
+
+### Single Developer
+**Risk:** Limited time and attention; burnout possible.
+**Mitigation:**
+- Atomic feature builds allow progress in small increments
+- Each layer delivers value; can pause between layers
+- Avoid premature optimisation
+
+### Testing Coverage
+**Risk:** Bugs in financial calculations erode trust.
+**Mitigation:**
+- Prioritise tests for calculation logic (totals, percentages)
+- Manual testing checklist for each phase
+- Soft delete provides recovery from errors
+
+# Appendix
+
+## Default Upper Categories
+
+| Name | Purpose | Included in Reports |
+|------|---------|---------------------|
+| Income | Salary, wages, other income | Yes (as denominator for %) |
+| Expense | Day-to-day spending | Yes |
+| Saving | Transfers to savings | Yes |
+| Bill | Recurring fixed costs | Yes |
+| Debt | Loan repayments | Yes |
+| Transfer | Inter-account transfers | No (excluded) |
+
+## CSV Import Column Options
+
+- **Date** — Transaction date (required)
+- **Description** — Transaction description/memo (required)  
+- **Amount** — Transaction amount (required, negative = expense)
+- **Ignore** — Column not imported
+
+## Keyboard Shortcuts (Planned)
+
+- `Ctrl+Z` / `Cmd+Z` — Undo last action
+- `Ctrl+S` / `Cmd+S` — Trigger sync (when implemented)
+
+## Technology Stack Summary
+
+| Category | Choice | Rationale |
+|----------|--------|-----------|
+| Framework | Next.js 14+ | Full-stack React with API routes, App Router |
+| Language | TypeScript | Type safety for financial calculations |
+| Database | SQLite | Single file, portable, no server needed |
+| DB Library | better-sqlite3 | Synchronous, lightweight, no ORM overhead |
+| Styling | Tailwind CSS | Rapid UI development, consistent design |
+| Components | shadcn/ui | Accessible, customisable, Radix-based |
+| Charts | Recharts | React-native, composable, good docs |
+| Auth | bcrypt + session | Simple local password, no external auth |
+| Testing | Vitest | Fast, ESM-native, Jest-compatible API |
+| Package Manager | npm | Standard, no additional tooling |
+
+## Database File Location
+
+- **Development:** `./data/puffin.db`
+- **Production:** `~/.puffin/puffin.db` (or configurable)
+- **Backups:** `~/.puffin/backups/puffin_[timestamp].db`
+
+</PRD>
