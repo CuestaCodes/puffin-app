@@ -10,7 +10,50 @@
         "priority": "high",
         "dependencies": [],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Next.js Project Initialization and Dependency Setup",
+            "description": "Initialize Next.js 14+ project with TypeScript, install all required dependencies, and configure essential tooling including shadcn/ui and Vitest",
+            "dependencies": [],
+            "details": "Create new Next.js project using `npx create-next-app@latest puffin --typescript --tailwind --eslint --app`. Install core dependencies: better-sqlite3, bcrypt, tailwindcss packages. Configure shadcn/ui with `npx shadcn-ui@latest init`. Set up Vitest testing framework with React and jsdom support. Verify all packages install correctly and project builds without errors.",
+            "status": "pending",
+            "testStrategy": "Verify project builds successfully, all dependencies resolve correctly, and basic Next.js routing works. Test that shadcn/ui components can be imported and Vitest can run basic tests."
+          },
+          {
+            "id": 2,
+            "title": "Database Schema Design and Table Creation",
+            "description": "Design and implement SQLite database schema with all core tables including proper relationships and constraints",
+            "dependencies": [
+              1
+            ],
+            "details": "Create comprehensive database schema with tables: LocalUser, Transaction, UpperCategory, SubCategory, Budget, AutoCategoryRule, SyncLog. Define proper foreign key relationships, indexes, and constraints. Implement database initialization script that creates all tables and seeds default upper categories (Income, Expense, Saving, Bill, Debt, Transfer). Ensure schema supports soft deletes, UUIDs, and proper data types.",
+            "status": "pending",
+            "testStrategy": "Test database schema creation, verify all tables exist with correct columns and constraints. Test foreign key relationships work properly. Verify default data seeding creates expected upper categories."
+          },
+          {
+            "id": 3,
+            "title": "Database Utilities and Connection Management",
+            "description": "Implement database connection utilities, backup functions, and core database operations in lib/database.ts",
+            "dependencies": [
+              2
+            ],
+            "details": "Create lib/database.ts with SQLite connection management using better-sqlite3. Implement database initialization functions, backup/restore utilities, and connection pooling. Add error handling for database operations and transaction management. Create utility functions for common database operations like migrations and health checks.",
+            "status": "pending",
+            "testStrategy": "Test database connection establishment, backup/restore functionality, and error handling. Verify connection pooling works correctly and database operations are properly transactional. Test migration utilities if implemented."
+          },
+          {
+            "id": 4,
+            "title": "Project Structure and Environment Configuration",
+            "description": "Set up complete project directory structure and configure environment variables for database and application settings",
+            "dependencies": [
+              1
+            ],
+            "details": "Create organized project structure with app/, components/, lib/, types/ directories. Set up environment variable configuration for database path, authentication secrets, and other application settings. Create .env.example file with all required variables. Set up TypeScript path aliases and configure project-wide constants. Ensure proper gitignore and project documentation.",
+            "status": "pending",
+            "testStrategy": "Verify all directories are created with proper structure. Test environment variable loading works correctly. Ensure TypeScript compilation works with path aliases and all project files are properly organized and accessible."
+          }
+        ]
       },
       {
         "id": 2,
@@ -23,7 +66,60 @@
           1
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "User Model and Password Hashing Implementation",
+            "description": "Create LocalUser database model with secure bcrypt password hashing functionality",
+            "dependencies": [],
+            "details": "Implement LocalUser model with password_hash field, create bcrypt utility functions for hashing passwords with 12 salt rounds, implement password verification methods, and set up database schema with proper indexing for authentication queries.",
+            "status": "pending",
+            "testStrategy": "Unit tests for password hashing/verification, database model validation, and bcrypt salt rounds verification"
+          },
+          {
+            "id": 2,
+            "title": "Login and Setup UI Components",
+            "description": "Build responsive login page and first-time user password setup interface components",
+            "dependencies": [],
+            "details": "Create login form with password input validation, implement first-time setup flow UI with password confirmation, add form validation and error handling, integrate with shadcn/ui components for consistent styling, and implement loading states during authentication.",
+            "status": "pending",
+            "testStrategy": "Component testing for form validation, UI state management, and accessibility compliance"
+          },
+          {
+            "id": 3,
+            "title": "Authentication API Routes",
+            "description": "Implement secure API endpoints for login, logout, and password setup operations",
+            "dependencies": [
+              1
+            ],
+            "details": "Create POST /api/auth/login endpoint with bcrypt verification, implement POST /api/auth/setup for first-time password creation, build POST /api/auth/logout for session termination, add input validation with Zod schemas, and implement proper error handling with security considerations.",
+            "status": "pending",
+            "testStrategy": "API endpoint testing with various payloads, authentication flow testing, and security vulnerability assessment"
+          },
+          {
+            "id": 4,
+            "title": "Session Management and Middleware",
+            "description": "Set up secure session handling with HTTP-only cookies and authentication middleware",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement iron-session or similar for secure session management, create HTTP-only cookie configuration, build authentication middleware for route protection, implement session validation and automatic logout functionality, and ensure proper session cleanup on logout.",
+            "status": "pending",
+            "testStrategy": "Session persistence testing, middleware protection verification, and cookie security validation"
+          },
+          {
+            "id": 5,
+            "title": "Auth Context and Route Protection",
+            "description": "Create authentication context provider and implement protected route system",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Build React context for managing authentication state, implement useAuth hook for components, create protected route wrapper components, add automatic session validation on app load, implement login state persistence across browser refreshes, and integrate with navigation system.",
+            "status": "pending",
+            "testStrategy": "Context state management testing, protected route access verification, and session persistence across browser refreshes"
+          }
+        ]
       },
       {
         "id": 3,
@@ -37,7 +133,73 @@
           2
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Transaction Data Model and Validation Schemas",
+            "description": "Create the Transaction model with all required fields and implement Zod validation schemas for data integrity",
+            "dependencies": [],
+            "details": "Define Transaction model with UUID, date, description, amount, notes, sub_category_id, is_split, parent_transaction_id, is_deleted fields. Create comprehensive Zod schemas for transaction validation including amount validation (negative for expenses, positive for income), date format validation, and field length constraints. Set up TypeScript interfaces and ensure proper type safety throughout the application.",
+            "status": "pending",
+            "testStrategy": "Unit tests for model validation, schema validation with various input combinations, and edge case testing for amount validation rules"
+          },
+          {
+            "id": 2,
+            "title": "Category and Budget Models",
+            "description": "Implement Category and Budget data models with proper relationships and validation schemas",
+            "dependencies": [],
+            "details": "Create Category model with upper and sub-category structure, Budget model with category relationships and amount tracking. Implement Zod validation schemas for both models including category hierarchy validation, budget amount constraints, and proper foreign key relationships. Ensure referential integrity between categories, budgets, and transactions.",
+            "status": "pending",
+            "testStrategy": "Test category hierarchy validation, budget constraints, and foreign key relationships with comprehensive unit tests"
+          },
+          {
+            "id": 3,
+            "title": "CRUD API Endpoints for Transactions",
+            "description": "Build complete CRUD API routes for transactions with proper validation and error handling",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement GET/POST/PATCH/DELETE endpoints for /api/transactions with comprehensive input validation using Zod schemas. Add query parameter support for filtering, sorting, and pagination. Implement transaction-specific business logic including amount validation, soft delete functionality, and parent-child transaction relationships for splits. Include proper HTTP status codes and error responses.",
+            "status": "pending",
+            "testStrategy": "API endpoint testing with various payloads, validation error scenarios, and CRUD operation verification"
+          },
+          {
+            "id": 4,
+            "title": "CRUD API Endpoints for Categories and Budgets",
+            "description": "Create API routes for category and budget management with validation and relationship handling",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement GET/POST/PATCH/DELETE endpoints for /api/categories and /api/budgets with proper validation. Handle category hierarchy operations, budget-category relationships, and cascade operations when categories are deleted. Implement proper error handling for constraint violations and referential integrity issues. Add support for bulk operations and category reassignment.",
+            "status": "pending",
+            "testStrategy": "Test category hierarchy operations, budget relationships, cascade deletes, and constraint validation"
+          },
+          {
+            "id": 5,
+            "title": "Database Query Utilities and Aggregation Functions",
+            "description": "Create comprehensive database query functions for filtering, sorting, and data aggregation",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement utility functions for complex database queries including transaction filtering by date ranges, categories, and amounts. Create aggregation functions for budget tracking, spending summaries, and category totals. Add sorting utilities, pagination helpers, and search functionality. Include date handling utilities and UUID generation functions. Optimize queries for performance with proper indexing strategies.",
+            "status": "pending",
+            "testStrategy": "Performance testing of queries, aggregation accuracy verification, and edge case testing for date ranges and filters"
+          },
+          {
+            "id": 6,
+            "title": "Error Handling and Soft Delete Implementation",
+            "description": "Implement comprehensive error handling system and soft delete functionality across all models",
+            "dependencies": [
+              3,
+              4,
+              5
+            ],
+            "details": "Create centralized error handling middleware with proper HTTP status codes, error messages, and logging. Implement soft delete functionality using is_deleted flag for transactions while maintaining referential integrity. Add error recovery mechanisms, validation error formatting, and proper error responses for API endpoints. Include database constraint error handling and transaction rollback mechanisms.",
+            "status": "pending",
+            "testStrategy": "Error scenario testing, soft delete functionality verification, and database integrity testing under error conditions"
+          }
+        ]
       },
       {
         "id": 4,
@@ -50,7 +212,40 @@
           2
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Layout Components and Navigation Structure",
+            "description": "Create main layout component with navigation sidebar/header and install required shadcn/ui components",
+            "dependencies": [],
+            "details": "Install shadcn/ui components (button, card, input, table, navigation-menu), create main layout component with navigation sidebar/header structure, implement navigation component with active state highlighting, and set up basic component architecture for the application shell",
+            "status": "pending",
+            "testStrategy": "Test navigation component rendering, active state highlighting, and basic layout structure across different screen sizes"
+          },
+          {
+            "id": 2,
+            "title": "Routing Setup and Page Templates",
+            "description": "Implement Next.js App Router structure with all required routes and page templates",
+            "dependencies": [
+              1
+            ],
+            "details": "Set up Next.js App Router with routes for /dashboard, /monthly, /inbox, /settings pages, create basic page templates for each route, implement loading states and error boundaries, and add 'Last synced' banner placeholder in header",
+            "status": "pending",
+            "testStrategy": "Test navigation between all routes, verify loading states display correctly, and ensure error boundaries catch and display errors appropriately"
+          },
+          {
+            "id": 3,
+            "title": "Responsive Design and Reusable UI Components",
+            "description": "Implement responsive design with mobile-friendly navigation and create reusable UI components",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create responsive design with mobile-friendly navigation patterns, build reusable UI components (PageHeader, DataTable, FormField), set up Tailwind CSS custom theme matching design requirements, and ensure consistent user experience across all screen sizes",
+            "status": "pending",
+            "testStrategy": "Test responsive behavior on mobile, tablet, and desktop screen sizes, verify reusable components work consistently across different pages, and validate accessibility compliance"
+          }
+        ]
       },
       {
         "id": 5,
@@ -64,7 +259,83 @@
           4
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "CSV Parsing and File Upload Components",
+            "description": "Create CSV parser using papaparse library and build file upload component with drag-and-drop support",
+            "dependencies": [],
+            "details": "Implement CSV parser using papaparse library for robust parsing. Build file upload component with drag-and-drop interface, file type validation (CSV only), and file size limits. Handle encoding detection (UTF-8, ISO-8859-1) and provide user feedback during upload process.",
+            "status": "pending",
+            "testStrategy": "Test various CSV formats, encoding types, file sizes, and drag-and-drop functionality. Verify error handling for non-CSV files and oversized files."
+          },
+          {
+            "id": 2,
+            "title": "Column Mapping Interface",
+            "description": "Build interactive column mapping interface with dropdowns for Date, Description, Amount, and Ignore options",
+            "dependencies": [
+              1
+            ],
+            "details": "Create column mapping component with dropdown selectors for each CSV column. Support mapping to Date, Description, Amount, or Ignore fields. Include auto-detection based on column headers and data patterns. Provide visual feedback for required field mappings and validation warnings.",
+            "status": "pending",
+            "testStrategy": "Test auto-detection accuracy, manual mapping changes, validation for required fields, and edge cases with unusual column headers."
+          },
+          {
+            "id": 3,
+            "title": "Data Preview and Validation",
+            "description": "Create preview table showing parsed data with row selection checkboxes and field validation",
+            "dependencies": [
+              2
+            ],
+            "details": "Build preview table component displaying parsed CSV data with mapped columns. Include row selection checkboxes for selective import. Implement field validation for amount format, required fields, and data consistency. Show validation errors inline with clear messaging.",
+            "status": "pending",
+            "testStrategy": "Test preview accuracy, row selection functionality, validation error display, and handling of malformed data rows."
+          },
+          {
+            "id": 4,
+            "title": "Date Format Detection and Parsing",
+            "description": "Implement automatic date format detection and parsing for multiple formats including DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY",
+            "dependencies": [
+              3
+            ],
+            "details": "Create date format detection algorithm that analyzes date patterns in CSV data. Support common formats: DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY, and variations with different separators. Implement robust date parsing with fallback options and user confirmation for ambiguous dates.",
+            "status": "pending",
+            "testStrategy": "Test date format detection accuracy across various formats, ambiguous date handling, and parsing edge cases like leap years and invalid dates."
+          },
+          {
+            "id": 5,
+            "title": "Duplicate Detection Algorithm",
+            "description": "Implement duplicate detection algorithm using exact match on date, amount, and description fields",
+            "dependencies": [
+              4
+            ],
+            "details": "Create duplicate detection system that compares incoming transactions against existing database records. Use exact match algorithm on date + amount + description combination. Provide duplicate resolution options: skip, replace, or import as new. Include fuzzy matching for near-duplicates with user confirmation.",
+            "status": "pending",
+            "testStrategy": "Test duplicate detection accuracy, false positive/negative rates, fuzzy matching effectiveness, and user resolution workflow."
+          },
+          {
+            "id": 6,
+            "title": "Import Processing and API Integration",
+            "description": "Build API route POST /api/transactions/import with file processing and database integration",
+            "dependencies": [
+              5
+            ],
+            "details": "Create API endpoint for transaction import processing. Handle file upload, CSV parsing, validation, and database insertion. Implement batch processing for large files with progress tracking. Include transaction rollback on errors and comprehensive logging for debugging.",
+            "status": "pending",
+            "testStrategy": "Test API endpoint with various file sizes, concurrent uploads, error scenarios, and database transaction integrity. Verify progress tracking accuracy."
+          },
+          {
+            "id": 7,
+            "title": "Error Handling and User Feedback",
+            "description": "Implement comprehensive error handling and user feedback system for all import scenarios",
+            "dependencies": [
+              6
+            ],
+            "details": "Create robust error handling for malformed CSV files, encoding issues, validation failures, and API errors. Implement user-friendly error messages, progress indicators, and success confirmations. Include detailed import summary with counts of successful, skipped, and failed transactions.",
+            "status": "pending",
+            "testStrategy": "Test error handling for various failure scenarios, user message clarity, progress indicator accuracy, and import summary correctness."
+          }
+        ]
       },
       {
         "id": 6,
@@ -78,7 +349,60 @@
           4
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Transaction List Component with Sorting and Filtering",
+            "description": "Build the main transaction list component with sortable columns and basic filtering capabilities",
+            "dependencies": [],
+            "details": "Create a responsive table component with sortable columns for date, description, amount, and category. Implement column sorting with visual indicators (ascending/descending arrows). Add basic filtering controls for date ranges and transaction types. Include pagination or virtual scrolling for performance with large datasets. Use React.memo and useMemo for optimization.",
+            "status": "pending",
+            "testStrategy": "Test sorting functionality on all columns, verify pagination performance with 10k+ transactions, test responsive behavior on mobile devices"
+          },
+          {
+            "id": 2,
+            "title": "Manual Entry Form with Validation",
+            "description": "Create transaction entry form with comprehensive validation and user-friendly input controls",
+            "dependencies": [],
+            "details": "Build form with date picker, description input, amount input (with currency formatting), category dropdown, and notes field. Implement client-side validation for required fields, amount format, and date constraints. Add form state management with error handling and success feedback. Include keyboard shortcuts for quick entry and auto-focus management.",
+            "status": "pending",
+            "testStrategy": "Test form validation rules, currency formatting, date picker functionality, and keyboard navigation. Verify error messages display correctly"
+          },
+          {
+            "id": 3,
+            "title": "Inline Editing and Categorization Interface",
+            "description": "Implement inline editing capabilities and category assignment interface for transactions",
+            "dependencies": [
+              1
+            ],
+            "details": "Create inline editing for transaction fields with click-to-edit functionality. Build category dropdown component grouped by upper categories with search capability. Implement uncategorised inbox view filtering transactions where sub_category_id is null. Add real-time category assignment with optimistic updates and rollback on failure. Include transaction count badges in navigation.",
+            "status": "pending",
+            "testStrategy": "Test inline editing saves correctly, category dropdown search functionality, uncategorised filter accuracy, and real-time count updates"
+          },
+          {
+            "id": 4,
+            "title": "Search and Filtering Functionality",
+            "description": "Build comprehensive search and filtering system for transaction discovery",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement full-text search across transaction descriptions and notes. Create advanced filtering options for date ranges, amount ranges, categories, and custom criteria. Add filter persistence in URL parameters and local storage. Include saved filter presets and quick filter buttons. Optimize search performance with debouncing and indexing strategies.",
+            "status": "pending",
+            "testStrategy": "Test search accuracy across different fields, filter combinations, performance with large datasets, and filter persistence across page reloads"
+          },
+          {
+            "id": 5,
+            "title": "Bulk Operations and Transaction Management",
+            "description": "Implement bulk selection and operations for efficient transaction management",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Add checkbox selection for individual and bulk transaction selection. Create bulk operations toolbar with delete, categorize, and export actions. Implement transaction deletion with confirmation modal and undo functionality. Build transaction detail view/modal for comprehensive editing. Add keyboard shortcuts for bulk operations and include progress indicators for long-running operations.",
+            "status": "pending",
+            "testStrategy": "Test bulk selection performance, confirmation modals, undo functionality, and keyboard shortcuts. Verify bulk operations complete successfully with proper error handling"
+          }
+        ]
       },
       {
         "id": 7,
@@ -91,7 +415,73 @@
           6
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Category Management Interface and CRUD Operations",
+            "description": "Build comprehensive category management page with upper and sub-category lists, including create, rename, and delete operations with proper validation and user feedback.",
+            "dependencies": [],
+            "details": "Create category management page in settings with upper and sub-category lists. Implement upper category renaming functionality. Build sub-category CRUD operations (create, rename, delete with transaction reassignment). Add form validation, error handling, and success notifications. Include category hierarchy display and management controls.",
+            "status": "pending",
+            "testStrategy": "Test category creation, renaming, deletion, and hierarchy display. Verify form validation and error handling work correctly."
+          },
+          {
+            "id": 2,
+            "title": "Transaction Splitting Modal and User Interface",
+            "description": "Create intuitive transaction splitting modal allowing users to divide transactions into 2-3 parts with amount inputs and category assignment for each split portion.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create transaction splitting modal allowing division into 2-3 parts. Build dynamic form with amount inputs for each split. Add category assignment interface for split portions. Include visual indicators showing remaining amount to allocate. Implement responsive design and user-friendly controls for adding/removing split portions.",
+            "status": "pending",
+            "testStrategy": "Test modal functionality, dynamic form behavior, category assignment, and visual feedback for amount allocation."
+          },
+          {
+            "id": 3,
+            "title": "Split Validation and Mathematical Operations",
+            "description": "Implement robust validation system ensuring split amounts sum exactly to original transaction amount with proper error handling and user feedback.",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement split validation ensuring amounts sum to original transaction. Add real-time validation feedback showing remaining amount. Handle decimal precision issues and rounding. Validate minimum split amounts and prevent zero-value splits. Include comprehensive error messages and validation state management.",
+            "status": "pending",
+            "testStrategy": "Test mathematical validation, decimal precision handling, error messaging, and edge cases like zero amounts or oversplitting."
+          },
+          {
+            "id": 4,
+            "title": "Parent-Child Transaction Relationships and Data Model",
+            "description": "Implement database schema and API logic for creating child transactions linked to parent with parent_transaction_id, maintaining referential integrity.",
+            "dependencies": [
+              3
+            ],
+            "details": "Create child transactions linked to parent with parent_transaction_id. Implement database schema changes for parent-child relationships. Build API endpoints for creating split transactions. Add visual indicators for split transactions in transaction lists. Ensure proper indexing and foreign key constraints for performance and data integrity.",
+            "status": "pending",
+            "testStrategy": "Test parent-child relationship creation, database constraints, API endpoints, and visual indicators in transaction lists."
+          },
+          {
+            "id": 5,
+            "title": "Unsplit Functionality and Data Integrity Management",
+            "description": "Build unsplit functionality to reverse transaction splits and restore original transaction while maintaining data consistency and handling edge cases.",
+            "dependencies": [
+              4
+            ],
+            "details": "Add unsplit functionality to reverse splits and restore original transaction. Implement data integrity checks before unsplitting. Handle cascading updates and maintain audit trail. Add confirmation dialogs and validation for unsplit operations. Ensure proper cleanup of child transactions and restoration of parent transaction state.",
+            "status": "pending",
+            "testStrategy": "Test unsplit operations, data integrity maintenance, confirmation flows, and proper restoration of original transaction state."
+          },
+          {
+            "id": 6,
+            "title": "Category Deletion Protection and Transaction Reassignment",
+            "description": "Implement category deletion protection when transactions exist and build transaction reassignment interface for safe category management.",
+            "dependencies": [
+              1,
+              4
+            ],
+            "details": "Implement category deletion protection when transactions exist. Build transaction reassignment interface for moving transactions to different categories before deletion. Add bulk reassignment functionality and confirmation dialogs. Include transaction count validation and proper error handling for protected deletions. Ensure data consistency throughout all operations.",
+            "status": "pending",
+            "testStrategy": "Test deletion protection logic, transaction reassignment functionality, bulk operations, and data consistency validation."
+          }
+        ]
       },
       {
         "id": 8,
@@ -105,7 +495,50 @@
           7
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Rules Management Interface and CRUD Operations",
+            "description": "Build the complete rules management interface with list view, creation form, and CRUD operations including API endpoints",
+            "dependencies": [],
+            "details": "Create rules management page displaying existing rules in a table format. Build rule creation form with match text input and category selection dropdown. Implement API routes (GET/POST/PATCH/DELETE /api/rules) for full CRUD operations. Add rule editing functionality with form pre-population and deletion with confirmation dialogs. Include form validation to prevent empty rules and basic conflict detection.",
+            "status": "pending",
+            "testStrategy": "Test rule creation, editing, deletion, and API endpoints. Verify form validation prevents invalid rules and confirmation dialogs work correctly."
+          },
+          {
+            "id": 2,
+            "title": "Rule Priority System with Drag-and-Drop Reordering",
+            "description": "Implement drag-and-drop functionality for rule priority ordering and priority-based rule application logic",
+            "dependencies": [
+              1
+            ],
+            "details": "Add drag-and-drop reordering capability to the rules list using a library like react-beautiful-dnd or native HTML5 drag API. Implement priority field in rule data model with automatic reordering when rules are moved. Create visual indicators for rule priority order and ensure priority updates are persisted via API calls. Handle edge cases like moving rules to top/bottom positions.",
+            "status": "pending",
+            "testStrategy": "Test drag-and-drop functionality across different browsers, verify priority updates persist correctly, and ensure visual feedback during drag operations."
+          },
+          {
+            "id": 3,
+            "title": "Rule Matching Engine and Application Logic",
+            "description": "Build the core rule matching engine with 'contains exact text' matching and integration with CSV import processing",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement rule application engine using 'contains exact text' matching algorithm. Create rule processing logic that applies rules in priority order with 'first match wins' strategy. Integrate rule engine with CSV import processing to automatically categorize transactions during import. Add performance optimizations for large rule sets and transaction batches. Ensure rules don't interfere with manual categorization overrides.",
+            "status": "pending",
+            "testStrategy": "Test rule matching accuracy, priority-based application, integration with import system, and performance with large datasets. Verify manual categorization takes precedence over automatic rules."
+          },
+          {
+            "id": 4,
+            "title": "Rule Testing and Statistics Features",
+            "description": "Create rule testing functionality for previewing matches and statistics dashboard showing rule performance metrics",
+            "dependencies": [
+              3
+            ],
+            "details": "Build rule testing interface allowing users to preview which transactions would match specific rules before applying them. Create rule statistics dashboard showing match counts, success rates, and rule usage analytics. Implement rule conflict detection and prevention system to identify overlapping or contradictory rules. Add rule performance metrics and suggestions for rule optimization. Include batch testing functionality for validating rule sets against historical data.",
+            "status": "pending",
+            "testStrategy": "Test rule preview functionality, statistics accuracy, conflict detection algorithms, and performance metrics calculation. Verify batch testing handles large datasets efficiently."
+          }
+        ]
       },
       {
         "id": 9,
@@ -119,7 +552,61 @@
           7
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Monthly Navigation and Date Handling",
+            "description": "Implement month navigation controls and date handling logic for the budget interface",
+            "dependencies": [],
+            "details": "Create monthly view component with previous/next navigation buttons, implement month state management, add date utilities for month calculations, and ensure proper month boundary handling across years",
+            "status": "pending",
+            "testStrategy": "Test month navigation accuracy, year transitions, date calculations, and state persistence across navigation"
+          },
+          {
+            "id": 2,
+            "title": "Budget Aggregation and Calculation APIs",
+            "description": "Build backend APIs for category aggregation and monthly budget calculations",
+            "dependencies": [],
+            "details": "Create API endpoints for monthly totals by sub-category, implement efficient database queries for aggregation, build budget vs actual calculation logic, and add historical average calculations for 3 and 6 month periods",
+            "status": "pending",
+            "testStrategy": "Test aggregation accuracy with various data sets, verify calculation precision, and validate performance with large datasets"
+          },
+          {
+            "id": 3,
+            "title": "Budget Entry and Inline Editing Interface",
+            "description": "Create user interface for budget entry with inline editing capabilities",
+            "dependencies": [
+              1
+            ],
+            "details": "Build budget entry forms with inline editing functionality, implement input validation for budget amounts, create save/cancel controls, and add keyboard shortcuts for efficient budget entry workflow",
+            "status": "pending",
+            "testStrategy": "Test inline editing behavior, input validation, save/cancel functionality, and keyboard navigation"
+          },
+          {
+            "id": 4,
+            "title": "Budget vs Actual Comparison and Visualization",
+            "description": "Implement budget comparison display with visual indicators and over-budget highlighting",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Create budget vs actual comparison components, implement red highlighting for over-budget categories, add percentage calculations and progress bars, and build transaction list filtering by month with category editing capabilities",
+            "status": "pending",
+            "testStrategy": "Test comparison accuracy, visual highlighting triggers, percentage calculations, and transaction filtering functionality"
+          },
+          {
+            "id": 5,
+            "title": "Budget Templates and Carry-over Functionality",
+            "description": "Build budget templates system and implement budget carry-over from previous months",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Create budget template creation and management interface, implement quick-fill options from templates, build carry-over logic for unused budget amounts, and add template application workflow with customization options",
+            "status": "pending",
+            "testStrategy": "Test template creation/application, carry-over calculations, quick-fill accuracy, and template customization features"
+          }
+        ]
       },
       {
         "id": 10,
@@ -132,7 +619,83 @@
           9
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Analytics API Endpoints and Data Aggregation",
+            "description": "Build backend API endpoints to aggregate and serve analytics data for dashboard visualization",
+            "dependencies": [],
+            "details": "Install Recharts package and create API routes for income percentage breakdown by sub-category, monthly spending trends, and upper category trends over time. Implement data aggregation logic with proper date filtering and percentage calculations.",
+            "status": "pending",
+            "testStrategy": "Test API endpoints with various date ranges and verify calculation accuracy for percentages and trend data"
+          },
+          {
+            "id": 2,
+            "title": "Dashboard Layout and Summary Cards",
+            "description": "Create responsive dashboard layout with summary cards displaying key financial metrics",
+            "dependencies": [
+              1
+            ],
+            "details": "Build dashboard page layout with summary cards showing total income, expenses, and net balance. Implement responsive grid layout and ensure proper data binding from analytics APIs with loading states and error handling.",
+            "status": "pending",
+            "testStrategy": "Test layout responsiveness across devices and verify summary card data updates correctly"
+          },
+          {
+            "id": 3,
+            "title": "Chart Implementation with Recharts",
+            "description": "Implement interactive charts for data visualization using Recharts library",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create line charts for monthly trends and pie charts for income allocation breakdown. Add period selectors for 3, 6, and 12-month views. Implement chart interactivity, tooltips, and responsive design with proper data formatting.",
+            "status": "pending",
+            "testStrategy": "Test chart rendering with various data sets, period selector functionality, and chart responsiveness"
+          },
+          {
+            "id": 4,
+            "title": "Google Drive OAuth2 Integration",
+            "description": "Implement Google Drive authentication flow and API integration",
+            "dependencies": [],
+            "details": "Install googleapis package and set up OAuth2 authentication flow for Google Drive access. Create secure credential storage, handle authentication callbacks, and implement token refresh logic. Set up Google Drive API client configuration.",
+            "status": "pending",
+            "testStrategy": "Test OAuth2 flow, token refresh, and Google Drive API connectivity with proper error handling"
+          },
+          {
+            "id": 5,
+            "title": "Sync Functionality (Upload/Download)",
+            "description": "Create bidirectional sync functionality for database backup and restore with Google Drive",
+            "dependencies": [
+              4
+            ],
+            "details": "Implement push (upload) and pull (download) database sync operations. Create database export/import functionality with proper data serialization. Handle file naming conventions and version management on Google Drive.",
+            "status": "pending",
+            "testStrategy": "Test upload/download operations, data integrity verification, and sync conflict scenarios"
+          },
+          {
+            "id": 6,
+            "title": "Backup and Conflict Resolution",
+            "description": "Implement local backup creation and conflict resolution mechanisms for sync operations",
+            "dependencies": [
+              5
+            ],
+            "details": "Create local backup functionality before sync operations to prevent data loss. Implement conflict detection and resolution strategies for concurrent modifications. Add data validation and rollback capabilities for failed sync operations.",
+            "status": "pending",
+            "testStrategy": "Test backup creation, conflict detection, resolution strategies, and rollback functionality"
+          },
+          {
+            "id": 7,
+            "title": "Sync UI and Status Management",
+            "description": "Build user interface for sync management with status indicators and manual controls",
+            "dependencies": [
+              5,
+              6
+            ],
+            "details": "Create sync UI with manual trigger buttons, progress indicators, and status displays. Implement blocking sync modal on app close, add 'Last synced' timestamp in header, and create sync history log. Handle error states and user notifications.",
+            "status": "pending",
+            "testStrategy": "Test sync UI interactions, status updates, modal behavior, and error state handling"
+          }
+        ]
       }
     ],
     "metadata": {

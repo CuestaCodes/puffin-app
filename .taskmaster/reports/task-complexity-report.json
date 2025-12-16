@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-12-16T10:27:06.353Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Task Master",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Project Setup and Database Foundation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Break down this foundational task into: 1) Next.js project initialization and dependency setup, 2) Database schema design and table creation, 3) Database utilities and connection management, 4) Project structure and environment configuration. Each subtask should be independently testable and deliverable.",
+			"reasoning": "Medium-high complexity due to multiple technology integrations (Next.js 14, TypeScript, SQLite, shadcn/ui, Vitest). While individual steps are straightforward, the foundation setup requires careful coordination of tooling and proper database schema design. Critical for all subsequent tasks but well-documented processes."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Local Authentication System",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Divide into: 1) User model and password hashing implementation, 2) Login/setup UI components, 3) Authentication API routes, 4) Session management and middleware, 5) Auth context and route protection. Focus on security best practices and proper session handling.",
+			"reasoning": "High complexity due to security requirements, session management, and multiple integration points. Requires careful implementation of bcrypt hashing, secure session handling, and middleware integration. Critical security component that affects entire application architecture."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Core API Routes and Data Models",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break into: 1) Transaction data model and validation schemas, 2) Category and budget models, 3) CRUD API endpoints for transactions, 4) CRUD API endpoints for categories/budgets, 5) Database query utilities and aggregation functions, 6) Error handling and soft delete implementation. Ensure proper validation and database integrity.",
+			"reasoning": "High complexity with extensive CRUD operations, data validation, soft deletes, and complex relationships between models. Requires careful API design, proper error handling, and database query optimization. Forms the backbone of the entire application's data layer."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "UI Shell and Navigation Framework",
+			"complexityScore": 5,
+			"recommendedSubtasks": 3,
+			"expansionPrompt": "Split into: 1) Layout components and navigation structure, 2) Routing setup and page templates, 3) Responsive design and reusable UI components. Focus on creating a scalable component architecture and consistent user experience.",
+			"reasoning": "Medium complexity involving UI framework integration, responsive design, and routing setup. While shadcn/ui provides good components, requires thoughtful layout design and proper Next.js App Router implementation. Foundation for user experience but relatively straightforward implementation."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Transaction Import System with CSV Processing",
+			"complexityScore": 9,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Divide into: 1) CSV parsing and file upload components, 2) Column mapping interface, 3) Data preview and validation, 4) Date format detection and parsing, 5) Duplicate detection algorithm, 6) Import processing and API integration, 7) Error handling and user feedback. Each component should handle edge cases gracefully.",
+			"reasoning": "Very high complexity due to file processing, multiple date formats, duplicate detection algorithms, and complex user interaction flows. Requires robust error handling for malformed data, sophisticated duplicate detection, and intuitive UX for column mapping. Critical feature with many edge cases to handle."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Transaction Management and Manual Entry",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down into: 1) Transaction list component with sorting and filtering, 2) Manual entry form with validation, 3) Inline editing and categorization interface, 4) Search and filtering functionality, 5) Bulk operations and transaction management. Focus on performance and user experience for large datasets.",
+			"reasoning": "High complexity with multiple interactive components, real-time filtering, inline editing, and bulk operations. Requires careful state management, performance optimization for large transaction lists, and intuitive UX for categorization workflows. Core user-facing functionality with complex interactions."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Category Management and Transaction Splitting",
+			"complexityScore": 8,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Split into: 1) Category CRUD interface and management, 2) Transaction splitting UI and modal, 3) Split validation and mathematical operations, 4) Parent-child transaction relationships, 5) Unsplit functionality and data integrity, 6) Category deletion protection and transaction reassignment. Ensure data consistency throughout all operations.",
+			"reasoning": "High complexity due to transaction splitting logic, parent-child relationships, mathematical validation, and data integrity concerns. Requires careful handling of database relationships, complex UI interactions, and robust validation to prevent data corruption. Critical business logic with potential for data inconsistencies."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Auto-Categorisation Rules Engine",
+			"complexityScore": 6,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Divide into: 1) Rules management interface and CRUD operations, 2) Rule priority system with drag-and-drop, 3) Rule matching engine and application logic, 4) Rule testing and statistics features. Focus on performance and rule conflict prevention.",
+			"reasoning": "Medium-high complexity involving rule engine logic, priority ordering, and text matching algorithms. While the matching logic is straightforward ('contains' matching), requires careful implementation of rule priority, conflict prevention, and integration with import system. Moderate algorithmic complexity with good UX requirements."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Monthly Budget View and Budget Management",
+			"complexityScore": 7,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break into: 1) Monthly navigation and date handling, 2) Budget aggregation and calculation APIs, 3) Budget entry and inline editing interface, 4) Budget vs actual comparison and visualization, 5) Budget templates and carry-over functionality. Ensure accurate financial calculations and intuitive budget management.",
+			"reasoning": "High complexity due to financial calculations, data aggregation across time periods, budget carry-over logic, and complex UI interactions. Requires accurate mathematical operations, efficient database queries for aggregations, and intuitive budget management workflows. Core financial feature requiring precision and performance."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Dashboard Analytics and Google Drive Sync",
+			"complexityScore": 9,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Split into: 1) Analytics API endpoints and data aggregation, 2) Dashboard layout and summary cards, 3) Chart implementation with Recharts, 4) Google Drive OAuth2 integration, 5) Sync functionality (upload/download), 6) Backup and conflict resolution, 7) Sync UI and status management. Handle OAuth flows and data synchronization carefully.",
+			"reasoning": "Very high complexity combining data analytics, chart rendering, and external API integration. Google Drive OAuth2 and sync functionality adds significant complexity with authentication flows, file handling, conflict resolution, and error scenarios. Multiple complex systems integration with potential for data loss if not implemented carefully."
+		}
+	]
+}
