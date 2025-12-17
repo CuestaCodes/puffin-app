@@ -33,7 +33,7 @@ export function generateFingerprint(fingerprint: TransactionFingerprint): string
  * Normalize description for comparison
  * - Lowercase
  * - Remove extra whitespace
- * - Remove common noise words
+ * - Remove common noise patterns that vary between transactions
  */
 function normalizeDescription(desc: string): string {
   if (!desc) return '';
@@ -42,10 +42,26 @@ function normalizeDescription(desc: string): string {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
-    // Remove common reference numbers and patterns that vary
-    .replace(/ref[:.]?\s*\w+/gi, '')
-    .replace(/\d{16,}/g, '') // Remove long number sequences (card numbers, etc)
-    .replace(/\*+/g, '') // Remove asterisks
+    // Remove common reference patterns
+    .replace(/ref[:.]?\s*[\w-]+/gi, '')
+    .replace(/reference[:.]?\s*[\w-]+/gi, '')
+    .replace(/conf(?:irmation)?[:.]?\s*[\w-]+/gi, '')
+    .replace(/auth(?:orization)?[:.]?\s*[\w-]+/gi, '')
+    .replace(/trans(?:action)?[:.]?\s*#?\s*[\w-]+/gi, '')
+    .replace(/order[:.]?\s*#?\s*[\w-]+/gi, '')
+    // Remove card numbers (partial or masked)
+    .replace(/\d{16,}/g, '')
+    .replace(/x{4,}\d{4}/gi, '') // Masked card numbers like XXXX1234
+    .replace(/\*{4,}\d{4}/g, '') // Masked card numbers like ****1234
+    // Remove asterisks and other common noise
+    .replace(/\*+/g, '')
+    .replace(/#+/g, '')
+    // Remove dates that might be embedded (MM/DD, DD/MM patterns)
+    .replace(/\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/g, '')
+    // Remove time patterns
+    .replace(/\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?/gi, '')
+    // Final cleanup
+    .replace(/\s+/g, ' ')
     .trim();
 }
 

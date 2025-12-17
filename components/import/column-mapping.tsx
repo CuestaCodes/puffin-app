@@ -100,14 +100,23 @@ export function ColumnMappingComponent({
             <button
               key={format.value}
               onClick={() => onDateFormatChange(format.value)}
+              title={format.example}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm transition-colors',
+                'px-3 py-1.5 rounded-md text-sm transition-colors flex flex-col items-center',
                 dateFormat === format.value
                   ? 'bg-emerald-600 text-white'
                   : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
               )}
             >
-              {format.label}
+              <span>{format.label}</span>
+              {format.value !== 'auto' && (
+                <span className={cn(
+                  'text-xs mt-0.5',
+                  dateFormat === format.value ? 'text-emerald-200' : 'text-slate-500'
+                )}>
+                  {format.example}
+                </span>
+              )}
             </button>
           ))}
         </div>

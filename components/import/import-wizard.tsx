@@ -110,8 +110,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         const amountStr = row[columnMapping.amount];
         let parsedAmount: number | null = null;
         if (amountStr) {
-          // Remove currency symbols and whitespace
-          const cleanAmount = amountStr.replace(/[^0-9.\-,]/g, '').replace(',', '');
+          // Remove currency symbols and whitespace, handle all commas globally
+          const cleanAmount = amountStr.replace(/[^0-9.\-,]/g, '').replace(/,/g, '');
           parsedAmount = parseFloat(cleanAmount);
           if (isNaN(parsedAmount)) {
             errors.push(`Invalid amount: "${amountStr}"`);
@@ -185,10 +185,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     }
   }, [parseResult, columnMapping, dateFormat]);
 
-  // Step 3: Toggle row selection
+  // Step 3: Toggle row selection - use functional update to avoid stale closure
   const handleRowToggle = useCallback((rowIndex: number) => {
-    if (!preview) return;
-    
     setPreview(prev => {
       if (!prev) return prev;
       
@@ -201,11 +199,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       
       return { ...prev, rows: newRows };
     });
-  }, [preview]);
+  }, []);
 
   const handleSelectAll = useCallback(() => {
-    if (!preview) return;
-    
     setPreview(prev => {
       if (!prev) return prev;
       
@@ -216,11 +212,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       
       return { ...prev, rows: newRows };
     });
-  }, [preview]);
+  }, []);
 
   const handleDeselectAll = useCallback(() => {
-    if (!preview) return;
-    
     setPreview(prev => {
       if (!prev) return prev;
       
@@ -231,7 +225,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       
       return { ...prev, rows: newRows };
     });
-  }, [preview]);
+  }, []);
 
   // Step 3: Import selected transactions
   const handleImport = useCallback(async () => {

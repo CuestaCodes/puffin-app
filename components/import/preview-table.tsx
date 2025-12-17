@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Check, X, AlertCircle, CheckCircle, Copy, Trash2 } from 'lucide-react';
+import { Check, X, AlertCircle, CheckCircle, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ParsedRow, ImportPreview } from '@/types/import';

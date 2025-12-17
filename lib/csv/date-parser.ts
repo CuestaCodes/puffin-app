@@ -167,6 +167,7 @@ function detectAndParseDate(dateStr: string): DateParseResult {
 
 /**
  * Detect the most likely date format from a sample of dates
+ * Optimized with early termination when confidence is high
  */
 export function detectDateFormat(samples: string[]): DateFormat {
   const formatCounts: Record<DateFormat, number> = {
@@ -177,10 +178,22 @@ export function detectDateFormat(samples: string[]): DateFormat {
     'auto': 0,
   };
   
+  const minSamplesForConfidence = Math.min(5, samples.length);
+  let processedCount = 0;
+  
   for (const sample of samples) {
     const result = detectAndParseDate(sample);
     if (result.format !== 'auto' && result.confidence >= 0.6) {
       formatCounts[result.format]++;
+      processedCount++;
+      
+      // Early termination: if one format has clear majority, stop
+      if (processedCount >= minSamplesForConfidence) {
+        const maxCount = Math.max(...Object.values(formatCounts));
+        if (maxCount >= minSamplesForConfidence * 0.8) {
+          break;
+        }
+      }
     }
   }
   

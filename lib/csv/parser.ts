@@ -85,27 +85,29 @@ export function detectColumnMapping(headers: string[]): ColumnMapping | null {
   
   // Find date column
   for (const pattern of datePatterns) {
-    const idx = lowerHeaders.findIndex(h => h.includes(pattern));
-    if (idx !== -1) {
-      dateIndex = idx;
+    const foundIdx = lowerHeaders.findIndex(h => h.includes(pattern));
+    if (foundIdx !== -1) {
+      dateIndex = foundIdx;
       break;
     }
   }
   
-  // Find description column
+  // Find description column (exclude already-mapped date column)
   for (const pattern of descPatterns) {
-    const idx = lowerHeaders.findIndex(h => h.includes(pattern) && idx !== dateIndex);
-    if (idx !== -1) {
-      descIndex = idx;
+    const foundIdx = lowerHeaders.findIndex((h, i) => h.includes(pattern) && i !== dateIndex);
+    if (foundIdx !== -1) {
+      descIndex = foundIdx;
       break;
     }
   }
   
-  // Find amount column
+  // Find amount column (exclude already-mapped columns)
   for (const pattern of amountPatterns) {
-    const idx = lowerHeaders.findIndex(h => h.includes(pattern) && idx !== dateIndex && idx !== descIndex);
-    if (idx !== -1) {
-      amountIndex = idx;
+    const foundIdx = lowerHeaders.findIndex((h, i) => 
+      h.includes(pattern) && i !== dateIndex && i !== descIndex
+    );
+    if (foundIdx !== -1) {
+      amountIndex = foundIdx;
       break;
     }
   }

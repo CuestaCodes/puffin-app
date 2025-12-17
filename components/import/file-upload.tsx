@@ -30,19 +30,7 @@ export function FileUpload({ onFileSelect, isLoading, error }: FileUploadProps) 
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    setLocalError(null);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFile(files[0]);
-    }
-  }, []);
-
-  const handleFile = (file: File) => {
+  const handleFile = useCallback((file: File) => {
     if (!isValidCSVFile(file)) {
       setLocalError('Please select a valid CSV file');
       return;
@@ -56,7 +44,19 @@ export function FileUpload({ onFileSelect, isLoading, error }: FileUploadProps) 
 
     setSelectedFile(file);
     setLocalError(null);
-  };
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    setLocalError(null);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFile(files[0]);
+    }
+  }, [handleFile]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

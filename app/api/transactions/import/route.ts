@@ -68,9 +68,7 @@ export async function POST(request: Request) {
       ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 0, datetime('now'), datetime('now'))
     `);
     
-    // Process in batches within a transaction
-    const BATCH_SIZE = 100;
-    
+    // Process all transactions within a single database transaction for atomicity
     const importBatch = db.transaction(() => {
       for (let i = 0; i < transactions.length; i++) {
         const tx = transactions[i];

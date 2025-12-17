@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,8 @@ export function TransactionsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 20;
+  const isFirstRender = useRef(true);
+  const prevSearchQuery = useRef(searchQuery);
 
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
@@ -60,8 +62,18 @@ export function TransactionsPage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Debounced search
+  // Debounced search - only reset page when searchQuery actually changes (not on initial mount)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    
+    if (prevSearchQuery.current === searchQuery) {
+      return;
+    }
+    
+    prevSearchQuery.current = searchQuery;
     const timer = setTimeout(() => {
       setPage(1);
     }, 300);
