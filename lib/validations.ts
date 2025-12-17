@@ -79,7 +79,7 @@ export const reorderRulesSchema = z.object({
 // Auth schemas
 export const setupPasswordSchema = z.object({
   password: z.string()
-    .min(4, 'Password must be at least 4 characters')
+    .min(8, 'Password must be at least 8 characters')
     .max(100, 'Password too long'),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {

@@ -74,10 +74,16 @@ export function getTransactions(
   
   // Get transactions with pagination
   const offset = (pagination.page - 1) * pagination.limit;
-  const orderColumn = pagination.sortBy === 'date' ? 't.date' : 
-                     pagination.sortBy === 'amount' ? 't.amount' :
-                     pagination.sortBy === 'description' ? 't.description' :
-                     't.created_at';
+  
+  // Whitelist mapping for ORDER BY columns (prevents SQL injection)
+  const orderColumnMap: Record<string, string> = {
+    'date': 't.date',
+    'amount': 't.amount',
+    'description': 't.description',
+    'created_at': 't.created_at',
+  };
+  const orderColumn = orderColumnMap[pagination.sortBy] || 't.date';
+  const orderDirection = pagination.sortOrder === 'asc' ? 'ASC' : 'DESC';
   
   const query = `
     SELECT 
@@ -89,7 +95,7 @@ export function getTransactions(
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
     ${whereClause}
-    ORDER BY ${orderColumn} ${pagination.sortOrder.toUpperCase()}, t.created_at DESC
+    ORDER BY ${orderColumn} ${orderDirection}, t.created_at DESC
     LIMIT ? OFFSET ?
   `;
   

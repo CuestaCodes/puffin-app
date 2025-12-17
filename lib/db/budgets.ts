@@ -162,9 +162,10 @@ export function getBudgetSummary(year: number, month: number): {
 } {
   const db = getDatabase();
   
-  // Get start and end dates for the month
+  // Get start and end dates for the month (avoiding timezone issues with explicit formatting)
   const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-  const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // Last day of month
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   
   const query = `
     SELECT 

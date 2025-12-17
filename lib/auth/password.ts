@@ -1,7 +1,9 @@
 // Password hashing utilities using bcrypt
 import bcrypt from 'bcrypt';
 
-const SALT_ROUNDS = 12;
+// Salt rounds configurable via environment variable (default: 12)
+// Lower values can be used in testing for faster execution
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
 
 /**
  * Hash a password using bcrypt

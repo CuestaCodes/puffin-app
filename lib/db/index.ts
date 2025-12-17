@@ -10,6 +10,7 @@ const DB_PATH = path.join(DB_DIR, 'puffin.db');
 const BACKUP_DIR = path.join(DB_DIR, 'backups');
 
 let db: Database.Database | null = null;
+let isInitialized = false;
 
 /**
  * Get or create the database connection
@@ -34,8 +35,11 @@ export function getDatabase(): Database.Database {
 
 /**
  * Initialize the database schema and seed data
+ * Uses singleton pattern to avoid redundant initialization calls
  */
 export function initializeDatabase(): void {
+  if (isInitialized) return;
+  
   const database = getDatabase();
   
   // Run schema creation
@@ -43,6 +47,8 @@ export function initializeDatabase(): void {
   
   // Seed default data
   database.exec(SEED_SQL);
+  
+  isInitialized = true;
 }
 
 /**
