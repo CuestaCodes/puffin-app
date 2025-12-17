@@ -13,14 +13,14 @@ export function Header({ onToggleSidebar, onLogout }: HeaderProps) {
   const lastSynced: Date | null = null;
   
   return (
-    <header className="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+    <header className="h-16 flex items-center justify-between px-6 bg-slate-900 border-b border-slate-800">
       {/* Left side */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggleSidebar}
-          className="md:hidden"
+          className="md:hidden text-slate-400 hover:text-slate-200"
         >
           <Menu className="w-5 h-5" />
         </Button>
@@ -29,15 +29,15 @@ export function Header({ onToggleSidebar, onLogout }: HeaderProps) {
       {/* Right side */}
       <div className="flex items-center gap-4">
         {/* Sync status */}
-        <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-sm text-slate-400">
           {lastSynced ? (
             <>
-              <Cloud className="w-4 h-4 text-green-500" />
+              <Cloud className="w-4 h-4 text-emerald-400" />
               <span>Synced {formatRelativeTime(lastSynced)}</span>
             </>
           ) : (
             <>
-              <CloudOff className="w-4 h-4" />
+              <CloudOff className="w-4 h-4 text-slate-500" />
               <span>Not synced</span>
             </>
           )}
@@ -48,7 +48,7 @@ export function Header({ onToggleSidebar, onLogout }: HeaderProps) {
           variant="ghost"
           size="sm"
           onClick={onLogout}
-          className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          className="text-slate-400 hover:text-slate-200 hover:bg-slate-800"
         >
           <LogOut className="w-4 h-4 mr-2" />
           Lock
@@ -70,4 +70,3 @@ function formatRelativeTime(date: Date): string {
   if (hours < 24) return `${hours}h ago`;
   return `${days}d ago`;
 }
-

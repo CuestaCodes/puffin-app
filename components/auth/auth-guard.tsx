@@ -16,10 +16,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 text-cyan-500 animate-spin" />
-          <p className="text-slate-500 dark:text-slate-400">Loading...</p>
+          <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+          <p className="text-slate-400">Loading...</p>
         </div>
       </div>
     );
@@ -28,7 +28,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Show setup form if no user exists
   if (!isSetup) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-4">
         <SetupForm />
       </div>
     );
@@ -37,7 +37,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Show login form if not logged in
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-cyan-50 dark:from-slate-950 dark:via-slate-900 dark:to-cyan-950 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-4">
         <LoginForm />
       </div>
     );
@@ -46,4 +46,3 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Render children if authenticated
   return <>{children}</>;
 }
-

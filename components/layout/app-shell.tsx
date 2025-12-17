@@ -35,7 +35,7 @@ export function AppShell() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-screen bg-slate-950">
       {/* Sidebar */}
       <Sidebar 
         currentPage={currentPage} 
@@ -51,11 +51,10 @@ export function AppShell() {
           onLogout={logout}
         />
         
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-6 bg-slate-950">
           {renderPage()}
         </main>
       </div>
     </div>
   );
 }
-

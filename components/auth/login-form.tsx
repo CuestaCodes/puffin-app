@@ -31,16 +31,16 @@ export function LoginForm() {
   const displayError = localError || error;
 
   return (
-    <Card className="w-full max-w-md border-0 shadow-2xl bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+    <Card className="w-full max-w-md border-slate-800 shadow-2xl shadow-cyan-500/10 bg-gradient-to-b from-slate-900 to-slate-950">
       <CardHeader className="space-y-4 text-center pb-8">
-        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30">
           <Lock className="w-8 h-8 text-white" />
         </div>
         <div>
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
             Welcome Back
           </CardTitle>
-          <CardDescription className="text-slate-500 dark:text-slate-400 mt-2">
+          <CardDescription className="text-slate-400 mt-2">
             Enter your password to access Puffin
           </CardDescription>
         </div>
@@ -48,7 +48,7 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">
+            <Label htmlFor="password" className="text-slate-300">
               Password
             </Label>
             <Input
@@ -58,20 +58,20 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               disabled={isLoading}
-              className="h-12 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-cyan-500"
+              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
               autoFocus
             />
           </div>
 
           {displayError && (
-            <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/50 px-4 py-2 rounded-lg">
+            <p className="text-sm text-red-400 bg-red-950/50 border border-red-900/50 px-4 py-2 rounded-lg">
               {displayError}
             </p>
           )}
 
           <Button 
             type="submit" 
-            className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium shadow-lg shadow-cyan-500/25"
+            className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium shadow-lg shadow-cyan-500/25"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -88,4 +88,3 @@ export function LoginForm() {
     </Card>
   );
 }
-

@@ -8,8 +8,8 @@ export function Dashboard() {
     <div className="space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <p className="text-slate-400 mt-1">
           Overview of your financial health
         </p>
       </div>
@@ -22,8 +22,8 @@ export function Dashboard() {
           change="+0%"
           trend="up"
           icon={TrendingUp}
-          iconColor="text-emerald-500"
-          bgColor="bg-emerald-50 dark:bg-emerald-950/30"
+          iconColor="text-emerald-400"
+          bgColor="bg-emerald-950/30 border border-emerald-900/50"
         />
         <SummaryCard
           title="Total Expenses"
@@ -31,8 +31,8 @@ export function Dashboard() {
           change="+0%"
           trend="down"
           icon={TrendingDown}
-          iconColor="text-red-500"
-          bgColor="bg-red-50 dark:bg-red-950/30"
+          iconColor="text-red-400"
+          bgColor="bg-red-950/30 border border-red-900/50"
         />
         <SummaryCard
           title="Net Balance"
@@ -40,8 +40,8 @@ export function Dashboard() {
           change="+0%"
           trend="up"
           icon={Wallet}
-          iconColor="text-cyan-500"
-          bgColor="bg-cyan-50 dark:bg-cyan-950/30"
+          iconColor="text-cyan-400"
+          bgColor="bg-cyan-950/30 border border-cyan-900/50"
         />
         <SummaryCard
           title="Savings"
@@ -49,30 +49,30 @@ export function Dashboard() {
           change="+0%"
           trend="up"
           icon={PiggyBank}
-          iconColor="text-violet-500"
-          bgColor="bg-violet-50 dark:bg-violet-950/30"
+          iconColor="text-violet-400"
+          bgColor="bg-violet-950/30 border border-violet-900/50"
         />
       </div>
 
       {/* Charts section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="border-slate-800 bg-slate-900/50">
           <CardHeader>
-            <CardTitle className="text-lg">Spending Trends</CardTitle>
+            <CardTitle className="text-lg text-slate-100">Spending Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
               <p>Import transactions to see trends</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-slate-800 bg-slate-900/50">
           <CardHeader>
-            <CardTitle className="text-lg">Income Breakdown</CardTitle>
+            <CardTitle className="text-lg text-slate-100">Income Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
+            <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
               <p>Import transactions to see breakdown</p>
             </div>
           </CardContent>
@@ -80,12 +80,12 @@ export function Dashboard() {
       </div>
 
       {/* Recent transactions */}
-      <Card>
+      <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader>
-          <CardTitle className="text-lg">Recent Transactions</CardTitle>
+          <CardTitle className="text-lg text-slate-100">Recent Transactions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-12 text-slate-400 dark:text-slate-500">
+          <div className="text-center py-12 text-slate-500">
             <p>No transactions yet</p>
             <p className="text-sm mt-1">Import a CSV file or add transactions manually</p>
           </div>
@@ -107,13 +107,13 @@ interface SummaryCardProps {
 
 function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgColor }: SummaryCardProps) {
   return (
-    <Card>
+    <Card className="border-slate-800 bg-slate-900/50">
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{title}</p>
-            <p className="text-2xl font-bold mt-1 tabular-nums">{value}</p>
-            <p className={`text-xs mt-1 ${trend === 'up' ? 'text-emerald-500' : 'text-red-500'}`}>
+            <p className="text-sm text-slate-400">{title}</p>
+            <p className="text-2xl font-bold mt-1 tabular-nums text-white">{value}</p>
+            <p className={`text-xs mt-1 ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
               {change} from last month
             </p>
           </div>
@@ -125,4 +125,3 @@ function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgCol
     </Card>
   );
 }
-
