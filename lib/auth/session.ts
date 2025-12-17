@@ -12,7 +12,8 @@ export const defaultSession: SessionData = {
 };
 
 // Get session secret with proper validation
-function getSessionSecret(): string {
+// Called at runtime, not build time
+export function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
   
   if (secret) {
@@ -28,15 +29,37 @@ function getSessionSecret(): string {
   return 'dev_only_puffin_session_secret_32ch';
 }
 
+// Lazy-initialized session options to avoid build-time errors
+let _sessionOptions: SessionOptions | null = null;
+
+export function getSessionOptions(): SessionOptions {
+  if (!_sessionOptions) {
+    _sessionOptions = {
+      password: getSessionSecret(),
+      cookieName: process.env.SESSION_COOKIE_NAME || 'puffin_session',
+      cookieOptions: {
+        // Secure cookies in production
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+      },
+    };
+  }
+  return _sessionOptions;
+}
+
+// Backward compatibility export - delegates to getter
 export const sessionOptions: SessionOptions = {
-  password: getSessionSecret(),
+  get password() {
+    return getSessionSecret();
+  },
   cookieName: process.env.SESSION_COOKIE_NAME || 'puffin_session',
   cookieOptions: {
-    // Secure cookies in production
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 1 week
+    maxAge: 60 * 60 * 24 * 7,
   },
 };
 
@@ -47,4 +70,3 @@ declare module 'iron-session' {
     isLoggedIn: boolean;
   }
 }
-
