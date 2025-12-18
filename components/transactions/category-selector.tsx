@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Check, ChevronsUpDown, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Check, ChevronsUpDown, X, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
+import { useCategories } from './category-context';
 import type { UpperCategory, SubCategoryWithUpper } from '@/types/database';
 
 interface CategorySelectorProps {
@@ -36,26 +37,7 @@ export function CategorySelector({
 }: CategorySelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [categories, setCategories] = useState<CategoriesData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    try {
-      const response = await fetch('/api/categories');
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch categories:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { categories, isLoading, error, refetch } = useCategories();
 
   // Group sub-categories by upper category
   const groupedCategories = useMemo(() => {
@@ -149,6 +131,8 @@ export function CategorySelector({
             handleSelect={handleSelect}
             getCategoryTypeColor={getCategoryTypeColor}
             isLoading={isLoading}
+            error={error}
+            onRetry={refetch}
           />
         </PopoverContent>
       </Popover>
@@ -202,6 +186,8 @@ export function CategorySelector({
           handleSelect={handleSelect}
           getCategoryTypeColor={getCategoryTypeColor}
           isLoading={isLoading}
+          error={error}
+          onRetry={refetch}
         />
       </PopoverContent>
     </Popover>
@@ -218,6 +204,8 @@ function CategoryList({
   handleSelect,
   getCategoryTypeColor,
   isLoading,
+  error,
+  onRetry,
 }: {
   search: string;
   setSearch: (s: string) => void;
@@ -227,6 +215,8 @@ function CategoryList({
   handleSelect: (id: string) => void;
   getCategoryTypeColor: (type: string) => string;
   isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
 }) {
   return (
     <div className="flex flex-col">
@@ -243,6 +233,19 @@ function CategoryList({
         {isLoading ? (
           <div className="p-4 text-center text-slate-500 text-sm">
             Loading categories...
+          </div>
+        ) : error ? (
+          <div className="p-4 text-center">
+            <p className="text-red-400 text-sm mb-2">{error}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRetry}
+              className="text-slate-400 hover:text-slate-200"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Retry
+            </Button>
           </div>
         ) : filteredCategories.size === 0 ? (
           <div className="p-4 text-center text-slate-500 text-sm">
@@ -288,4 +291,3 @@ function CategoryList({
     </div>
   );
 }
-

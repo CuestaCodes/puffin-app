@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight, 
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Tags 
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { ImportWizard } from '@/components/import';
 import { 
@@ -15,6 +15,7 @@ import {
   DeleteDialog, 
   FiltersPopover, 
   CategorySelector,
+  CategoryProvider,
   type FilterValues 
 } from '@/components/transactions';
 import type { TransactionWithCategory } from '@/types/database';
@@ -41,7 +42,15 @@ const emptyFilters: FilterValues = {
   uncategorized: false,
 };
 
-export function TransactionsPage() {
+// Moved outside component to prevent recreation on every render
+function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
+  if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
+  return sortOrder === 'asc' 
+    ? <ArrowUp className="w-3 h-3 text-cyan-400" />
+    : <ArrowDown className="w-3 h-3 text-cyan-400" />;
+}
+
+function TransactionsPageContent() {
   // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterValues>(emptyFilters);
@@ -68,7 +77,6 @@ export function TransactionsPage() {
   
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showBulkActions, setShowBulkActions] = useState(false);
   
   // Refs for debouncing
   const isFirstRender = useRef(true);
@@ -169,6 +177,13 @@ export function TransactionsPage() {
   };
 
   const handleCategoryChange = async (txId: string, categoryId: string | null) => {
+    // Optimistically update the UI first
+    setTransactions(prev => prev.map(tx => 
+      tx.id === txId 
+        ? { ...tx, sub_category_id: categoryId }
+        : tx
+    ));
+    
     try {
       const response = await fetch(`/api/transactions/${txId}`, {
         method: 'PATCH',
@@ -176,18 +191,14 @@ export function TransactionsPage() {
         body: JSON.stringify({ sub_category_id: categoryId }),
       });
       
-      if (response.ok) {
-        // Optimistically update the UI
-        setTransactions(prev => prev.map(tx => 
-          tx.id === txId 
-            ? { ...tx, sub_category_id: categoryId }
-            : tx
-        ));
-        // Refresh to get proper category names
+      if (!response.ok) {
+        // Revert on failure by refetching
         fetchTransactions();
       }
     } catch (error) {
       console.error('Failed to update category:', error);
+      // Revert on failure by refetching
+      fetchTransactions();
     }
   };
 
@@ -215,7 +226,7 @@ export function TransactionsPage() {
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     
-    const confirmed = window.confirm(`Delete ${selectedIds.size} transaction(s)?`);
+    const confirmed = window.confirm(`Delete ${selectedIds.size} transaction(s)? The transactions will be removed from your view.`);
     if (!confirmed) return;
     
     try {
@@ -231,7 +242,6 @@ export function TransactionsPage() {
   };
 
   const allSelected = transactions.length > 0 && selectedIds.size === transactions.length;
-  const someSelected = selectedIds.size > 0 && selectedIds.size < transactions.length;
 
   const formatAmount = (amount: number): string => {
     const formatted = new Intl.NumberFormat('en-US', {
@@ -248,13 +258,6 @@ export function TransactionsPage() {
       day: 'numeric',
       year: 'numeric',
     });
-  };
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
-    return sortOrder === 'asc' 
-      ? <ArrowUp className="w-3 h-3 text-cyan-400" />
-      : <ArrowDown className="w-3 h-3 text-cyan-400" />;
   };
 
   return (
@@ -403,7 +406,7 @@ export function TransactionsPage() {
                             className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
                           >
                             Date
-                            <SortIcon field="date" />
+                            <SortIcon field="date" sortBy={sortBy} sortOrder={sortOrder} />
                           </button>
                         </th>
                         <th className="text-left py-3 px-4">
@@ -412,7 +415,7 @@ export function TransactionsPage() {
                             className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
                           >
                             Description
-                            <SortIcon field="description" />
+                            <SortIcon field="description" sortBy={sortBy} sortOrder={sortOrder} />
                           </button>
                         </th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -424,7 +427,7 @@ export function TransactionsPage() {
                             className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors ml-auto"
                           >
                             Amount
-                            <SortIcon field="amount" />
+                            <SortIcon field="amount" sortBy={sortBy} sortOrder={sortOrder} />
                           </button>
                         </th>
                         <th className="text-right py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -570,5 +573,14 @@ export function TransactionsPage() {
         onSuccess={handleTransactionDeleted}
       />
     </>
+  );
+}
+
+// Wrapper component that provides CategoryContext
+export function TransactionsPage() {
+  return (
+    <CategoryProvider>
+      <TransactionsPageContent />
+    </CategoryProvider>
   );
 }

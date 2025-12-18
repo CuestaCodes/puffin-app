@@ -70,7 +70,7 @@ export function DeleteDialog({
             Delete Transaction
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Are you sure you want to delete this transaction? This action cannot be undone.
+            Are you sure you want to delete this transaction? The transaction will be removed from your view.
           </DialogDescription>
         </DialogHeader>
         

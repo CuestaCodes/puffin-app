@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CategorySelector } from './category-selector';
-import type { TransactionWithCategory, CreateTransactionInput, UpdateTransactionInput } from '@/types/database';
+import type { TransactionWithCategory } from '@/types/database';
 
 interface TransactionFormProps {
   open: boolean;
@@ -123,14 +123,14 @@ export function TransactionForm({
         response = await fetch(`/api/transactions/${transaction.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload as UpdateTransactionInput),
+          body: JSON.stringify(payload),
         });
       } else {
         // Create new
         response = await fetch('/api/transactions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload as CreateTransactionInput),
+          body: JSON.stringify(payload),
         });
       }
       

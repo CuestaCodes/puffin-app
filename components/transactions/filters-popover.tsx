@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { CalendarIcon, X } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Popover,
   PopoverContent,
@@ -206,15 +207,14 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
           
           {/* Uncategorized only */}
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={local.uncategorized}
-              onChange={(e) => setLocal(prev => ({
+              onCheckedChange={(checked) => setLocal(prev => ({
                 ...prev,
-                uncategorized: e.target.checked,
-                categoryId: e.target.checked ? null : prev.categoryId,
+                uncategorized: !!checked,
+                categoryId: checked ? null : prev.categoryId,
               }))}
-              className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+              className="border-slate-600"
             />
             <span className="text-sm text-slate-300">Show uncategorized only</span>
           </label>
@@ -231,4 +231,3 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
     </Popover>
   );
 }
-
