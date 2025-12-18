@@ -113,3 +113,5 @@ INSERT OR IGNORE INTO upper_category (id, name, type, sort_order) VALUES
   ('transfer', 'Transfer', 'transfer', 6);
 `;
 
+
+
