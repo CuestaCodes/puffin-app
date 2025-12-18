@@ -341,14 +341,14 @@
         "id": 6,
         "title": "Transaction Management and Manual Entry",
         "description": "Create transaction list view and manual entry form with categorization support",
-        "details": "1. Build transaction list component with sortable columns (date, description, amount, category)\n2. Create manual transaction entry form with date picker, description input, amount input, notes field\n3. Implement inline editing for transaction categorization\n4. Add transaction filtering and search functionality\n5. Create category dropdown component grouped by upper categories\n6. Build uncategorised inbox view filtering transactions where sub_category_id is null\n7. Add transaction count badges in navigation\n8. Implement transaction deletion with confirmation modal\n9. Create transaction detail view/modal for editing\n10. Add bulk operations for multiple transaction selection",
-        "testStrategy": "Test manual entry validation, inline editing, filtering, sorting, and bulk operations. Verify category assignment updates correctly and uncategorised count updates in real-time.",
+        "details": "1. Build transaction list component with sortable columns (date, description, amount, category)\n2. Create manual transaction entry form with date picker, description input, amount input, notes field\n3. Implement inline editing for transaction categorization\n4. Add transaction filtering and search functionality\n5. Create category dropdown component grouped by upper categories\n6. Build uncategorised inbox view filtering transactions where sub_category_id is null\n7. Add transaction count badges in navigation\n8. Implement transaction deletion with confirmation modal\n9. Create transaction detail view/modal for editing\n10. Add bulk operations for multiple transaction selection\n11. Embed transaction list in Monthly Budget view filtered by selected month\n12. Enable category click-to-filter in budget view\n13. Real-time budget summary updates when transaction categories change",
+        "testStrategy": "Test manual entry validation, inline editing, filtering, sorting, and bulk operations. Verify category assignment updates correctly and uncategorised count updates in real-time. Test monthly budget integration with category filtering and real-time updates.",
         "priority": "high",
         "dependencies": [
           3,
           4
         ],
-        "status": "done",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -401,6 +401,41 @@
             "details": "Add checkbox selection for individual and bulk transaction selection. Create bulk operations toolbar with delete, categorize, and export actions. Implement transaction deletion with confirmation modal and undo functionality. Build transaction detail view/modal for comprehensive editing. Add keyboard shortcuts for bulk operations and include progress indicators for long-running operations.",
             "status": "done",
             "testStrategy": "Test bulk selection performance, confirmation modals, undo functionality, and keyboard shortcuts. Verify bulk operations complete successfully with proper error handling"
+          },
+          {
+            "id": 6,
+            "title": "Monthly Budget Transaction List Integration",
+            "description": "Display a transaction list below the monthly budget view, filtered by the selected month",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Create a reusable transaction list component that can be embedded in the Monthly Budget view. The list should automatically filter transactions to the currently selected month based on the budget view's month navigation. Include all transaction management features (sorting, inline category editing, add transaction button, edit/delete actions) except CSV import. The transaction list should always be visible below the budget summary cards. Use the existing CategoryProvider context for efficient category data sharing.",
+            "status": "pending",
+            "testStrategy": "Test that transactions are correctly filtered by the selected month. Verify month navigation updates the transaction list. Test all transaction operations work correctly within the budget view context."
+          },
+          {
+            "id": 7,
+            "title": "Category Click-to-Filter in Budget View",
+            "description": "Enable clicking on a category row in the budget summary to filter the transaction list to that category",
+            "dependencies": [
+              6
+            ],
+            "details": "Add click handlers to category rows in the budget summary section. When a category is clicked, filter the transaction list below to show only transactions in that category (while maintaining the month filter). Add visual indication of the active category filter with a clear/reset button. Implement smooth scroll to the transaction list when a category is selected. Allow clicking the same category again or a reset button to clear the category filter and show all month transactions.",
+            "status": "pending",
+            "testStrategy": "Test category click filtering shows correct transactions. Verify clear filter functionality. Test that month filter is maintained when category filter is applied or removed."
+          },
+          {
+            "id": 8,
+            "title": "Real-time Budget Summary Updates",
+            "description": "Update the budget summary in real-time when transaction categories are changed in the list below",
+            "dependencies": [
+              6
+            ],
+            "details": "When a user changes a transaction's category using the inline category selector in the Monthly Budget view, the budget summary cards above should update in real-time to reflect the new categorization. Implement optimistic UI updates for immediate feedback. Handle edge cases like moving a transaction from one category to another (both categories should update). Ensure the budget totals and progress bars recalculate correctly after category changes.",
+            "status": "pending",
+            "testStrategy": "Test that changing a transaction category updates both the source and destination category totals. Verify budget summary totals recalculate correctly. Test optimistic updates and error rollback scenarios."
           }
         ]
       },
