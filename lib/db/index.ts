@@ -35,18 +35,27 @@ export function getDatabase(): Database.Database {
 
 /**
  * Initialize the database schema and seed data
- * Uses singleton pattern to avoid redundant initialization calls
+ * Checks if tables actually exist before skipping (more robust than in-memory flag)
  */
 export function initializeDatabase(): void {
+  // Fast path: if we've already initialized in this process
   if (isInitialized) return;
   
   const database = getDatabase();
   
-  // Run schema creation
-  database.exec(SCHEMA_SQL);
+  // Check if tables actually exist (handles cold starts and process restarts)
+  // Note: table is named "transaction" (singular) in the schema
+  const tableExists = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='transaction'"
+  ).get();
   
-  // Seed default data
-  database.exec(SEED_SQL);
+  if (!tableExists) {
+    // Run schema creation
+    database.exec(SCHEMA_SQL);
+    
+    // Seed default data
+    database.exec(SEED_SQL);
+  }
   
   isInitialized = true;
 }

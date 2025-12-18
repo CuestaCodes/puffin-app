@@ -1,5 +1,5 @@
 // Duplicate transaction detection utilities
-import { getDatabase } from '@/lib/db';
+import { getDatabase, initializeDatabase } from '@/lib/db';
 
 interface TransactionFingerprint {
   date: string;
@@ -72,11 +72,13 @@ export function getExistingFingerprints(
   startDate: string,
   endDate: string
 ): Set<string> {
+  // Ensure database is initialized before querying
+  initializeDatabase();
   const db = getDatabase();
   
   const transactions = db.prepare(`
     SELECT date, amount, description 
-    FROM transactions 
+    FROM "transaction" 
     WHERE date BETWEEN ? AND ? 
     AND is_deleted = 0
   `).all(startDate, endDate) as TransactionFingerprint[];

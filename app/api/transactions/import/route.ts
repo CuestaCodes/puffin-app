@@ -60,9 +60,9 @@ export async function POST(request: Request) {
       errors: [],
     };
     
-    // Prepare insert statement
+    // Prepare insert statement (table is "transaction" singular, quoted due to reserved word)
     const insertStmt = db.prepare(`
-      INSERT INTO transactions (
+      INSERT INTO "transaction" (
         id, date, description, amount, notes, sub_category_id,
         is_split, parent_transaction_id, is_deleted, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 0, datetime('now'), datetime('now'))
