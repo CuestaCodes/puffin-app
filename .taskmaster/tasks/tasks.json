@@ -348,7 +348,7 @@
           3,
           4
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -412,7 +412,7 @@
               3
             ],
             "details": "Create a reusable transaction list component that can be embedded in the Monthly Budget view. The list should automatically filter transactions to the currently selected month based on the budget view's month navigation. Include all transaction management features (sorting, inline category editing, add transaction button, edit/delete actions) except CSV import. The transaction list should always be visible below the budget summary cards. Use the existing CategoryProvider context for efficient category data sharing.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test that transactions are correctly filtered by the selected month. Verify month navigation updates the transaction list. Test all transaction operations work correctly within the budget view context."
           },
           {
@@ -423,7 +423,7 @@
               6
             ],
             "details": "Add click handlers to category rows in the budget summary section. When a category is clicked, filter the transaction list below to show only transactions in that category (while maintaining the month filter). Add visual indication of the active category filter with a clear/reset button. Implement smooth scroll to the transaction list when a category is selected. Allow clicking the same category again or a reset button to clear the category filter and show all month transactions.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test category click filtering shows correct transactions. Verify clear filter functionality. Test that month filter is maintained when category filter is applied or removed."
           },
           {
@@ -434,7 +434,7 @@
               6
             ],
             "details": "When a user changes a transaction's category using the inline category selector in the Monthly Budget view, the budget summary cards above should update in real-time to reflect the new categorization. Implement optimistic UI updates for immediate feedback. Handle edge cases like moving a transaction from one category to another (both categories should update). Ensure the budget totals and progress bars recalculate correctly after category changes.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test that changing a transaction category updates both the source and destination category totals. Verify budget summary totals recalculate correctly. Test optimistic updates and error rollback scenarios."
           }
         ]

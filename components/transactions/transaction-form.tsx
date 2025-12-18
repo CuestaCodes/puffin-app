@@ -29,6 +29,7 @@ interface TransactionFormProps {
   onOpenChange: (open: boolean) => void;
   transaction?: TransactionWithCategory | null; // Null for new, populated for edit
   onSuccess?: (transaction: TransactionWithCategory) => void;
+  defaultDate?: string; // YYYY-MM-DD format for new transactions
 }
 
 interface FormErrors {
@@ -43,6 +44,7 @@ export function TransactionForm({
   onOpenChange,
   transaction,
   onSuccess,
+  defaultDate,
 }: TransactionFormProps) {
   const isEditing = !!transaction;
   
@@ -69,8 +71,9 @@ export function TransactionForm({
       setNotes(transaction.notes || '');
       setCategoryId(transaction.sub_category_id);
     } else {
-      // Reset for new transaction
-      setDate(new Date());
+      // Reset for new transaction - use defaultDate if provided
+      const initialDate = defaultDate ? new Date(defaultDate + 'T12:00:00') : new Date();
+      setDate(initialDate);
       setDescription('');
       setAmount('');
       setIsExpense(true);
@@ -78,7 +81,7 @@ export function TransactionForm({
       setCategoryId(null);
     }
     setErrors({});
-  }, [transaction, open]);
+  }, [transaction, open, defaultDate]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
