@@ -348,7 +348,7 @@
           3,
           4
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -356,7 +356,7 @@
             "description": "Build the main transaction list component with sortable columns and basic filtering capabilities",
             "dependencies": [],
             "details": "Create a responsive table component with sortable columns for date, description, amount, and category. Implement column sorting with visual indicators (ascending/descending arrows). Add basic filtering controls for date ranges and transaction types. Include pagination or virtual scrolling for performance with large datasets. Use React.memo and useMemo for optimization.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test sorting functionality on all columns, verify pagination performance with 10k+ transactions, test responsive behavior on mobile devices"
           },
           {
@@ -365,7 +365,7 @@
             "description": "Create transaction entry form with comprehensive validation and user-friendly input controls",
             "dependencies": [],
             "details": "Build form with date picker, description input, amount input (with currency formatting), category dropdown, and notes field. Implement client-side validation for required fields, amount format, and date constraints. Add form state management with error handling and success feedback. Include keyboard shortcuts for quick entry and auto-focus management.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test form validation rules, currency formatting, date picker functionality, and keyboard navigation. Verify error messages display correctly"
           },
           {
@@ -376,7 +376,7 @@
               1
             ],
             "details": "Create inline editing for transaction fields with click-to-edit functionality. Build category dropdown component grouped by upper categories with search capability. Implement uncategorised inbox view filtering transactions where sub_category_id is null. Add real-time category assignment with optimistic updates and rollback on failure. Include transaction count badges in navigation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test inline editing saves correctly, category dropdown search functionality, uncategorised filter accuracy, and real-time count updates"
           },
           {
@@ -387,7 +387,7 @@
               1
             ],
             "details": "Implement full-text search across transaction descriptions and notes. Create advanced filtering options for date ranges, amount ranges, categories, and custom criteria. Add filter persistence in URL parameters and local storage. Include saved filter presets and quick filter buttons. Optimize search performance with debouncing and indexing strategies.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test search accuracy across different fields, filter combinations, performance with large datasets, and filter persistence across page reloads"
           },
           {
@@ -399,7 +399,7 @@
               3
             ],
             "details": "Add checkbox selection for individual and bulk transaction selection. Create bulk operations toolbar with delete, categorize, and export actions. Implement transaction deletion with confirmation modal and undo functionality. Build transaction detail view/modal for comprehensive editing. Add keyboard shortcuts for bulk operations and include progress indicators for long-running operations.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test bulk selection performance, confirmation modals, undo functionality, and keyboard shortcuts. Verify bulk operations complete successfully with proper error handling"
           }
         ]

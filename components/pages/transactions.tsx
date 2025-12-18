@@ -4,8 +4,19 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight, Trash2, Edit2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight, 
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Tags 
+} from 'lucide-react';
 import { ImportWizard } from '@/components/import';
+import { 
+  TransactionForm, 
+  DeleteDialog, 
+  FiltersPopover, 
+  CategorySelector,
+  type FilterValues 
+} from '@/components/transactions';
 import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult } from '@/types/import';
 import { cn } from '@/lib/utils';
@@ -18,15 +29,48 @@ interface TransactionListResponse {
   totalPages: number;
 }
 
+type SortField = 'date' | 'description' | 'amount';
+type SortOrder = 'asc' | 'desc';
+
+const emptyFilters: FilterValues = {
+  startDate: null,
+  endDate: null,
+  categoryId: null,
+  minAmount: null,
+  maxAmount: null,
+  uncategorized: false,
+};
+
 export function TransactionsPage() {
+  // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<FilterValues>(emptyFilters);
+  
+  // Modals
   const [showImport, setShowImport] = useState(false);
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
+  const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
+  
+  // Data
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 20;
+  
+  // Sorting
+  const [sortBy, setSortBy] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  
+  // Refs for debouncing
   const isFirstRender = useRef(true);
   const prevSearchQuery = useRef(searchQuery);
 
@@ -36,13 +80,17 @@ export function TransactionsPage() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
-        sortBy: 'date',
-        sortOrder: 'desc',
+        sortBy,
+        sortOrder,
       });
 
-      if (searchQuery) {
-        params.set('search', searchQuery);
-      }
+      if (searchQuery) params.set('search', searchQuery);
+      if (filters.startDate) params.set('startDate', filters.startDate);
+      if (filters.endDate) params.set('endDate', filters.endDate);
+      if (filters.categoryId) params.set('categoryId', filters.categoryId);
+      if (filters.minAmount !== null) params.set('minAmount', filters.minAmount.toString());
+      if (filters.maxAmount !== null) params.set('maxAmount', filters.maxAmount.toString());
+      if (filters.uncategorized) params.set('uncategorized', 'true');
 
       const response = await fetch(`/api/transactions?${params}`);
       if (response.ok) {
@@ -56,35 +104,134 @@ export function TransactionsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchQuery]);
+  }, [page, searchQuery, sortBy, sortOrder, filters]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Debounced search - only reset page when searchQuery actually changes (not on initial mount)
+  // Debounced search - reset page when search changes
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
     
-    if (prevSearchQuery.current === searchQuery) {
-      return;
-    }
-    
+    if (prevSearchQuery.current === searchQuery) return;
     prevSearchQuery.current = searchQuery;
-    const timer = setTimeout(() => {
-      setPage(1);
-    }, 300);
+    
+    const timer = setTimeout(() => setPage(1), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Clear selection when data changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [transactions]);
+
+  const handleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
 
   const handleImportComplete = (result: ImportResult) => {
     if (result.imported > 0) {
       fetchTransactions();
     }
   };
+
+  const handleAddTransaction = () => {
+    setEditingTransaction(null);
+    setShowTransactionForm(true);
+  };
+
+  const handleEditTransaction = (tx: TransactionWithCategory) => {
+    setEditingTransaction(tx);
+    setShowTransactionForm(true);
+  };
+
+  const handleDeleteTransaction = (tx: TransactionWithCategory) => {
+    setDeletingTransaction(tx);
+  };
+
+  const handleTransactionSaved = () => {
+    fetchTransactions();
+  };
+
+  const handleTransactionDeleted = () => {
+    fetchTransactions();
+    setDeletingTransaction(null);
+  };
+
+  const handleCategoryChange = async (txId: string, categoryId: string | null) => {
+    try {
+      const response = await fetch(`/api/transactions/${txId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sub_category_id: categoryId }),
+      });
+      
+      if (response.ok) {
+        // Optimistically update the UI
+        setTransactions(prev => prev.map(tx => 
+          tx.id === txId 
+            ? { ...tx, sub_category_id: categoryId }
+            : tx
+        ));
+        // Refresh to get proper category names
+        fetchTransactions();
+      }
+    } catch (error) {
+      console.error('Failed to update category:', error);
+    }
+  };
+
+  // Bulk selection
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(transactions.map(tx => tx.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (txId: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(txId);
+      } else {
+        next.delete(txId);
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    const confirmed = window.confirm(`Delete ${selectedIds.size} transaction(s)?`);
+    if (!confirmed) return;
+    
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+        )
+      );
+      fetchTransactions();
+    } catch (error) {
+      console.error('Failed to delete transactions:', error);
+    }
+  };
+
+  const allSelected = transactions.length > 0 && selectedIds.size === transactions.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < transactions.length;
 
   const formatAmount = (amount: number): string => {
     const formatted = new Intl.NumberFormat('en-US', {
@@ -101,6 +248,13 @@ export function TransactionsPage() {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="w-3 h-3 text-cyan-400" />
+      : <ArrowDown className="w-3 h-3 text-cyan-400" />;
   };
 
   return (
@@ -123,14 +277,17 @@ export function TransactionsPage() {
               <Upload className="w-4 h-4" />
               Import CSV
             </Button>
-            <Button className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20">
+            <Button 
+              onClick={handleAddTransaction}
+              className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+            >
               <Plus className="w-4 h-4" />
               Add Transaction
             </Button>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Search and Filters */}
         <Card className="border-slate-800 bg-slate-900/50">
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row gap-4">
@@ -142,14 +299,52 @@ export function TransactionsPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <Button variant="outline" className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
-                <Filter className="w-4 h-4" />
-                Filters
-              </Button>
+              <FiltersPopover filters={filters} onChange={setFilters}>
+                <Button variant="outline" className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
+                  <Filter className="w-4 h-4" />
+                  Filters
+                </Button>
+              </FiltersPopover>
             </div>
           </CardContent>
         </Card>
+
+        {/* Bulk actions bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+            <span className="text-sm text-cyan-400 font-medium">
+              {selectedIds.size} selected
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkDelete}
+                className="gap-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
+              >
+                <Trash2 className="w-3 h-3" />
+                Delete
+              </Button>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-auto text-slate-400 hover:text-slate-200"
+            >
+              Clear selection
+            </Button>
+          </div>
+        )}
 
         {/* Transactions list */}
         <Card className="border-slate-800 bg-slate-900/50">
@@ -178,7 +373,10 @@ export function TransactionsPage() {
                     <Upload className="w-4 h-4" />
                     Import CSV
                   </Button>
-                  <Button className="gap-2 bg-cyan-600 hover:bg-cyan-500">
+                  <Button 
+                    onClick={handleAddTransaction}
+                    className="gap-2 bg-cyan-600 hover:bg-cyan-500"
+                  >
                     <Plus className="w-4 h-4" />
                     Add Transaction
                   </Button>
@@ -191,17 +389,43 @@ export function TransactionsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-slate-700">
-                        <th className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                          Date
+                        <th className="py-3 px-2 w-10">
+                          <Checkbox
+                            checked={allSelected}
+                            onCheckedChange={handleSelectAll}
+                            className="border-slate-600"
+                            aria-label="Select all"
+                          />
                         </th>
-                        <th className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                          Description
+                        <th className="text-left py-3 px-4">
+                          <button
+                            onClick={() => handleSort('date')}
+                            className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
+                          >
+                            Date
+                            <SortIcon field="date" />
+                          </button>
+                        </th>
+                        <th className="text-left py-3 px-4">
+                          <button
+                            onClick={() => handleSort('description')}
+                            className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
+                          >
+                            Description
+                            <SortIcon field="description" />
+                          </button>
                         </th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
                           Category
                         </th>
-                        <th className="text-right py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                          Amount
+                        <th className="text-right py-3 px-4">
+                          <button
+                            onClick={() => handleSort('amount')}
+                            className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors ml-auto"
+                          >
+                            Amount
+                            <SortIcon field="amount" />
+                          </button>
                         </th>
                         <th className="text-right py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
                           Actions
@@ -210,7 +434,21 @@ export function TransactionsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-800">
                       {transactions.map((tx) => (
-                        <tr key={tx.id} className="hover:bg-slate-800/50 transition-colors">
+                        <tr 
+                          key={tx.id} 
+                          className={cn(
+                            'hover:bg-slate-800/50 transition-colors',
+                            selectedIds.has(tx.id) && 'bg-cyan-500/5'
+                          )}
+                        >
+                          <td className="py-3 px-2">
+                            <Checkbox
+                              checked={selectedIds.has(tx.id)}
+                              onCheckedChange={(checked) => handleSelectOne(tx.id, !!checked)}
+                              className="border-slate-600"
+                              aria-label={`Select ${tx.description}`}
+                            />
+                          </td>
                           <td className="py-3 px-4 text-sm text-slate-300 whitespace-nowrap">
                             {formatDate(tx.date)}
                           </td>
@@ -218,13 +456,11 @@ export function TransactionsPage() {
                             {tx.description}
                           </td>
                           <td className="py-3 px-4 text-sm">
-                            {tx.sub_category_name ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-700 text-slate-300">
-                                {tx.sub_category_name}
-                              </span>
-                            ) : (
-                              <span className="text-slate-500 text-xs">Uncategorized</span>
-                            )}
+                            <CategorySelector
+                              value={tx.sub_category_id}
+                              onChange={(categoryId) => handleCategoryChange(tx.id, categoryId)}
+                              compact
+                            />
                           </td>
                           <td className={cn(
                             'py-3 px-4 text-sm font-mono text-right whitespace-nowrap',
@@ -234,10 +470,20 @@ export function TransactionsPage() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="icon-sm" className="text-slate-400 hover:text-slate-200">
+                              <Button 
+                                variant="ghost" 
+                                size="icon-sm" 
+                                className="text-slate-400 hover:text-slate-200"
+                                onClick={() => handleEditTransaction(tx)}
+                              >
                                 <Edit2 className="w-4 h-4" />
                               </Button>
-                              <Button variant="ghost" size="icon-sm" className="text-slate-400 hover:text-red-400">
+                              <Button 
+                                variant="ghost" 
+                                size="icon-sm" 
+                                className="text-slate-400 hover:text-red-400"
+                                onClick={() => handleDeleteTransaction(tx)}
+                              >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
@@ -287,13 +533,10 @@ export function TransactionsPage() {
       {/* Import Modal */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setShowImport(false)}
           />
-          
-          {/* Modal content */}
           <div className="relative z-10 w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
             <Button
               variant="ghost"
@@ -310,6 +553,22 @@ export function TransactionsPage() {
           </div>
         </div>
       )}
+
+      {/* Transaction Form Modal */}
+      <TransactionForm
+        open={showTransactionForm}
+        onOpenChange={setShowTransactionForm}
+        transaction={editingTransaction}
+        onSuccess={handleTransactionSaved}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteDialog
+        open={!!deletingTransaction}
+        onOpenChange={(open) => !open && setDeletingTransaction(null)}
+        transaction={deletingTransaction}
+        onSuccess={handleTransactionDeleted}
+      />
     </>
   );
 }
