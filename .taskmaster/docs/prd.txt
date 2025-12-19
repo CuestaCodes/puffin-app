@@ -13,6 +13,7 @@ The application is designed for individuals or households who want full control 
 - Multi-device access via Google Drive sync
 - Flexible categorisation with auto-categorisation rules
 - Clear visibility of spending as percentage of income
+- Standalone desktop application — no Node.js installation required
 
 # Core Features
 
@@ -101,7 +102,9 @@ The application is designed for individuals or households who want full control 
 - "Last synced" banner displayed at all times
 - Local backup created before each sync
 - Conflict resolution: last-write-wins
-- Supports two Google accounts accessing same shared location (not simultaneously)
+- Supports multiple users with their own Google accounts accessing the same shared folder location (not simultaneously)
+- User pastes Google Drive folder URL; app validates access before saving
+- Sync configuration is optional — app works fully offline until configured
 
 ## 7. Undo System
 
@@ -114,6 +117,18 @@ The application is designed for individuals or households who want full control 
 - Undo last action button (Ctrl+Z pattern)
 - Split transactions reversible to original single transaction
 
+## 8. Desktop Application
+
+**What it does:** Packages the application as a standalone Windows executable.
+
+**Why it's important:** Enables distribution without requiring users to install Node.js or run command-line tools.
+
+**How it works:**
+- Single portable .exe file — no installer required
+- Double-click to launch; no dependencies for end users
+- Auto-update notifications prompt user to download new versions
+- All data stored in standard Windows user data location (%APPDATA%)
+
 # User Experience
 
 ## User Persona
@@ -123,8 +138,8 @@ The application is designed for individuals or households who want full control 
 ## Key User Flows
 
 ### First-Time Setup
-1. Launch application (localhost:3000)
-2. Configure Google Drive sync location
+1. Launch application (double-click .exe or run via npm in development)
+2. Optionally configure Google Drive sync location (can skip for offline-only use)
 3. Rename upper categories if desired
 4. Create initial sub-categories
 5. Import first CSV file
@@ -132,13 +147,13 @@ The application is designed for individuals or households who want full control 
 7. Categorise transactions in inbox
 
 ### Regular Usage (Weekly/Fortnightly)
-1. Open app → sync from Google Drive
+1. Open app → sync from Google Drive (if configured)
 2. Import new transactions from bank CSV
 3. Review duplicate warnings, skip as needed
 4. Process uncategorised inbox
 5. Set/adjust monthly budgets
 6. Review dashboard for spending insights
-7. Sync to Google Drive before closing
+7. Sync to Google Drive before closing (if configured)
 
 ### Month-End Review
 1. Open monthly view for completed month
@@ -154,8 +169,8 @@ The application is designed for individuals or households who want full control 
 - Import wizard: step-by-step with preview table
 - Red highlighting for over-budget items (clear visual alert)
 - Watermarks for budget history (subtle, non-intrusive)
-- Sync status always visible
-- Blocking sync prompt on close (modal, cannot dismiss without syncing)
+- Sync status always visible (when configured)
+- Blocking sync prompt on close (modal, cannot dismiss without syncing) — only when sync configured
 - Responsive design for different screen sizes
 
 </context>
@@ -172,15 +187,22 @@ The application is designed for individuals or households who want full control 
 - **State Management:** React Context (upgrade to Zustand if complexity warrants)
 
 ### Backend
-- **Runtime:** Node.js via Next.js API routes
+- **Runtime:** Node.js via Next.js API routes (development mode)
 - **Database:** SQLite (single file, portable)
-- **Database Library:** better-sqlite3 (synchronous, lightweight)
+- **Database Library:** better-sqlite3 for development; tauri-plugin-sql for packaged app
+- **Database Abstraction:** Thin abstraction layer (db.ts) to enable seamless swap between libraries
 - **Authentication:** Local password protection (hashed, stored in database)
+
+### Desktop Runtime
+- **Framework:** Tauri 2.x
+- **Webview:** Windows WebView2 (Edge-based, pre-installed on Windows 10/11)
+- **Build output:** Portable .exe, no installer
 
 ### Storage & Sync
 - **Local Storage:** SQLite database file in application directory
 - **Remote Storage:** Google Drive API for database file sync
 - **Backup:** Local timestamped copies before sync
+- **Config Storage:** Local JSON file for settings (separate from database)
 
 ### Development & Testing
 - **Package Manager:** npm
@@ -279,11 +301,11 @@ backup_path: String (nullable)
 
 ## Infrastructure Requirements
 
-- Node.js 18+ runtime
+- Node.js 18+ runtime (development only)
 - Local filesystem access for SQLite and backups
-- Google account with Drive API access configured
-- Browser for UI access
-- Default port: 3000 (configurable)
+- Google account with Drive API access configured (optional)
+- Browser for UI access (development) or Tauri webview (packaged)
+- Default port: 3000 (development mode)
 - Works entirely offline; sync only when manually triggered
 
 # Development Roadmap
@@ -300,24 +322,30 @@ backup_path: String (nullable)
 - Configure Vitest for testing
 - Establish project structure (app/, components/, lib/, api/)
 
-### 1.2 Local Authentication
+### 1.2 Database Abstraction Layer
+- Create `lib/db.ts` with functions for all database operations
+- Abstract away direct better-sqlite3 calls
+- Design interface to support future swap to tauri-plugin-sql
+- Export functions like `getTransactions()`, `insertTransaction()`, `runQuery()`, etc.
+
+### 1.3 Local Authentication
 - LocalUser table with bcrypt password hash
 - Password setup flow on first launch
 - Login page with password entry
 - Session management (HTTP-only cookie or similar)
 - Protected route middleware
 
-### 1.3 Database Models
+### 1.4 Database Models
 - Implement all data models (LocalUser, Transaction, UpperCategory, SubCategory, Budget, AutoCategoryRule, SyncLog)
 - Seed default upper categories (Expense, Saving, Bill, Debt, Income, Transfer)
 - Create database utility functions (connection, backup, restore)
 
-### 1.4 Basic API Routes
+### 1.5 Basic API Routes
 - Transaction CRUD endpoints
 - Category CRUD endpoints
 - Basic error handling and validation
 
-### 1.5 Minimal UI Shell
+### 1.6 Minimal UI Shell
 - Layout component with navigation (Dashboard, Monthly, Inbox, Settings placeholders)
 - Basic routing structure
 - Placeholder pages for each main section
@@ -462,7 +490,7 @@ backup_path: String (nullable)
 
 ## Phase 7: Google Drive Sync
 
-**Scope:** Manual sync to/from Google Drive with conflict handling.
+**Scope:** Manual sync to/from Google Drive with conflict handling and user-configurable folder location.
 
 ### 7.1 Google Drive API Integration
 - OAuth2 setup and token management
@@ -478,19 +506,53 @@ backup_path: String (nullable)
 - Update SyncLog on each operation
 
 ### 7.3 Sync UI
-- "Last synced" banner (always visible)
+- "Last synced" banner (always visible when sync configured)
 - Manual sync buttons (push/pull)
 - Sync status indicator (syncing, success, error)
+- Banner hidden when sync not configured
 
 ### 7.4 Sync Prompts
-- On app open: modal prompting to pull from Drive
-- On app close: blocking modal requiring sync before close
-- Cannot dismiss close modal without completing sync
+- On app open: modal prompting to pull from Drive (only if sync configured)
+- On app close: blocking modal requiring sync before close (only if sync configured)
+- Cannot dismiss close modal without completing sync or explicitly skipping
 
 ### 7.5 Settings: Google Drive Configuration
-- Connect Google account flow
-- Select/create sync folder location
-- Disconnect account option
+
+**Folder Location Input**
+- User pastes Google Drive folder URL (e.g., `https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ`)
+- App extracts folder ID from URL automatically
+- Validation on save:
+  - Authenticate with user's Google account (OAuth2 flow)
+  - Attempt to list folder contents via Drive API
+  - Attempt to create/delete a test file (`.puffin-validation-test`) to confirm write access
+  - Display success message with folder name confirmation
+  - On failure: clear error message ("Folder not found", "No access to this folder", "Read-only access — write permission required")
+- Store folder ID (not full URL) in local config file
+
+**Multi-User Shared Folder Setup**
+- Each user authenticates with their own Google account
+- Each user pastes the same shared folder URL
+- Folder must be shared with both Google accounts (standard Drive sharing)
+- App validates each user's access independently
+- No awareness of other users — each instance treats it as single-user access to a shared location
+
+**Offline-Only Mode**
+- Google Drive configuration is optional
+- App fully functional without sync configured
+- Settings page shows "Not configured" state with setup prompt
+- Sync-related UI (banner, prompts) hidden until configured
+- User can configure sync at any time
+
+**Configuration Storage**
+- Folder ID stored in local config file (not in SQLite database)
+- OAuth refresh token stored securely (OS keychain via Tauri, or encrypted local file in dev mode)
+- Config location: `~/.puffin/config.json` (dev) or `%APPDATA%/Puffin/config.json` (packaged)
+
+### 7.6 Disconnect and Reconfigure
+- "Disconnect" button in settings to remove sync configuration
+- Clears stored folder ID and OAuth tokens
+- App reverts to offline-only mode
+- User can reconfigure with different folder or account
 
 ## Phase 8: Polish & Undo System
 
@@ -514,6 +576,100 @@ backup_path: String (nullable)
 - Responsive design adjustments
 - Keyboard navigation improvements
 
+## Phase 9: Tauri Desktop Packaging
+
+**Scope:** Package the Next.js application as a standalone Windows executable using Tauri, enabling single-file distribution without requiring Node.js installation.
+
+### 9.1 Tauri Project Setup
+- Add Tauri to existing project (`npm install @tauri-apps/cli @tauri-apps/api`)
+- Configure `tauri.conf.json`:
+  - App name: "Puffin"
+  - Window title: "Puffin — Personal Budgeting"
+  - Default window size: 1280x800, resizable
+  - Single instance enforcement (prevent multiple windows accessing same database)
+- Build target: Windows x64 portable executable (.exe)
+- No installer required — single .exe file distribution
+
+### 9.2 Build Pipeline Integration
+
+**Development Workflow (Retained)**
+- `npm run dev` — Standard Next.js development with hot reload (no Tauri)
+- `npm run tauri dev` — Run inside Tauri shell with dev tools for testing native features
+- `npm run tauri build` — Produce release .exe
+
+**Build Process**
+- Next.js builds to static output (`output: 'export'` in next.config.js)
+- Tauri bundles static files with Rust-based webview
+- Single .exe output, approximately 10-30MB
+- No external dependencies required on target machine
+
+### 9.3 Database Migration to Tauri Plugin
+- Install `tauri-plugin-sql` for native SQLite access
+- Update `lib/db.ts` abstraction layer to use Tauri plugin when running in packaged mode
+- Implement runtime detection: check if running in Tauri context
+- Maintain better-sqlite3 for development mode (faster iteration)
+- Test all database operations in both modes
+
+**Migration approach:**
+```typescript
+// lib/db.ts pseudocode
+const isPackaged = !!window.__TAURI__;
+
+export async function getTransactions() {
+  if (isPackaged) {
+    // Use tauri-plugin-sql
+    const db = await Database.load('sqlite:puffin.db');
+    return await db.select('SELECT * FROM transactions WHERE is_deleted = 0');
+  } else {
+    // Use better-sqlite3
+    return db.prepare('SELECT * FROM transactions WHERE is_deleted = 0').all();
+  }
+}
+```
+
+### 9.4 Secure Token Storage
+- Use `tauri-plugin-store` or Windows Credential Manager for OAuth refresh tokens
+- Encrypt tokens at rest
+- Fallback to encrypted local file for development mode
+
+### 9.5 File System Locations
+- Database: `%APPDATA%/Puffin/puffin.db`
+- Backups: `%APPDATA%/Puffin/backups/`
+- Config: `%APPDATA%/Puffin/config.json`
+- Implement path resolution based on runtime environment
+
+### 9.6 Window Close Handling
+- Intercept window close event via Tauri API
+- Trigger sync prompt before allowing close (existing Phase 7 requirement)
+- Prevent close until sync completes or user explicitly skips
+- Only show sync prompt if sync is configured
+
+### 9.7 Auto-Update System
+
+**Update Mechanism**
+- Check for updates on app launch (GitHub Releases API)
+- Compare local version against latest available
+- If update available: non-blocking notification banner
+  - "Version X.X available — [Download] [Dismiss]"
+- Download button opens browser to release page (manual download)
+- No silent/automatic installation
+
+**Version Management**
+- Version stored in `tauri.conf.json` and `package.json` (keep in sync)
+- Display version in Settings page footer
+- Release notes viewable from update notification (link to GitHub release)
+
+### 9.8 Distribution
+
+**Build Outputs**
+- `Puffin-vX.X.X-windows-x64.exe` — Portable executable
+- Optional: `Puffin-vX.X.X-windows-x64.zip` — Zipped for easier hosting
+
+**Release Process**
+- Build via GitHub Actions (optional automation for future)
+- Upload to GitHub Releases
+- Update download link on documentation/landing page (if applicable)
+
 ## Future Enhancements (Post-MVP)
 
 - QIF file format support
@@ -524,52 +680,64 @@ backup_path: String (nullable)
 - Transaction search
 - Recurring transaction detection
 - Goals/savings targets
+- macOS and Linux builds
+- Code signing certificate (removes Windows SmartScreen warnings)
 
 # Logical Dependency Chain
 
 ## Layer 1: Foundation (Must Build First)
 1. **Project setup, tooling & database schema** — Everything depends on this
-2. **Local authentication** — Protects access before any data entry
-3. **Basic API routes for transactions** — Required for any data entry
-4. **Minimal UI shell with navigation** — Required frame for all features
+2. **Database abstraction layer** — Enables future Tauri migration
+3. **Local authentication** — Protects access before any data entry
+4. **Basic API routes for transactions** — Required for any data entry
+5. **Minimal UI shell with navigation** — Required frame for all features
 
 ## Layer 2: Data Entry (First Usable Frontend)
-5. **Manual transaction entry** — Simplest way to get data in, validates data model works
-6. **Transaction list view** — See what's in the database, confirm entry works
-7. **CSV import with column mapping** — Primary data entry method
-8. **Duplicate detection** — Prevents data quality issues early
+6. **Manual transaction entry** — Simplest way to get data in, validates data model works
+7. **Transaction list view** — See what's in the database, confirm entry works
+8. **CSV import with column mapping** — Primary data entry method
+9. **Duplicate detection** — Prevents data quality issues early
 
 ## Layer 3: Organisation
-9. **Category management (upper & sub)** — Required before categorisation
-10. **Uncategorised inbox** — Central workflow for processing transactions
-11. **Transaction categorisation UI** — Core functionality
-12. **Transaction splitting** — Enhances categorisation flexibility
+10. **Category management (upper & sub)** — Required before categorisation
+11. **Uncategorised inbox** — Central workflow for processing transactions
+12. **Transaction categorisation UI** — Core functionality
+13. **Transaction splitting** — Enhances categorisation flexibility
 
 ## Layer 4: Automation
-13. **Auto-categorisation rules management** — Settings UI
-14. **Rule application on import** — Reduces manual work
+14. **Auto-categorisation rules management** — Settings UI
+15. **Rule application on import** — Reduces manual work
 
 ## Layer 5: Budgeting
-15. **Monthly view with category aggregation** — Display spending by category
-16. **Budget entry and comparison** — Core budgeting feature
-17. **Budget carry-over and watermarks** — Convenience features
+16. **Monthly view with category aggregation** — Display spending by category
+17. **Budget entry and comparison** — Core budgeting feature
+18. **Budget carry-over and watermarks** — Convenience features
 
 ## Layer 6: Insights
-18. **Analytics API endpoints** — Data for dashboard
-19. **Dashboard layout and summary cards** — Quick overview
-20. **Charts (line, pie)** — Visual trends
-21. **Tabular reports (MoM, YoY)** — Detailed comparison
+19. **Analytics API endpoints** — Data for dashboard
+20. **Dashboard layout and summary cards** — Quick overview
+21. **Charts (line, pie)** — Visual trends
+22. **Tabular reports (MoM, YoY)** — Detailed comparison
 
 ## Layer 7: Sync
-22. **Google Drive API integration** — Technical foundation
-23. **Sync logic with backup** — Core sync functionality
-24. **Sync UI and prompts** — User-facing sync controls
-25. **Blocking close modal** — Ensures data safety
+23. **Google Drive API integration** — Technical foundation
+24. **Folder URL input and validation** — User configuration
+25. **Sync logic with backup** — Core sync functionality
+26. **Sync UI and prompts** — User-facing sync controls
+27. **Blocking close modal** — Ensures data safety (when sync configured)
 
 ## Layer 8: Refinement
-26. **Soft delete implementation** — Safe deletion
-27. **Undo system** — Error recovery
-28. **UI polish and error handling** — Production readiness
+28. **Soft delete implementation** — Safe deletion
+29. **Undo system** — Error recovery
+30. **UI polish and error handling** — Production readiness
+
+## Layer 9: Desktop Distribution
+31. **Tauri project setup and configuration** — Basic .exe builds
+32. **Database abstraction swap to Tauri plugin** — Native SQLite access
+33. **Secure token storage** — OAuth tokens in OS credential store
+34. **Window close sync integration** — Native close event handling
+35. **Auto-update notification system** — Version checking and prompts
+36. **Build pipeline and release process** — Distributable artifacts
 
 ## Atomic Feature Builds
 
@@ -578,9 +746,13 @@ Each numbered item above is designed to be:
 - Testable in isolation
 - Providing incremental value
 
-**Earliest Usable State:** After Layer 2 (items 1-8), users can log in, import transactions and view them — basic expense tracking is functional.
+**Earliest Usable State:** After Layer 2 (items 1-9), users can log in, import transactions and view them — basic expense tracking is functional.
 
-**Core Value Delivered:** After Layer 5 (items 1-17), full budgeting workflow is available without sync or advanced analytics.
+**Core Value Delivered:** After Layer 5 (items 1-18), full budgeting workflow is available without sync or advanced analytics.
+
+**Full MVP:** After Layer 8 (items 1-30), complete application running in development mode.
+
+**Distributable Product:** After Layer 9 (items 1-36), standalone .exe ready for end users.
 
 # Risks and Mitigations
 
@@ -606,6 +778,36 @@ Each numbered item above is designed to be:
 - Preview table allows users to verify parsing before import
 - Column mapping puts control in user hands
 - Start with simple CSV; add format support iteratively
+
+### Database Abstraction Layer
+**Risk:** Abstraction adds complexity; potential for bugs when swapping implementations.
+**Mitigation:**
+- Design abstraction early (Phase 1) before building features on top
+- Comprehensive tests for database operations
+- Test both implementations (better-sqlite3 and tauri-plugin-sql) in CI
+
+## Tauri-Specific Risks
+
+### WebView2 Availability
+**Risk:** Older Windows 10 installations may not have WebView2 runtime.
+**Mitigation:** 
+- Tauri auto-prompts installation if missing
+- Document requirement in release notes
+- WebView2 is pre-installed on Windows 11 and recent Windows 10 updates
+
+### Bundle Size
+**Risk:** Including unnecessary dependencies inflates bundle.
+**Mitigation:** 
+- Use Tauri-native plugins (tauri-plugin-sql) instead of Node.js sidecars
+- Tree-shake unused code in production build
+- Target 10-30MB bundle size
+
+### First-Launch Security Warnings
+**Risk:** Windows SmartScreen may flag unsigned .exe as potentially unsafe.
+**Mitigation:** 
+- Document expected warning for users in release notes
+- Consider code signing certificate for future releases (optional, has cost)
+- Building reputation through downloads reduces warnings over time
 
 ## MVP Scope Risks
 
@@ -671,18 +873,31 @@ Each numbered item above is designed to be:
 | Framework | Next.js 14+ | Full-stack React with API routes, App Router |
 | Language | TypeScript | Type safety for financial calculations |
 | Database | SQLite | Single file, portable, no server needed |
-| DB Library | better-sqlite3 | Synchronous, lightweight, no ORM overhead |
+| DB Library (Dev) | better-sqlite3 | Synchronous, lightweight, fast iteration |
+| DB Library (Packaged) | tauri-plugin-sql | Native Tauri integration, smaller bundle |
 | Styling | Tailwind CSS | Rapid UI development, consistent design |
 | Components | shadcn/ui | Accessible, customisable, Radix-based |
 | Charts | Recharts | React-native, composable, good docs |
 | Auth | bcrypt + session | Simple local password, no external auth |
 | Testing | Vitest | Fast, ESM-native, Jest-compatible API |
 | Package Manager | npm | Standard, no additional tooling |
+| Desktop Packaging | Tauri 2.x | Lightweight, Rust-based, uses system webview |
 
-## Database File Location
+## File Locations
 
-- **Development:** `./data/puffin.db`
-- **Production:** `~/.puffin/puffin.db` (or configurable)
-- **Backups:** `~/.puffin/backups/puffin_[timestamp].db`
+| Context | Database | Backups | Config |
+|---------|----------|---------|--------|
+| Development | `./data/puffin.db` | `./data/backups/` | `./data/config.json` |
+| Packaged (Windows) | `%APPDATA%/Puffin/puffin.db` | `%APPDATA%/Puffin/backups/` | `%APPDATA%/Puffin/config.json` |
+
+## Google Drive Folder URL Format
+
+Users copy the folder URL from their browser:
+```
+https://drive.google.com/drive/folders/1aBcDeFgHiJkLmNoPqRsTuVwXyZ
+                                        └──────── Folder ID ────────┘
+```
+
+The app extracts and stores only the folder ID. The folder must be shared with the user's Google account with edit permissions.
 
 </PRD>

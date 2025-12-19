@@ -731,11 +731,417 @@
             "testStrategy": "Test sync UI interactions, status updates, modal behavior, and error state handling"
           }
         ]
+      },
+      {
+        "id": 11,
+        "title": "Database Abstraction Layer",
+        "description": "Create abstraction layer over database operations to enable seamless swap between better-sqlite3 (development) and tauri-plugin-sql (packaged app)",
+        "details": "1. Create lib/db-abstraction.ts with unified interface for all database operations\n2. Abstract away direct better-sqlite3 calls behind common functions\n3. Design async-first interface to support both sync (better-sqlite3) and async (tauri-plugin-sql) implementations\n4. Export functions like getTransactions(), insertTransaction(), runQuery() that work in both contexts\n5. Implement runtime detection to check if running in Tauri context (window.__TAURI__)\n6. Create type definitions for database operation results\n7. Add connection pooling abstraction and transaction management\n8. Ensure all existing database code can migrate to use abstraction layer\n9. Write comprehensive tests for abstraction layer with mock implementations",
+        "testStrategy": "Unit tests for all abstraction layer functions with mock implementations. Integration tests to verify existing functionality works through abstraction. Test both sync and async operation modes.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Database Abstraction Interface and Type Definitions",
+            "description": "Design and implement the core abstraction interface with TypeScript definitions for unified database operations",
+            "dependencies": [],
+            "details": "Create lib/db-abstraction.ts with interface definitions for all database operations. Define TypeScript types for database results, connection objects, and query parameters. Create abstract base classes or interfaces that both better-sqlite3 and tauri-plugin-sql implementations will follow. Include type definitions for getTransactions(), insertTransaction(), runQuery() and other core database functions.",
+            "status": "pending",
+            "testStrategy": "Unit tests for type checking and interface compliance. Mock implementations to verify interface completeness."
+          },
+          {
+            "id": 2,
+            "title": "Implement Runtime Environment Detection",
+            "description": "Create runtime detection mechanism to identify whether running in Tauri context or development environment",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement detection logic using window.__TAURI__ to determine runtime context. Create utility functions that can reliably detect the environment and return appropriate configuration. Handle edge cases where window object might not be available. Create fallback mechanisms and error handling for detection failures.",
+            "status": "pending",
+            "testStrategy": "Test detection in both Tauri and browser environments. Mock window.__TAURI__ for testing different scenarios."
+          },
+          {
+            "id": 3,
+            "title": "Build Better-sqlite3 Implementation Layer",
+            "description": "Create the better-sqlite3 specific implementation of the database abstraction interface for development mode",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement all database operations using better-sqlite3 API while conforming to the abstraction interface. Handle synchronous nature of better-sqlite3 by wrapping operations in Promise.resolve() for async compatibility. Implement connection management, query execution, and transaction handling specific to better-sqlite3. Ensure all operations match the expected interface signatures.",
+            "status": "pending",
+            "testStrategy": "Integration tests with actual better-sqlite3 database. Verify all CRUD operations work correctly and return expected data structures."
+          },
+          {
+            "id": 4,
+            "title": "Build Tauri-plugin-sql Implementation Layer",
+            "description": "Create the tauri-plugin-sql specific implementation of the database abstraction interface for packaged app mode",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Implement all database operations using tauri-plugin-sql API while conforming to the abstraction interface. Handle async nature of tauri-plugin-sql operations. Implement Database.load('sqlite:puffin.db') for connection, db.select() for queries, and db.execute() for mutations. Ensure error handling and result formatting matches the abstraction interface expectations.",
+            "status": "pending",
+            "testStrategy": "Integration tests in Tauri environment. Verify all operations work identically to better-sqlite3 implementation with same data integrity."
+          },
+          {
+            "id": 5,
+            "title": "Integrate Abstraction Layer and Migration Testing",
+            "description": "Replace existing direct database calls with abstraction layer and implement comprehensive testing suite",
+            "dependencies": [
+              3,
+              4
+            ],
+            "details": "Update all existing database code to use the new abstraction layer instead of direct better-sqlite3 calls. Implement connection pooling abstraction and transaction management. Create comprehensive test suite with mock implementations for both database backends. Add performance benchmarks and ensure no regression in functionality. Verify seamless switching between implementations.",
+            "status": "pending",
+            "testStrategy": "End-to-end tests verifying existing functionality works through abstraction. Performance tests comparing direct vs abstracted operations. Mock tests for both implementation paths."
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Google Drive Configuration Settings",
+        "description": "Build settings UI for Google Drive folder configuration with validation, offline-only mode support, and disconnect functionality",
+        "details": "1. Create Google Drive configuration section in Settings page\n2. Build folder URL input field that extracts folder ID automatically from pasted URL\n3. Implement folder validation on save:\n   - Authenticate with user's Google account (OAuth2 flow)\n   - List folder contents via Drive API to verify access\n   - Create/delete test file (.puffin-validation-test) to confirm write access\n   - Display success message with folder name confirmation\n   - Show clear error messages for failures (Folder not found, No access, Read-only access)\n4. Store folder ID in local config file (not SQLite database)\n5. Implement 'Not configured' state with setup prompt\n6. Hide sync-related UI (banner, prompts) until sync is configured\n7. Build 'Disconnect' button to remove sync configuration\n8. Clear stored folder ID and OAuth tokens on disconnect\n9. Support multi-user shared folder setup (independent validation per user)\n10. Store OAuth refresh token securely (encrypted local file in dev mode)",
+        "testStrategy": "Test folder URL parsing and ID extraction. Verify validation flow with valid/invalid folders. Test disconnect functionality and state transitions. Verify offline-only mode UI hiding. Test error message display for various failure scenarios.",
+        "priority": "medium",
+        "dependencies": [
+          10
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Google Drive Configuration UI Section",
+            "description": "Build the Google Drive configuration section in the Settings page with folder URL input field and automatic folder ID extraction",
+            "dependencies": [],
+            "details": "Create a new section in the Settings page specifically for Google Drive configuration. Implement a folder URL input field that can automatically extract the folder ID from pasted Google Drive URLs. Include proper form validation and user-friendly labeling. The UI should handle both configured and unconfigured states appropriately.",
+            "status": "pending",
+            "testStrategy": "Test URL parsing with various Google Drive URL formats, verify folder ID extraction accuracy, and test input field validation"
+          },
+          {
+            "id": 2,
+            "title": "Implement OAuth2 Authentication Flow",
+            "description": "Set up Google OAuth2 authentication flow for accessing user's Google Drive account with secure token storage",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement the complete OAuth2 flow for Google Drive API access. This includes setting up the authentication redirect, handling the callback, and securely storing the OAuth refresh tokens in encrypted local files (dev mode). Ensure proper error handling for authentication failures and token refresh scenarios.",
+            "status": "pending",
+            "testStrategy": "Test OAuth flow with valid/invalid credentials, verify token storage encryption, and test token refresh functionality"
+          },
+          {
+            "id": 3,
+            "title": "Build Folder Validation System",
+            "description": "Implement comprehensive folder validation including access verification and write permission testing via Google Drive API",
+            "dependencies": [
+              2
+            ],
+            "details": "Create a validation system that authenticates with Google Drive API, lists folder contents to verify access, and creates/deletes a test file (.puffin-validation-test) to confirm write permissions. Include proper error handling for various failure scenarios like folder not found, no access, or read-only access. Display appropriate success/error messages to users.",
+            "status": "pending",
+            "testStrategy": "Test validation with valid/invalid folders, verify write permission testing, and test error message display for different failure scenarios"
+          },
+          {
+            "id": 4,
+            "title": "Implement Configuration Storage and State Management",
+            "description": "Build local configuration file storage for folder ID and implement UI state management for configured/unconfigured states",
+            "dependencies": [
+              3
+            ],
+            "details": "Create a system to store the Google Drive folder ID in a local configuration file (not SQLite database). Implement proper state management to handle 'Not configured' states with setup prompts. Hide sync-related UI elements (banners, prompts) until sync is properly configured. Ensure configuration persistence across app restarts.",
+            "status": "pending",
+            "testStrategy": "Test configuration file creation and persistence, verify UI state transitions, and test sync UI hiding/showing based on configuration status"
+          },
+          {
+            "id": 5,
+            "title": "Build Disconnect Functionality",
+            "description": "Implement disconnect button and cleanup process to remove sync configuration and clear stored tokens",
+            "dependencies": [
+              4
+            ],
+            "details": "Create a disconnect button that allows users to remove their Google Drive sync configuration. Implement proper cleanup that clears stored folder ID from config file and removes OAuth tokens from encrypted storage. Support multi-user shared folder setup with independent validation per user. Ensure UI returns to unconfigured state after disconnect.",
+            "status": "pending",
+            "testStrategy": "Test disconnect functionality clears all stored data, verify UI returns to unconfigured state, and test multi-user scenario handling"
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Tauri Project Setup and Build Pipeline",
+        "description": "Initialize Tauri in the project and configure build pipeline for Windows portable executable distribution",
+        "details": "1. Install Tauri CLI and API: npm install @tauri-apps/cli @tauri-apps/api\n2. Initialize Tauri in project: npx tauri init\n3. Configure tauri.conf.json:\n   - App name: 'Puffin'\n   - Window title: 'Puffin — Personal Budgeting'\n   - Default window size: 1280x800, resizable\n   - Single instance enforcement to prevent multiple windows accessing same database\n4. Set build target: Windows x64 portable executable (.exe)\n5. Configure Next.js for static export (output: 'export' in next.config.js)\n6. Add npm scripts:\n   - npm run tauri dev — Run inside Tauri shell with dev tools\n   - npm run tauri build — Produce release .exe\n7. Verify development workflow: npm run dev continues to work as standard Next.js\n8. Test Tauri dev mode runs correctly with webview\n9. Verify build produces single .exe file (target 10-30MB)\n10. Document build requirements and process",
+        "testStrategy": "Verify Tauri initializes correctly. Test all npm scripts work as expected. Confirm development mode hot reload works. Verify production build produces valid .exe file. Test single instance enforcement prevents duplicate windows.",
+        "priority": "low",
+        "dependencies": [
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and Initialize Tauri Framework",
+            "description": "Install Tauri CLI and API packages, then initialize Tauri in the existing Next.js project",
+            "dependencies": [],
+            "details": "Run npm install @tauri-apps/cli @tauri-apps/api to add Tauri dependencies. Execute npx tauri init to scaffold Tauri configuration files and Rust backend structure. Verify src-tauri directory is created with proper Cargo.toml and main.rs files.",
+            "status": "pending",
+            "testStrategy": "Verify Tauri CLI installation by running tauri --version. Confirm src-tauri directory exists with valid Rust project structure."
+          },
+          {
+            "id": 2,
+            "title": "Configure Tauri Application Settings",
+            "description": "Set up tauri.conf.json with Puffin app configuration including window settings and single instance enforcement",
+            "dependencies": [
+              1
+            ],
+            "details": "Configure tauri.conf.json with app name 'Puffin', window title 'Puffin — Personal Budgeting', default window size 1280x800 with resizable enabled. Enable single instance enforcement to prevent multiple windows accessing the same database. Set build target for Windows x64 portable executable.",
+            "status": "pending",
+            "testStrategy": "Verify configuration loads correctly and single instance enforcement prevents duplicate app launches. Test window dimensions and resizing behavior."
+          },
+          {
+            "id": 3,
+            "title": "Configure Next.js for Static Export",
+            "description": "Modify Next.js configuration to support static export for Tauri webview integration",
+            "dependencies": [
+              1
+            ],
+            "details": "Update next.config.js to include output: 'export' configuration for static site generation. Ensure all dynamic routes and API endpoints are compatible with static export. Configure asset handling and routing for Tauri webview environment.",
+            "status": "pending",
+            "testStrategy": "Run next build to verify static export generates correctly without errors. Test that all pages and assets load properly in static mode."
+          },
+          {
+            "id": 4,
+            "title": "Set Up Development and Build Scripts",
+            "description": "Add npm scripts for Tauri development and production builds with proper workflow integration",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Add npm run tauri:dev script for development with hot reload and dev tools. Create npm run tauri:build script for production .exe generation. Ensure existing npm run dev continues to work for standard Next.js development. Configure scripts to handle both web and desktop development workflows.",
+            "status": "pending",
+            "testStrategy": "Test tauri:dev launches app with hot reload functionality. Verify tauri:build produces valid .exe file. Confirm standard Next.js dev mode still works independently."
+          },
+          {
+            "id": 5,
+            "title": "Validate Build Pipeline and Documentation",
+            "description": "Test complete build process and create documentation for development workflow and build requirements",
+            "dependencies": [
+              4
+            ],
+            "details": "Execute full build pipeline to generate Windows portable executable. Verify .exe file size is within 10-30MB target range and runs independently. Test development workflow with both web and desktop modes. Document build requirements, dependencies, and step-by-step build process for team members.",
+            "status": "pending",
+            "testStrategy": "Verify final .exe runs on clean Windows system without dependencies. Test file size meets requirements. Validate documentation by following steps on different development environment."
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Database Migration to Tauri Plugin",
+        "description": "Implement tauri-plugin-sql integration and update database abstraction layer to use it in packaged mode",
+        "details": "1. Install tauri-plugin-sql for native SQLite access in Tauri\n2. Update lib/db-abstraction.ts to detect Tauri context (window.__TAURI__)\n3. Implement Tauri-specific database operations using tauri-plugin-sql:\n   - Database.load('sqlite:puffin.db') for connection\n   - db.select() for queries\n   - db.execute() for mutations\n4. Maintain better-sqlite3 implementation for development mode\n5. Ensure all database operations work identically in both modes\n6. Handle async nature of tauri-plugin-sql (all operations return Promises)\n7. Update all API routes to use abstraction layer\n8. Test database operations in Tauri dev mode\n9. Test database operations in production build\n10. Verify data integrity across both implementations",
+        "testStrategy": "Test all database operations in both better-sqlite3 and tauri-plugin-sql modes. Verify identical behavior and data integrity. Test concurrent operations and error handling in both modes. Performance comparison between implementations.",
+        "priority": "low",
+        "dependencies": [
+          11,
+          13
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and Configure tauri-plugin-sql",
+            "description": "Install tauri-plugin-sql package and configure it in the Tauri application for native SQLite access",
+            "dependencies": [],
+            "details": "Install tauri-plugin-sql via npm/yarn, add it to Cargo.toml dependencies, configure the plugin in tauri.conf.json with appropriate permissions for database access, and ensure the plugin is properly initialized in the Tauri app setup",
+            "status": "pending",
+            "testStrategy": "Verify plugin installation by checking package.json and Cargo.toml. Test basic plugin initialization and connection establishment in Tauri dev mode"
+          },
+          {
+            "id": 2,
+            "title": "Implement Tauri Context Detection",
+            "description": "Update database abstraction layer to detect when running in Tauri context versus development mode",
+            "dependencies": [
+              1
+            ],
+            "details": "Modify lib/db-abstraction.ts to check for window.__TAURI__ availability and create runtime detection logic that determines whether to use tauri-plugin-sql or better-sqlite3 implementation based on the execution environment",
+            "status": "pending",
+            "testStrategy": "Test context detection in both Tauri app and browser development environments. Verify correct implementation is selected based on runtime context"
+          },
+          {
+            "id": 3,
+            "title": "Implement Tauri-Specific Database Operations",
+            "description": "Create tauri-plugin-sql implementation for all database operations using Database.load, db.select, and db.execute methods",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement Tauri-specific database operations including Database.load('sqlite:puffin.db') for connection establishment, db.select() for query operations, and db.execute() for mutation operations. Ensure all operations handle the async nature of tauri-plugin-sql and return Promises consistently",
+            "status": "pending",
+            "testStrategy": "Test all CRUD operations using tauri-plugin-sql. Verify database connection, query execution, and mutation operations work correctly with proper error handling"
+          },
+          {
+            "id": 4,
+            "title": "Maintain Dual Implementation Compatibility",
+            "description": "Ensure both better-sqlite3 and tauri-plugin-sql implementations provide identical functionality and behavior",
+            "dependencies": [
+              3
+            ],
+            "details": "Update the abstraction layer to maintain the existing better-sqlite3 implementation for development mode while ensuring both implementations provide identical results for all database operations. Handle the sync/async differences between implementations and ensure consistent error handling and data formatting",
+            "status": "pending",
+            "testStrategy": "Run identical test suites against both implementations. Compare results, performance, and error handling. Verify data integrity and consistency across both modes"
+          },
+          {
+            "id": 5,
+            "title": "Integration Testing and Production Validation",
+            "description": "Test database operations in both Tauri dev mode and production builds to ensure complete functionality",
+            "dependencies": [
+              4
+            ],
+            "details": "Perform comprehensive testing of all database operations in Tauri development mode and create production builds to test packaged application behavior. Verify data integrity, concurrent operations, and error handling work correctly in both environments. Update all API routes to use the abstraction layer consistently",
+            "status": "pending",
+            "testStrategy": "Execute full test suite in Tauri dev mode and production builds. Test data migration, concurrent operations, error scenarios, and performance benchmarks. Verify all API routes work correctly through the abstraction layer"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Secure Token Storage and File System Handling",
+        "description": "Implement secure OAuth token storage and configure proper file system locations for packaged app",
+        "details": "1. Install tauri-plugin-store for secure key-value storage\n2. Implement secure OAuth refresh token storage:\n   - Use Windows Credential Manager via Tauri plugin in packaged mode\n   - Use encrypted local file for development mode\n   - Encrypt tokens at rest\n3. Configure file system locations for packaged app:\n   - Database: %APPDATA%/Puffin/puffin.db\n   - Backups: %APPDATA%/Puffin/backups/\n   - Config: %APPDATA%/Puffin/config.json\n4. Implement path resolution based on runtime environment\n5. Create directory structure on first run if not exists\n6. Update all file operations to use resolved paths\n7. Ensure database path works in both dev and packaged modes\n8. Test file operations in sandboxed Tauri environment\n9. Verify backup creation works with new paths\n10. Document file locations for users",
+        "testStrategy": "Test secure token storage and retrieval. Verify encryption of stored tokens. Test path resolution in both development and packaged modes. Verify directory creation on first run. Test backup functionality with new paths.",
+        "priority": "low",
+        "dependencies": [
+          12,
+          13,
+          14
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and Configure Tauri Plugin Store",
+            "description": "Install tauri-plugin-store for secure key-value storage and configure it for the application",
+            "dependencies": [],
+            "details": "Install tauri-plugin-store package, add it to Tauri configuration, and set up basic store initialization with proper permissions and security settings for encrypted storage",
+            "status": "pending",
+            "testStrategy": "Test store initialization, verify plugin loads correctly, and confirm basic read/write operations work"
+          },
+          {
+            "id": 2,
+            "title": "Implement Secure OAuth Token Storage",
+            "description": "Create secure storage system for OAuth refresh tokens with environment-specific implementations",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement Windows Credential Manager integration for packaged mode using Tauri plugin, create encrypted local file storage for development mode, and ensure tokens are encrypted at rest with proper key management",
+            "status": "pending",
+            "testStrategy": "Test token storage and retrieval in both development and packaged modes, verify encryption is working, and test credential manager integration"
+          },
+          {
+            "id": 3,
+            "title": "Configure Application File System Paths",
+            "description": "Set up proper file system locations for packaged application with standardized paths",
+            "dependencies": [],
+            "details": "Configure paths for database (%APPDATA%/Puffin/puffin.db), backups (%APPDATA%/Puffin/backups/), and config (%APPDATA%/Puffin/config.json) with proper cross-platform path resolution",
+            "status": "pending",
+            "testStrategy": "Test path resolution on different operating systems, verify paths are created correctly, and confirm file access permissions"
+          },
+          {
+            "id": 4,
+            "title": "Implement Runtime Environment Path Resolution",
+            "description": "Create path resolution system that works in both development and packaged environments",
+            "dependencies": [
+              3
+            ],
+            "details": "Build environment detection logic to determine if running in development or packaged mode, implement path resolution that returns appropriate paths for each environment, and create directory structure on first run if it doesn't exist",
+            "status": "pending",
+            "testStrategy": "Test path resolution in both development and packaged modes, verify directory creation works correctly, and test fallback mechanisms"
+          },
+          {
+            "id": 5,
+            "title": "Update File Operations and Validate Functionality",
+            "description": "Update all existing file operations to use the new path resolution system and validate functionality",
+            "dependencies": [
+              2,
+              4
+            ],
+            "details": "Refactor all database operations, backup creation, and config file handling to use resolved paths, test file operations in sandboxed Tauri environment, verify backup creation works with new paths, and document file locations for users",
+            "status": "pending",
+            "testStrategy": "Test all file operations with new paths, verify database works in both dev and packaged modes, test backup functionality, and validate sandboxed environment compatibility"
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Window Close Handling, Auto-Update, and Distribution",
+        "description": "Implement native window close sync prompt, auto-update notification system, and finalize distribution pipeline",
+        "details": "1. Intercept window close event via Tauri API\n2. Trigger sync prompt before allowing close (reuse Phase 7 modal)\n3. Prevent close until sync completes or user explicitly skips\n4. Only show sync prompt if sync is configured\n5. Implement auto-update checking:\n   - Check GitHub Releases API on app launch\n   - Compare local version against latest available\n   - Display non-blocking notification banner if update available\n   - 'Version X.X available — [Download] [Dismiss]'\n   - Download button opens browser to release page\n6. Display version number in Settings page footer\n7. Keep version in sync between tauri.conf.json and package.json\n8. Configure build outputs:\n   - Puffin-vX.X.X-windows-x64.exe (portable executable)\n   - Optional: .zip for easier hosting\n9. Document release process for GitHub Releases\n10. Optional: Set up GitHub Actions for automated builds",
+        "testStrategy": "Test window close interception and sync prompt display. Verify close is blocked until sync completes or skips. Test auto-update version comparison logic. Verify notification banner UI. Test download link opens correctly. Verify version display in Settings.",
+        "priority": "low",
+        "dependencies": [
+          12,
+          15
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Window Close Event Interception",
+            "description": "Set up Tauri window close event handling with sync prompt integration",
+            "dependencies": [],
+            "details": "Use Tauri's window API to intercept close events, implement beforeunload-style handling that triggers sync prompt modal (reusing Phase 7 modal component), and prevent window close until sync completes or user explicitly skips",
+            "status": "pending",
+            "testStrategy": "Test window close interception works correctly, verify sync prompt displays when sync is configured, test close prevention until sync completion"
+          },
+          {
+            "id": 2,
+            "title": "Build Auto-Update Version Checking System",
+            "description": "Implement GitHub Releases API integration for version comparison and update detection",
+            "dependencies": [],
+            "details": "Create service to check GitHub Releases API on app launch, compare local version from package.json against latest available release, implement version parsing and comparison logic with semantic versioning support",
+            "status": "pending",
+            "testStrategy": "Test version comparison logic with various version formats, verify API calls work correctly, test handling of network failures and API rate limits"
+          },
+          {
+            "id": 3,
+            "title": "Create Update Notification Banner UI",
+            "description": "Build non-blocking notification banner component for displaying available updates",
+            "dependencies": [
+              2
+            ],
+            "details": "Design and implement notification banner with 'Version X.X available — [Download] [Dismiss]' format, integrate download button that opens browser to GitHub release page, add dismiss functionality with local storage persistence",
+            "status": "pending",
+            "testStrategy": "Test banner display and positioning, verify download button opens correct release page, test dismiss functionality persists across sessions"
+          },
+          {
+            "id": 4,
+            "title": "Implement Version Display and Synchronization",
+            "description": "Add version number display in Settings page and ensure version sync between config files",
+            "dependencies": [],
+            "details": "Display current version number in Settings page footer, create build script or process to keep version synchronized between tauri.conf.json and package.json, implement version reading from appropriate source in both dev and production modes",
+            "status": "pending",
+            "testStrategy": "Verify version displays correctly in Settings, test version sync mechanism works during build process, validate version reading in different environments"
+          },
+          {
+            "id": 5,
+            "title": "Configure Distribution Pipeline and Documentation",
+            "description": "Set up build outputs configuration and document release process for GitHub Releases",
+            "dependencies": [
+              4
+            ],
+            "details": "Configure Tauri build to generate Puffin-vX.X.X-windows-x64.exe portable executable, optionally create .zip packaging for easier hosting, document complete release process including GitHub Releases workflow, optionally set up GitHub Actions for automated builds",
+            "status": "pending",
+            "testStrategy": "Test build output generation with correct naming convention, verify executable works as portable app, validate release documentation completeness"
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-12-16T10:23:48.489Z",
-      "updated": "2025-12-17T02:30:00.000Z",
+      "updated": "2025-12-20T13:45:00.000Z",
       "description": "Tasks for master context"
     }
   }
