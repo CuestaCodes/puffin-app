@@ -1,10 +1,21 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ListTree, Sparkles, CloudUpload, Database, Shield } from 'lucide-react';
+import { CategoryManagement } from '@/components/settings';
+
+type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
 
 export function SettingsPage() {
+  const [currentView, setCurrentView] = useState<SettingsView>('main');
+
+  // Render the category management page
+  if (currentView === 'categories') {
+    return <CategoryManagement onBack={() => setCurrentView('main')} />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -18,7 +29,10 @@ export function SettingsPage() {
       {/* Settings sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Categories */}
-        <Card className="border-slate-800 bg-slate-900/50 hover:border-cyan-700 transition-colors cursor-pointer">
+        <Card 
+          className="border-slate-800 bg-slate-900/50 hover:border-cyan-700 transition-colors cursor-pointer"
+          onClick={() => setCurrentView('categories')}
+        >
           <CardHeader>
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-cyan-950/30 border border-cyan-900/50">

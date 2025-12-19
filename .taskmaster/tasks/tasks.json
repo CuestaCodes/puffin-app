@@ -449,7 +449,7 @@
         "dependencies": [
           6
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -457,7 +457,7 @@
             "description": "Build comprehensive category management page with upper and sub-category lists, including create, rename, and delete operations with proper validation and user feedback.",
             "dependencies": [],
             "details": "Create category management page in settings with upper and sub-category lists. Implement upper category renaming functionality. Build sub-category CRUD operations (create, rename, delete with transaction reassignment). Add form validation, error handling, and success notifications. Include category hierarchy display and management controls.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test category creation, renaming, deletion, and hierarchy display. Verify form validation and error handling work correctly."
           },
           {
@@ -468,7 +468,7 @@
               1
             ],
             "details": "Create transaction splitting modal allowing division into 2-3 parts. Build dynamic form with amount inputs for each split. Add category assignment interface for split portions. Include visual indicators showing remaining amount to allocate. Implement responsive design and user-friendly controls for adding/removing split portions.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test modal functionality, dynamic form behavior, category assignment, and visual feedback for amount allocation."
           },
           {
@@ -479,7 +479,7 @@
               2
             ],
             "details": "Implement split validation ensuring amounts sum to original transaction. Add real-time validation feedback showing remaining amount. Handle decimal precision issues and rounding. Validate minimum split amounts and prevent zero-value splits. Include comprehensive error messages and validation state management.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test mathematical validation, decimal precision handling, error messaging, and edge cases like zero amounts or oversplitting."
           },
           {
@@ -490,7 +490,7 @@
               3
             ],
             "details": "Create child transactions linked to parent with parent_transaction_id. Implement database schema changes for parent-child relationships. Build API endpoints for creating split transactions. Add visual indicators for split transactions in transaction lists. Ensure proper indexing and foreign key constraints for performance and data integrity.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test parent-child relationship creation, database constraints, API endpoints, and visual indicators in transaction lists."
           },
           {
@@ -501,7 +501,7 @@
               4
             ],
             "details": "Add unsplit functionality to reverse splits and restore original transaction. Implement data integrity checks before unsplitting. Handle cascading updates and maintain audit trail. Add confirmation dialogs and validation for unsplit operations. Ensure proper cleanup of child transactions and restoration of parent transaction state.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test unsplit operations, data integrity maintenance, confirmation flows, and proper restoration of original transaction state."
           },
           {
@@ -513,7 +513,7 @@
               4
             ],
             "details": "Implement category deletion protection when transactions exist. Build transaction reassignment interface for moving transactions to different categories before deletion. Add bulk reassignment functionality and confirmation dialogs. Include transaction count validation and proper error handling for protected deletions. Ensure data consistency throughout all operations.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test deletion protection logic, transaction reassignment functionality, bulk operations, and data consistency validation."
           }
         ]
@@ -742,7 +742,7 @@
         "dependencies": [
           1
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -750,7 +750,7 @@
             "description": "Design and implement the core abstraction interface with TypeScript definitions for unified database operations",
             "dependencies": [],
             "details": "Create lib/db-abstraction.ts with interface definitions for all database operations. Define TypeScript types for database results, connection objects, and query parameters. Create abstract base classes or interfaces that both better-sqlite3 and tauri-plugin-sql implementations will follow. Include type definitions for getTransactions(), insertTransaction(), runQuery() and other core database functions.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for type checking and interface compliance. Mock implementations to verify interface completeness."
           },
           {
@@ -761,7 +761,7 @@
               1
             ],
             "details": "Implement detection logic using window.__TAURI__ to determine runtime context. Create utility functions that can reliably detect the environment and return appropriate configuration. Handle edge cases where window object might not be available. Create fallback mechanisms and error handling for detection failures.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test detection in both Tauri and browser environments. Mock window.__TAURI__ for testing different scenarios."
           },
           {
@@ -773,7 +773,7 @@
               2
             ],
             "details": "Implement all database operations using better-sqlite3 API while conforming to the abstraction interface. Handle synchronous nature of better-sqlite3 by wrapping operations in Promise.resolve() for async compatibility. Implement connection management, query execution, and transaction handling specific to better-sqlite3. Ensure all operations match the expected interface signatures.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Integration tests with actual better-sqlite3 database. Verify all CRUD operations work correctly and return expected data structures."
           },
           {

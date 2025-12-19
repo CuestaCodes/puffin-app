@@ -314,3 +314,153 @@ export function findDuplicates(transactions: Array<{ date: string; description: 
   return duplicateIndices;
 }
 
+/**
+ * Split a transaction into multiple parts
+ * @param parentId The ID of the transaction to split
+ * @param splits Array of split amounts and optional category IDs
+ * @returns Array of created child transactions
+ */
+export function splitTransaction(
+  parentId: string,
+  splits: Array<{ amount: number; sub_category_id?: string | null; description?: string }>
+): Transaction[] {
+  const db = getDatabase();
+  const parent = getTransactionById(parentId);
+  
+  if (!parent) {
+    throw new Error('Transaction not found');
+  }
+  
+  if (parent.is_split) {
+    throw new Error('Transaction is already split');
+  }
+  
+  if (parent.parent_transaction_id) {
+    throw new Error('Cannot split a child transaction');
+  }
+  
+  // Validate that splits sum to original amount
+  const totalSplit = splits.reduce((sum, s) => sum + s.amount, 0);
+  const originalAmount = Math.abs(parent.amount);
+  const tolerance = 0.01; // Allow for floating point precision issues
+  
+  if (Math.abs(totalSplit - originalAmount) > tolerance) {
+    throw new Error(`Split amounts (${totalSplit}) must equal original amount (${originalAmount})`);
+  }
+  
+  const now = new Date().toISOString();
+  const createdChildren: Transaction[] = [];
+  
+  const performSplit = db.transaction(() => {
+    // Mark parent as split
+    db.prepare(`
+      UPDATE "transaction" SET is_split = 1, updated_at = ? WHERE id = ?
+    `).run(now, parentId);
+    
+    // Create child transactions
+    const insertStmt = db.prepare(`
+      INSERT INTO "transaction" 
+      (id, date, description, amount, notes, sub_category_id, is_split, parent_transaction_id, is_deleted, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)
+    `);
+    
+    // Determine sign based on parent amount
+    const sign = parent.amount < 0 ? -1 : 1;
+    
+    for (let i = 0; i < splits.length; i++) {
+      const split = splits[i];
+      const id = generateId();
+      const description = split.description || `${parent.description} (Part ${i + 1})`;
+      const amount = sign * Math.abs(split.amount);
+      
+      insertStmt.run(
+        id,
+        parent.date,
+        description,
+        amount,
+        parent.notes,
+        split.sub_category_id || null,
+        parentId,
+        now,
+        now
+      );
+      
+      createdChildren.push({
+        id,
+        date: parent.date,
+        description,
+        amount,
+        notes: parent.notes,
+        sub_category_id: split.sub_category_id || null,
+        is_split: false,
+        parent_transaction_id: parentId,
+        is_deleted: false,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+  });
+  
+  performSplit();
+  
+  return createdChildren;
+}
+
+/**
+ * Get child transactions for a split parent
+ */
+export function getChildTransactions(parentId: string): TransactionWithCategory[] {
+  const db = getDatabase();
+  
+  return db.prepare(`
+    SELECT 
+      t.*,
+      sc.name as sub_category_name,
+      uc.name as upper_category_name,
+      uc.type as upper_category_type
+    FROM "transaction" t
+    LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
+    LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE t.parent_transaction_id = ? AND t.is_deleted = 0
+    ORDER BY t.created_at ASC
+  `).all(parentId) as TransactionWithCategory[];
+}
+
+/**
+ * Unsplit a transaction - delete children and restore parent
+ */
+export function unsplitTransaction(parentId: string): Transaction | null {
+  const db = getDatabase();
+  const parent = getTransactionById(parentId);
+  
+  if (!parent) {
+    throw new Error('Transaction not found');
+  }
+  
+  if (!parent.is_split) {
+    throw new Error('Transaction is not split');
+  }
+  
+  const now = new Date().toISOString();
+  
+  const performUnsplit = db.transaction(() => {
+    // Soft delete all child transactions
+    db.prepare(`
+      UPDATE "transaction" 
+      SET is_deleted = 1, updated_at = ? 
+      WHERE parent_transaction_id = ?
+    `).run(now, parentId);
+    
+    // Mark parent as no longer split
+    db.prepare(`
+      UPDATE "transaction" 
+      SET is_split = 0, updated_at = ? 
+      WHERE id = ?
+    `).run(now, parentId);
+  });
+  
+  performUnsplit();
+  
+  return getTransactionById(parentId) as Transaction | null;
+}
+
