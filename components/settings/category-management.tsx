@@ -126,7 +126,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
       
       setEditingUpper(null);
       fetchCategories();
-    } catch (err) {
+    } catch {
       setError('Failed to update category name');
     } finally {
       setIsSaving(false);
@@ -158,7 +158,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
       
       setEditingSub(null);
       fetchCategories();
-    } catch (err) {
+    } catch {
       setError('Failed to update category name');
     } finally {
       setIsSaving(false);
@@ -194,46 +194,48 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
       
       setShowNewSubDialog(false);
       fetchCategories();
-    } catch (err) {
+    } catch {
       setError('Failed to create category');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Delete sub-category
+  // Delete sub-category - check for transactions first before attempting delete
   const handleDeleteClick = async (sub: SubCategoryWithUpper) => {
     setDeletingSub(sub);
     setReassignTarget('null');
     setCheckingTransactions(true);
     
     try {
-      // Check if category has transactions by trying to delete without reassign
-      const response = await fetch(`/api/categories/${sub.id}`, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
-        // No transactions, deleted successfully
-        setDeletingSub(null);
-        fetchCategories();
-        return;
+      // First, check if category has transactions
+      const countResponse = await fetch(`/api/transactions?categoryId=${sub.id}&limit=1`);
+      if (!countResponse.ok) {
+        throw new Error('Failed to check transactions');
       }
       
-      const data = await response.json();
-      if (data.error === 'Category has transactions') {
-        // Has transactions, need to show reassign dialog
-        // Get count from transaction list
-        const countResponse = await fetch(`/api/transactions?categoryId=${sub.id}&limit=1`);
-        if (countResponse.ok) {
-          const countData = await countResponse.json();
-          setTransactionCount(countData.total || 0);
-        }
+      const countData = await countResponse.json();
+      const txCount = countData.total || 0;
+      
+      if (txCount > 0) {
+        // Has transactions - show reassign dialog
+        setTransactionCount(txCount);
       } else {
-        setError(data.error || 'Failed to delete category');
-        setDeletingSub(null);
+        // No transactions - proceed with delete directly
+        const response = await fetch(`/api/categories/${sub.id}`, {
+          method: 'DELETE',
+        });
+        
+        if (response.ok) {
+          setDeletingSub(null);
+          fetchCategories();
+        } else {
+          const data = await response.json();
+          setError(data.error || 'Failed to delete category');
+          setDeletingSub(null);
+        }
       }
-    } catch (err) {
+    } catch {
       setError('Failed to delete category');
       setDeletingSub(null);
     } finally {
@@ -298,8 +300,40 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-800 animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-7 w-48 bg-slate-800 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-slate-800/50 rounded animate-pulse" />
+          </div>
+        </div>
+        {/* Category group skeletons */}
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="border-slate-800 bg-slate-900/50">
+            <CardHeader className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-5 w-32 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-5 w-16 bg-slate-800/50 rounded-full animate-pulse" />
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-8 w-20 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-8 w-16 bg-slate-800 rounded animate-pulse" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 pb-4">
+              <div className="space-y-2">
+                {[1, 2, 3].map((j) => (
+                  <div key={j} className="h-10 bg-slate-800/30 rounded animate-pulse" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }

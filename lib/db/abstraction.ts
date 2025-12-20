@@ -218,6 +218,14 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
     return result !== null;
   }
   
+  /**
+   * Run operations in a transaction.
+   * 
+   * IMPORTANT: For better-sqlite3, the callback must be synchronous.
+   * Async callbacks are only supported in the Tauri implementation.
+   * While the interface accepts Promise returns for compatibility,
+   * using async operations here will cause errors.
+   */
   async transaction<T>(callback: TransactionCallback<T>): Promise<T> {
     const db = this.getDb();
     const txn = db.transaction(() => {
@@ -276,7 +284,8 @@ export class TauriSqlAdapter implements DatabaseAdapter {
   private notImplemented(): never {
     throw new Error(
       'Tauri SQL adapter is not yet implemented. ' +
-      'This adapter will be completed during Phase 9 (Tauri Desktop Packaging).'
+      'This adapter requires Phase 9 implementation. ' +
+      'See Tasks 13-16 in .taskmaster/tasks/tasks.json for Tauri packaging roadmap.'
     );
   }
   

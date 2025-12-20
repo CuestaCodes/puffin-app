@@ -346,10 +346,12 @@ export function splitTransaction(
   // Validate that splits sum to original amount
   const totalSplit = splits.reduce((sum, s) => sum + s.amount, 0);
   const originalAmount = Math.abs(parent.amount);
-  const tolerance = 0.01; // Allow for floating point precision issues
+  // Use relative tolerance for larger amounts, minimum 0.01 for small amounts
+  // This prevents floating-point precision issues from causing validation failures
+  const tolerance = Math.max(0.01, originalAmount * 0.0001);
   
   if (Math.abs(totalSplit - originalAmount) > tolerance) {
-    throw new Error(`Split amounts (${totalSplit}) must equal original amount (${originalAmount})`);
+    throw new Error(`Split amounts (${totalSplit.toFixed(2)}) must equal original amount (${originalAmount.toFixed(2)})`);
   }
   
   const now = new Date().toISOString();

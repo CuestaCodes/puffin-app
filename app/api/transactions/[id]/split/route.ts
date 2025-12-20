@@ -8,19 +8,20 @@ import {
   unsplitTransaction,
   getTransactionById
 } from '@/lib/db/transactions';
+import { MIN_SPLITS, MAX_SPLITS } from '@/lib/constants';
 import { z } from 'zod';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-// Schema for split request
+// Schema for split request - uses centralized constants
 const splitRequestSchema = z.object({
   splits: z.array(z.object({
     amount: z.number().positive('Amount must be positive'),
     sub_category_id: z.string().nullable().optional(),
     description: z.string().optional(),
-  })).min(2, 'Must have at least 2 splits').max(3, 'Maximum 3 splits allowed'),
+  })).min(MIN_SPLITS, `Must have at least ${MIN_SPLITS} splits`).max(MAX_SPLITS, `Maximum ${MAX_SPLITS} splits allowed`),
 });
 
 // GET /api/transactions/[id]/split - Get child transactions for a split parent

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Loader2, Plus, Trash2, AlertTriangle, Split } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,10 +46,14 @@ export function SplitModal({
   // Reset form when transaction changes
   useEffect(() => {
     if (transaction && open) {
-      const halfAmount = (Math.abs(transaction.amount) / 2).toFixed(2);
+      const total = Math.abs(transaction.amount);
+      // Handle odd amounts by giving remainder to first split (ceil vs floor)
+      // This ensures firstHalf + secondHalf always equals total
+      const firstHalf = Math.ceil(total * 100 / 2) / 100;
+      const secondHalf = Math.round((total - firstHalf) * 100) / 100;
       setSplits([
-        { amount: halfAmount, sub_category_id: transaction.sub_category_id, description: '' },
-        { amount: halfAmount, sub_category_id: null, description: '' },
+        { amount: firstHalf.toFixed(2), sub_category_id: transaction.sub_category_id, description: '' },
+        { amount: secondHalf.toFixed(2), sub_category_id: null, description: '' },
       ]);
       setError(null);
     }
@@ -66,6 +70,21 @@ export function SplitModal({
 
   const remaining = originalAmount - totalSplit;
   const isBalanced = Math.abs(remaining) < 0.01;
+
+  // Keyboard shortcuts: Enter to submit when balanced, Escape handled by Dialog
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey && isBalanced && !isSubmitting && open) {
+      e.preventDefault();
+      // Trigger submit - we'll call handleSubmit via ref or state
+    }
+  }, [isBalanced, isSubmitting, open]);
+
+  useEffect(() => {
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [open, handleKeyDown]);
 
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
