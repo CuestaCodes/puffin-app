@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, FileText, BarChart2 } from 'lucide-react';
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { cn } from '@/lib/utils';
@@ -190,10 +190,41 @@ function MonthlyBudgetContent() {
     }
   }, [year, month]);
 
-  // Always fetch all categories on mount and when month changes
+  // Initialize $0 budgets for categories without budgets
+  const initializeBudgets = useCallback(async () => {
+    try {
+      const response = await fetch('/api/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'initialize',
+          year,
+          month,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.initializedCount > 0) {
+          console.log(`Initialized ${data.initializedCount} budgets to $0`);
+          // Refresh data to show the new budgets
+          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to initialize budgets:', error);
+    }
+  }, [year, month, fetchBudgetSummary, fetchAllCategories]);
+
+  // Always fetch all categories on mount and when month changes, then initialize missing budgets
   useEffect(() => {
-    fetchAllCategories();
-  }, [fetchAllCategories]);
+    const initializeMonth = async () => {
+      await fetchAllCategories();
+      // After fetching categories, initialize any missing budgets to $0
+      await initializeBudgets();
+    };
+    initializeMonth();
+  }, [fetchAllCategories, initializeBudgets]);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -307,6 +338,36 @@ function MonthlyBudgetContent() {
       }
     } catch (error) {
       console.error('Error copying budgets:', error);
+    }
+  };
+
+  const handleUse12MonthAverage = async () => {
+    if (!confirm(`This will update all budget amounts based on 12-month spending averages. Continue?`)) {
+      return;
+    }
+    
+    setIsApplyingTemplate(true);
+    try {
+      const response = await fetch('/api/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'useAverage',
+          year,
+          month,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        alert(`Updated ${data.updatedCount} budgets with 12-month averages`);
+      } else {
+        const error = await response.json();
+        alert('Failed to apply averages: ' + (error.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error applying 12-month averages:', error);
       alert('Failed to copy budgets');
     }
   };
@@ -527,6 +588,17 @@ function MonthlyBudgetContent() {
             >
               <Copy className="w-3.5 h-3.5" />
               Copy from Last Month
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleUse12MonthAverage}
+              className="gap-1.5"
+              disabled={isApplyingTemplate}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              Use 12-Month Average
             </Button>
             
             {templates.length > 0 && (

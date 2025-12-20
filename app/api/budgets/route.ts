@@ -9,7 +9,9 @@ import {
   copyBudgetsToMonth,
   getCategoriesForBudgetEntry,
   getCategoryAverage,
-  getBudgetCarryOver
+  getBudgetCarryOver,
+  initializeMonthlyBudgets,
+  createBudgetsFrom12MonthAverage
 } from '@/lib/db/budgets';
 import { createBudgetSchema } from '@/lib/validations';
 
@@ -99,6 +101,44 @@ export async function POST(request: NextRequest) {
         success: true, 
         copiedCount: count,
         message: `Copied ${count} budgets`
+      });
+    }
+    
+    // Handle initialize operation - create $0 budgets for categories without budgets
+    if (body.action === 'initialize') {
+      const { year, month } = body;
+      
+      if (!year || !month) {
+        return NextResponse.json(
+          { error: 'Missing required fields for initialize operation' },
+          { status: 400 }
+        );
+      }
+      
+      const count = initializeMonthlyBudgets(year, month);
+      return NextResponse.json({ 
+        success: true, 
+        initializedCount: count,
+        message: `Initialized ${count} budgets to $0`
+      });
+    }
+    
+    // Handle useAverage operation - create budgets from 12-month averages
+    if (body.action === 'useAverage') {
+      const { year, month } = body;
+      
+      if (!year || !month) {
+        return NextResponse.json(
+          { error: 'Missing required fields for useAverage operation' },
+          { status: 400 }
+        );
+      }
+      
+      const count = createBudgetsFrom12MonthAverage(year, month);
+      return NextResponse.json({ 
+        success: true, 
+        updatedCount: count,
+        message: `Updated ${count} budgets with 12-month averages`
       });
     }
     

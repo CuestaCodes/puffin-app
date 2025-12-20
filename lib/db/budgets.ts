@@ -146,6 +146,107 @@ export function deleteBudget(id: string): boolean {
 }
 
 /**
+ * Initialize $0 budgets for all non-income categories that don't have a budget for the given month
+ * This ensures any spending shows as "over budget" rather than being in an uninitialized state
+ */
+export function initializeMonthlyBudgets(year: number, month: number): number {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  
+  // Get all non-income sub-categories that don't have a budget for this month
+  const categoriesWithoutBudget = db.prepare(`
+    SELECT sc.id as sub_category_id
+    FROM sub_category sc
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE sc.is_deleted = 0 
+      AND uc.type != 'income'
+      AND sc.id NOT IN (
+        SELECT sub_category_id FROM budget WHERE year = ? AND month = ?
+      )
+  `).all(year, month) as Array<{ sub_category_id: string }>;
+  
+  if (categoriesWithoutBudget.length === 0) {
+    return 0;
+  }
+  
+  const insert = db.prepare(`
+    INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
+    VALUES (?, ?, ?, ?, 0, ?, ?)
+  `);
+  
+  let count = 0;
+  
+  const initAll = db.transaction(() => {
+    for (const cat of categoriesWithoutBudget) {
+      const id = generateId();
+      insert.run(id, cat.sub_category_id, year, month, now, now);
+      count++;
+    }
+  });
+  
+  initAll();
+  
+  return count;
+}
+
+/**
+ * Create or update budgets for all non-income categories based on 12-month spending averages
+ * This helps users quickly set up realistic budgets based on historical spending patterns
+ */
+export function createBudgetsFrom12MonthAverage(year: number, month: number): number {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  
+  // Get all non-income sub-categories
+  const categories = db.prepare(`
+    SELECT sc.id as sub_category_id
+    FROM sub_category sc
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE sc.is_deleted = 0 
+      AND uc.type != 'income'
+  `).all() as Array<{ sub_category_id: string }>;
+  
+  if (categories.length === 0) {
+    return 0;
+  }
+  
+  let count = 0;
+  
+  const updateAll = db.transaction(() => {
+    for (const cat of categories) {
+      // Get 12-month average for this category
+      const average = getCategoryAverage(cat.sub_category_id, 12);
+      
+      // Round to 2 decimal places
+      const roundedAverage = Math.round(average * 100) / 100;
+      
+      // Check if budget exists
+      const existing = getBudgetByCategoryAndMonth(cat.sub_category_id, year, month);
+      
+      if (existing) {
+        // Update existing budget
+        db.prepare(`
+          UPDATE budget SET amount = ?, updated_at = ? WHERE id = ?
+        `).run(roundedAverage, now, existing.id);
+      } else {
+        // Create new budget
+        const id = generateId();
+        db.prepare(`
+          INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(id, cat.sub_category_id, year, month, roundedAverage, now, now);
+      }
+      
+      count++;
+    }
+  });
+  
+  updateAll();
+  
+  return count;
+}
+
+/**
  * Copy budgets from one month to another
  */
 export function copyBudgetsToMonth(
