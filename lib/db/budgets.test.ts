@@ -124,6 +124,8 @@ import {
   getBudgetTemplateById,
   deleteBudgetTemplate,
   applyBudgetTemplate,
+  initializeMonthlyBudgets,
+  createBudgetsFrom12MonthAverage,
 } from './budgets';
 
 describe('Budget Operations', () => {
@@ -599,6 +601,274 @@ describe('Budget Operations', () => {
       expect(() => {
         applyBudgetTemplate('non-existent-id', 2025, 2);
       }).toThrow('Template not found');
+    });
+  });
+
+  describe('Initialize Monthly Budgets', () => {
+    it('should create $0 budgets for categories without budgets', () => {
+      // categoryId1 and categoryId2 have no budgets
+      const count = initializeMonthlyBudgets(2025, 3);
+      
+      expect(count).toBe(2); // Both categories should get initialized
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      expect(budgets).toHaveLength(2);
+      expect(budgets.every(b => b.amount === 0)).toBe(true);
+    });
+
+    it('should not overwrite existing budgets', () => {
+      // Create a budget for one category
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 3,
+        amount: 500.00,
+      });
+      
+      const count = initializeMonthlyBudgets(2025, 3);
+      
+      // Only categoryId2 should be initialized
+      expect(count).toBe(1);
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      const cat1Budget = budgets.find(b => b.sub_category_id === categoryId1);
+      const cat2Budget = budgets.find(b => b.sub_category_id === categoryId2);
+      
+      expect(cat1Budget?.amount).toBe(500.00); // Unchanged
+      expect(cat2Budget?.amount).toBe(0); // Initialized to 0
+    });
+
+    it('should return 0 when all categories already have budgets', () => {
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 3,
+        amount: 500.00,
+      });
+      
+      upsertBudget({
+        sub_category_id: categoryId2,
+        year: 2025,
+        month: 3,
+        amount: 300.00,
+      });
+      
+      const count = initializeMonthlyBudgets(2025, 3);
+      expect(count).toBe(0);
+    });
+
+    it('should not create budgets for income categories', () => {
+      const db = getTestDatabase();
+      const now = new Date().toISOString();
+      
+      // Create an income upper category
+      db.prepare(`
+        INSERT INTO upper_category (id, name, type, sort_order, created_at, updated_at)
+        VALUES ('income-cat', 'Income', 'income', 0, ?, ?)
+      `).run(now, now);
+      
+      // Create an income sub-category
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('income-sub', 'income-cat', 'Salary', 1, 0, ?, ?)
+      `).run(now, now);
+      
+      const count = initializeMonthlyBudgets(2025, 3);
+      
+      // Should only initialize the 2 expense categories, not the income one
+      expect(count).toBe(2);
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      const incomeBudget = budgets.find(b => b.sub_category_id === 'income-sub');
+      expect(incomeBudget).toBeUndefined();
+    });
+  });
+
+  describe('12-Month Average Budgets', () => {
+    it('should create budgets based on 12-month spending average', () => {
+      const db = getTestDatabase();
+      const now = new Date().toISOString();
+      
+      // Create transactions over the past 12 months before March 2025
+      // For categoryId1: 100 per month = 1200 total over 12 months = 100 average
+      for (let i = 1; i <= 12; i++) {
+        const year = i <= 2 ? 2024 : 2024;
+        const month = (14 - i) % 12 + 1; // Goes from Feb 2025 back to Mar 2024
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-15`;
+        
+        db.prepare(`
+          INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+          VALUES (?, ?, 'Monthly Expense', -100.00, ?, 0, 0, ?, ?)
+        `).run(`tx-avg-${i}`, dateStr, categoryId1, now, now);
+      }
+      
+      const count = createBudgetsFrom12MonthAverage(2025, 3);
+      
+      expect(count).toBe(2); // Both categories processed
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      const cat1Budget = budgets.find(b => b.sub_category_id === categoryId1);
+      
+      // Average should be around 100 (may vary based on exact date calculations)
+      expect(cat1Budget?.amount).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should set $0 budget for categories with no transaction history', () => {
+      const count = createBudgetsFrom12MonthAverage(2025, 3);
+      
+      expect(count).toBe(2);
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      expect(budgets.every(b => b.amount === 0)).toBe(true);
+    });
+
+    it('should update existing budgets with new averages', () => {
+      const db = getTestDatabase();
+      const now = new Date().toISOString();
+      
+      // Create initial budget
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 3,
+        amount: 999.00,
+      });
+      
+      // Create transaction history
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-old', '2025-02-15', 'Last Month', -200.00, ?, 0, 0, ?, ?)
+      `).run(categoryId1, now, now);
+      
+      const count = createBudgetsFrom12MonthAverage(2025, 3);
+      
+      expect(count).toBe(2);
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      const cat1Budget = budgets.find(b => b.sub_category_id === categoryId1);
+      
+      // Budget should be updated (not 999 anymore)
+      expect(cat1Budget?.amount).not.toBe(999.00);
+    });
+
+    it('should not create budgets for income categories', () => {
+      const db = getTestDatabase();
+      const now = new Date().toISOString();
+      
+      // Create an income category
+      db.prepare(`
+        INSERT INTO upper_category (id, name, type, sort_order, created_at, updated_at)
+        VALUES ('income-cat2', 'Income', 'income', 0, ?, ?)
+      `).run(now, now);
+      
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('income-sub2', 'income-cat2', 'Salary', 1, 0, ?, ?)
+      `).run(now, now);
+      
+      // Create income transactions
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('income-tx', '2025-02-15', 'Paycheck', 5000.00, 'income-sub2', 0, 0, ?, ?)
+      `).run(now, now);
+      
+      const count = createBudgetsFrom12MonthAverage(2025, 3);
+      
+      // Should only process expense categories (2), not income
+      expect(count).toBe(2);
+      
+      const budgets = getBudgetsByMonth(2025, 3);
+      const incomeBudget = budgets.find(b => b.sub_category_id === 'income-sub2');
+      expect(incomeBudget).toBeUndefined();
+    });
+  });
+
+  describe('Income Calculations in Budget Summary', () => {
+    it('should include income totals in budget summary', () => {
+      const db = getTestDatabase();
+      const now = new Date().toISOString();
+      
+      // Create an income category
+      db.prepare(`
+        INSERT INTO upper_category (id, name, type, sort_order, created_at, updated_at)
+        VALUES ('income-upper', 'Income', 'income', 0, ?, ?)
+      `).run(now, now);
+      
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('salary-cat', 'income-upper', 'Salary', 1, 0, ?, ?)
+      `).run(now, now);
+      
+      // Create income transaction
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('income-tx', '2025-01-15', 'Paycheck', 5000.00, 'salary-cat', 0, 0, ?, ?)
+      `).run(now, now);
+      
+      // Create expense budget
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 1,
+        amount: 500.00,
+      });
+      
+      const summary = getBudgetSummary(2025, 1);
+      
+      expect(summary.totalIncome).toBe(5000.00);
+      expect(summary.incomeCategories).toHaveLength(1);
+      expect(summary.incomeCategories[0].sub_category_name).toBe('Salary');
+      expect(summary.incomeCategories[0].actual_amount).toBe(5000.00);
+    });
+
+    it('should separate income from expense budgets', () => {
+      const db = getTestDatabase();
+      const now = new Date().toISOString();
+      
+      // Create income category and budget
+      db.prepare(`
+        INSERT INTO upper_category (id, name, type, sort_order, created_at, updated_at)
+        VALUES ('income-upper2', 'Income', 'income', 0, ?, ?)
+      `).run(now, now);
+      
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('salary-cat2', 'income-upper2', 'Salary', 1, 0, ?, ?)
+      `).run(now, now);
+      
+      // Create expense budget
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 1,
+        amount: 500.00,
+      });
+      
+      const summary = getBudgetSummary(2025, 1);
+      
+      // Income categories should not be in the main budgets array
+      const incomeBudgetInMain = summary.budgets.find(
+        (b: { sub_category_id: string }) => b.sub_category_id === 'salary-cat2'
+      );
+      expect(incomeBudgetInMain).toBeUndefined();
+      
+      // Expense budgets should be in main array
+      expect(summary.budgets).toHaveLength(1);
+      expect(summary.budgets[0].sub_category_id).toBe(categoryId1);
+    });
+
+    it('should return 0 income when no income transactions exist', () => {
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 1,
+        amount: 500.00,
+      });
+      
+      const summary = getBudgetSummary(2025, 1);
+      
+      expect(summary.totalIncome).toBe(0);
+      expect(summary.incomeCategories).toHaveLength(0);
     });
   });
 });

@@ -44,9 +44,15 @@ Tests are automatically discovered by Vitest:
 
 ### Current Test Files
 
-1. **`lib/db/abstraction.test.ts`** - Database abstraction layer tests ✅
-2. **`lib/db/transactions.test.ts`** - Transaction operations tests ✅
-3. **`lib/db/budgets.test.ts`** - Budget operations tests ⚠️ (needs fixes)
+| Test File | Tests | Coverage | Status |
+|-----------|-------|----------|--------|
+| `lib/db/abstraction.test.ts` | 20 tests | 75.94% | ✅ |
+| `lib/db/budgets.test.ts` | 32 tests | 93.25% | ✅ |
+| `lib/db/categories.test.ts` | 13 tests | N/A | ✅ |
+| `lib/db/transactions.test.ts` | 8 tests | N/A | ✅ |
+| `lib/validations.test.ts` | 59 tests | 95.65% | ✅ |
+
+**Total: 132 tests | Overall Coverage: 86.44%**
 
 ## Pre-commit Hooks
 
@@ -162,9 +168,23 @@ npm install --save-dev @vitest/coverage-v8
 
 ## Next Steps
 
-- [ ] Fix remaining budget test failures
+- [x] ~~Fix remaining budget test failures~~ (All 132 tests passing)
+- [x] ~~Add validation tests~~ (59 validation schema tests)
+- [x] ~~Add category database tests~~ (13 category tests)
 - [ ] Add integration tests for API routes
 - [ ] Add E2E tests for critical user flows
-- [ ] Set up coverage thresholds
+- [ ] Set up coverage thresholds (target: 80%+)
 - [ ] Add test performance monitoring
+
+## Test Categories
+
+### Unit Tests (Current)
+- **Database operations**: CRUD for budgets, categories, transactions
+- **Validation schemas**: All Zod schemas for input validation
+- **Business logic**: Budget calculations, averages, carry-over
+
+### Future Tests
+- **API Integration**: Test API routes with mocked database
+- **Component Tests**: React component testing with Testing Library
+- **E2E Tests**: Full user flow testing with Playwright/Cypress
 
