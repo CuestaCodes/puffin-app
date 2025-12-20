@@ -50,6 +50,14 @@ export interface Budget {
   updated_at: string;
 }
 
+export interface BudgetTemplate {
+  id: string;
+  name: string;
+  template_data: string; // JSON string of { sub_category_id: amount }
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AutoCategoryRule {
   id: string;
   match_text: string;

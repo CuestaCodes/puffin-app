@@ -6,7 +6,10 @@ import {
   getBudgetsByMonth, 
   getBudgetSummary,
   upsertBudget,
-  copyBudgetsToMonth
+  copyBudgetsToMonth,
+  getCategoriesForBudgetEntry,
+  getCategoryAverage,
+  getBudgetCarryOver
 } from '@/lib/db/budgets';
 import { createBudgetSchema } from '@/lib/validations';
 
@@ -22,11 +25,33 @@ export async function GET(request: NextRequest) {
     const yearParam = searchParams.get('year');
     const monthParam = searchParams.get('month');
     const withSummary = searchParams.get('summary') === 'true';
+    const forEntry = searchParams.get('forEntry') === 'true';
+    const categoryId = searchParams.get('categoryId');
+    const averageMonths = searchParams.get('averageMonths');
     
     // Default to current month
     const now = new Date();
     const year = yearParam ? parseInt(yearParam) : now.getFullYear();
     const month = monthParam ? parseInt(monthParam) : now.getMonth() + 1;
+    
+    // Get category average if requested
+    if (categoryId && averageMonths) {
+      const months = parseInt(averageMonths) || 3;
+      const average = getCategoryAverage(categoryId, months);
+      return NextResponse.json({ average });
+    }
+    
+    // Get carry-over if requested
+    if (categoryId && searchParams.get('carryOver') === 'true') {
+      const carryOver = getBudgetCarryOver(categoryId, year, month);
+      return NextResponse.json({ carryOver });
+    }
+    
+    // Get categories for budget entry interface
+    if (forEntry) {
+      const categories = getCategoriesForBudgetEntry(year, month);
+      return NextResponse.json({ categories, year, month });
+    }
     
     if (withSummary) {
       const summary = getBudgetSummary(year, month);

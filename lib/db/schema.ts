@@ -57,6 +57,15 @@ CREATE TABLE IF NOT EXISTS budget (
   UNIQUE(sub_category_id, year, month)
 );
 
+-- Budget Templates
+CREATE TABLE IF NOT EXISTS budget_template (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  template_data TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Auto-categorization rules
 CREATE TABLE IF NOT EXISTS auto_category_rule (
   id TEXT PRIMARY KEY,
