@@ -1,7 +1,7 @@
 // Budget database operations
 import { getDatabase } from './index';
 import { generateId } from '../uuid';
-import type { Budget, BudgetWithCategory } from '@/types/database';
+import type { Budget, BudgetWithCategory, BudgetTemplate } from '@/types/database';
 
 /**
  * Get budgets for a specific month
@@ -233,5 +233,217 @@ export function getCategoryAverage(subCategoryId: string, months: number = 3): n
   ) as { average: number | null };
   
   return result.average || 0;
+}
+
+/**
+ * Get budget carry-over amount (unused budget from previous month)
+ */
+export function getBudgetCarryOver(subCategoryId: string, year: number, month: number): number {
+  // Get previous month
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  
+  // Get budget and actual for previous month
+  const prevBudget = getBudgetByCategoryAndMonth(subCategoryId, prevYear, prevMonth);
+  if (!prevBudget) {
+    return 0;
+  }
+  
+  // Get actual spending for previous month
+  const startDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+  const lastDay = new Date(prevYear, prevMonth, 0).getDate();
+  const endDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  
+  const db = getDatabase();
+  const result = db.prepare(`
+    SELECT COALESCE(ABS(SUM(amount)), 0) as actual
+    FROM "transaction"
+    WHERE sub_category_id = ?
+      AND date >= ?
+      AND date <= ?
+      AND is_deleted = 0
+      AND is_split = 0
+  `).get(subCategoryId, startDate, endDate) as { actual: number };
+  
+  const unused = prevBudget.amount - result.actual;
+  return Math.max(0, unused); // Only carry over positive amounts
+}
+
+/**
+ * Get all sub-categories with their current budget status for a month
+ * This is useful for budget entry interfaces
+ */
+export function getCategoriesForBudgetEntry(year: number, month: number): Array<{
+  sub_category_id: string;
+  sub_category_name: string;
+  upper_category_name: string;
+  upper_category_type: string;
+  current_budget: number | null;
+  average_3mo: number;
+  average_6mo: number;
+  carry_over: number;
+}> {
+  const db = getDatabase();
+  const subCategories = db.prepare(`
+    SELECT 
+      sc.id as sub_category_id,
+      sc.name as sub_category_name,
+      uc.name as upper_category_name,
+      uc.type as upper_category_type
+    FROM sub_category sc
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE sc.is_deleted = 0
+    ORDER BY uc.sort_order ASC, sc.sort_order ASC
+  `).all() as Array<{
+    sub_category_id: string;
+    sub_category_name: string;
+    upper_category_name: string;
+    upper_category_type: string;
+  }>;
+  
+  return subCategories.map(cat => {
+    const currentBudget = getBudgetByCategoryAndMonth(cat.sub_category_id, year, month);
+    const average3mo = getCategoryAverage(cat.sub_category_id, 3);
+    const average6mo = getCategoryAverage(cat.sub_category_id, 6);
+    const carryOver = getBudgetCarryOver(cat.sub_category_id, year, month);
+    
+    return {
+      ...cat,
+      current_budget: currentBudget?.amount || null,
+      average_3mo: average3mo,
+      average_6mo: average6mo,
+      carry_over: carryOver,
+    };
+  });
+}
+
+/**
+ * Budget Template functions
+ */
+
+/**
+ * Ensure budget_template table exists (for migration support)
+ */
+function ensureTemplateTable(): void {
+  const db = getDatabase();
+  const tableExists = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='budget_template'"
+  ).get();
+  
+  if (!tableExists) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS budget_template (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        template_data TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+}
+
+/**
+ * Create a budget template from current month's budgets
+ */
+export function createBudgetTemplate(name: string, year: number, month: number): BudgetTemplate {
+  ensureTemplateTable();
+  const db = getDatabase();
+  const budgets = getBudgetsByMonth(year, month);
+  
+  // Create template data as JSON
+  const templateData: Record<string, number> = {};
+  for (const budget of budgets) {
+    templateData[budget.sub_category_id] = budget.amount;
+  }
+  
+  const id = generateId();
+  const now = new Date().toISOString();
+  
+  db.prepare(`
+    INSERT INTO budget_template (id, name, template_data, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, name, JSON.stringify(templateData), now, now);
+  
+  return {
+    id,
+    name,
+    template_data: JSON.stringify(templateData),
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+/**
+ * Get all budget templates
+ */
+export function getBudgetTemplates(): BudgetTemplate[] {
+  ensureTemplateTable();
+  const db = getDatabase();
+  return db.prepare(`
+    SELECT * FROM budget_template
+    ORDER BY updated_at DESC
+  `).all() as BudgetTemplate[];
+}
+
+/**
+ * Get a budget template by ID
+ */
+export function getBudgetTemplateById(id: string): BudgetTemplate | null {
+  ensureTemplateTable();
+  const db = getDatabase();
+  const result = db.prepare('SELECT * FROM budget_template WHERE id = ?').get(id) as BudgetTemplate | undefined;
+  return result || null;
+}
+
+/**
+ * Delete a budget template
+ */
+export function deleteBudgetTemplate(id: string): boolean {
+  ensureTemplateTable();
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM budget_template WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+/**
+ * Apply a budget template to a specific month
+ */
+export function applyBudgetTemplate(templateId: string, year: number, month: number): number {
+  ensureTemplateTable();
+  const template = getBudgetTemplateById(templateId);
+  if (!template) {
+    throw new Error('Template not found');
+  }
+  
+  const templateData = JSON.parse(template.template_data) as Record<string, number>;
+  const now = new Date().toISOString();
+  const db = getDatabase();
+  
+  let appliedCount = 0;
+  
+  const applyTemplate = db.transaction(() => {
+    for (const [subCategoryId, amount] of Object.entries(templateData)) {
+      // Check if category still exists
+      const categoryCheck = db.prepare('SELECT id FROM sub_category WHERE id = ? AND is_deleted = 0').get(subCategoryId);
+      if (!categoryCheck) {
+        continue; // Skip deleted categories
+      }
+      
+      const existing = getBudgetByCategoryAndMonth(subCategoryId, year, month);
+      const id = existing?.id || generateId();
+      
+      db.prepare(`
+        INSERT OR REPLACE INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(id, subCategoryId, year, month, amount, now, now);
+      
+      appliedCount++;
+    }
+  });
+  
+  applyTemplate();
+  
+  return appliedCount;
 }
 
