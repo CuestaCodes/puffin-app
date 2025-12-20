@@ -36,6 +36,7 @@ export function getTransactions(
   }
   
   if (filter.categoryId) {
+    console.log('Filtering by categoryId:', filter.categoryId);
     conditions.push('t.sub_category_id = ?');
     params.push(filter.categoryId);
   }
@@ -104,6 +105,12 @@ export function getTransactions(
   `;
   
   const transactions = db.prepare(query).all(...params, pagination.limit, offset) as TransactionWithCategory[];
+  
+  // Debug: log unique category IDs in returned transactions
+  if (filter.categoryId) {
+    const uniqueCategoryIds = [...new Set(transactions.map(t => t.sub_category_id))];
+    console.log('Filter categoryId:', filter.categoryId, 'Transactions found:', transactions.length, 'Unique sub_category_ids in results:', uniqueCategoryIds);
+  }
   
   return {
     transactions,

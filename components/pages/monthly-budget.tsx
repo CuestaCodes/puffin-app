@@ -368,7 +368,9 @@ function MonthlyBudgetContent() {
       }
     } catch (error) {
       console.error('Error applying 12-month averages:', error);
-      alert('Failed to copy budgets');
+      alert('Failed to apply averages');
+    } finally {
+      setIsApplyingTemplate(false);
     }
   };
 
@@ -423,6 +425,7 @@ function MonthlyBudgetContent() {
     }));
 
   const handleCategoryClick = (categoryId: string, categoryName: string) => {
+    console.log('Category clicked:', { categoryId, categoryName, currentSelected: selectedCategoryId });
     if (selectedCategoryId === categoryId) {
       // Toggle off if same category clicked
       setSelectedCategoryId(null);

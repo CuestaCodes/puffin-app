@@ -214,8 +214,8 @@ export function createBudgetsFrom12MonthAverage(year: number, month: number): nu
   
   const updateAll = db.transaction(() => {
     for (const cat of categories) {
-      // Get 12-month average for this category
-      const average = getCategoryAverage(cat.sub_category_id, 12);
+      // Get 12-month average for this category, using the 12 months BEFORE the target month
+      const average = getCategoryAverage(cat.sub_category_id, 12, year, month);
       
       // Round to 2 decimal places
       const roundedAverage = Math.round(average * 100) / 100;
@@ -394,14 +394,30 @@ export function getBudgetSummary(year: number, month: number): {
 
 /**
  * Get historical average spending for a category
+ * If beforeYear and beforeMonth are provided, calculates average for N months before that month
+ * Otherwise, uses the current date as the reference point
  */
-export function getCategoryAverage(subCategoryId: string, months: number = 3): number {
+export function getCategoryAverage(
+  subCategoryId: string, 
+  months: number = 3,
+  beforeYear?: number,
+  beforeMonth?: number
+): number {
   const db = getDatabase();
   
   // Get date range for the past N months
-  const now = new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
-  const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+  // If beforeYear/beforeMonth provided, use that as reference; otherwise use current date
+  let referenceDate: Date;
+  if (beforeYear !== undefined && beforeMonth !== undefined) {
+    // Use the month BEFORE the target month as the end point
+    referenceDate = new Date(beforeYear, beforeMonth - 1, 1); // JS months are 0-indexed
+  } else {
+    referenceDate = new Date();
+  }
+  
+  // Start from N months before reference, end at the last day of the month before reference
+  const startDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - months, 1);
+  const endDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 0); // Last day of previous month
   
   // Exclude split parent transactions from averages (they are represented by children)
   const result = db.prepare(`
