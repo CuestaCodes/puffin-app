@@ -21,6 +21,13 @@ export function getTransactions(
     conditions.push('t.is_deleted = 0');
   }
   
+  // Exclude split parent transactions from normal views
+  // When a transaction is split, we show the children instead
+  // (is_split = 0 means either a normal transaction or a child transaction)
+  if (!filter.includeSplitParents) {
+    conditions.push('t.is_split = 0');
+  }
+  
   if (filter.startDate) {
     conditions.push('t.date >= ?');
     params.push(filter.startDate);

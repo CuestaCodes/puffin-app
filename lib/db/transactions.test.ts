@@ -239,5 +239,41 @@ describe('Transaction Splitting', () => {
     expect(threeSplits.length).toBeGreaterThanOrEqual(MIN_SPLITS);
     expect(threeSplits.reduce((sum, a) => sum + a, 0)).toBe(100);
   });
+
+  it('should exclude split parent transactions from totals to prevent double-counting', () => {
+    const now = new Date().toISOString();
+    const parentId = 'tx-1';
+    
+    // Split the transaction
+    db.prepare('UPDATE "transaction" SET is_split = 1, updated_at = ? WHERE id = ?')
+      .run(now, parentId);
+    
+    db.prepare(`
+      INSERT INTO "transaction" (id, date, description, amount, parent_transaction_id, is_split, is_deleted, created_at, updated_at)
+      VALUES ('child-1', '2025-01-15', 'Part 1', -60.00, ?, 0, 0, ?, ?)
+    `).run(parentId, now, now);
+    
+    db.prepare(`
+      INSERT INTO "transaction" (id, date, description, amount, parent_transaction_id, is_split, is_deleted, created_at, updated_at)
+      VALUES ('child-2', '2025-01-15', 'Part 2', -40.00, ?, 0, 0, ?, ?)
+    `).run(parentId, now, now);
+    
+    // Query excluding split parents (is_split = 0)
+    // This should return only the children, not the parent
+    const nonSplitTransactions = db.prepare(
+      'SELECT * FROM "transaction" WHERE is_deleted = 0 AND is_split = 0'
+    ).all() as Array<{ id: string; amount: number }>;
+    
+    // Should have 2 children (the parent has is_split = 1, so it's excluded)
+    expect(nonSplitTransactions).toHaveLength(2);
+    
+    // Total should be -100 (60 + 40), NOT -200 (100 + 60 + 40)
+    const total = nonSplitTransactions.reduce((sum, t) => sum + t.amount, 0);
+    expect(total).toBeCloseTo(-100, 2);
+    
+    // Verify parent IS excluded
+    const parentInList = nonSplitTransactions.find(t => t.id === parentId);
+    expect(parentInList).toBeUndefined();
+  });
 });
 

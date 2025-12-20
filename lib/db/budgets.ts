@@ -167,6 +167,9 @@ export function getBudgetSummary(year: number, month: number): {
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   
+  // Note: We exclude split parent transactions (is_split = 1) from totals
+  // because their amounts are represented by their child transactions instead.
+  // This prevents double-counting when a transaction is split.
   const query = `
     SELECT 
       b.*,
@@ -174,7 +177,7 @@ export function getBudgetSummary(year: number, month: number): {
       uc.name as upper_category_name,
       uc.type as upper_category_type,
       COALESCE(ABS(SUM(
-        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
         THEN t.amount ELSE 0 END
       )), 0) as actual_amount
     FROM budget b
@@ -209,6 +212,7 @@ export function getCategoryAverage(subCategoryId: string, months: number = 3): n
   const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
   const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
   
+  // Exclude split parent transactions from averages (they are represented by children)
   const result = db.prepare(`
     SELECT AVG(monthly_total) as average FROM (
       SELECT 
@@ -219,6 +223,7 @@ export function getCategoryAverage(subCategoryId: string, months: number = 3): n
         AND date >= ? 
         AND date <= ?
         AND is_deleted = 0
+        AND is_split = 0
       GROUP BY strftime('%Y-%m', date)
     )
   `).get(

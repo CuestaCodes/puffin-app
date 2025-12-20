@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Plus, Search, X, ChevronLeft, ChevronRight, 
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2
 } from 'lucide-react';
 import { 
   TransactionForm, 
   DeleteDialog, 
   CategorySelector,
+  SplitModal,
 } from '@/components/transactions';
 import type { TransactionWithCategory } from '@/types/database';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,7 @@ export function MonthlyTransactionList({
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
+  const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
   
   // Data
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
@@ -208,6 +210,35 @@ export function MonthlyTransactionList({
       // Revert on failure by refetching
       fetchTransactions();
     }
+  };
+
+  const handleSplitTransaction = (tx: TransactionWithCategory) => {
+    // Can't split already-split transactions or child transactions
+    if (tx.is_split || tx.parent_transaction_id) return;
+    setSplittingTransaction(tx);
+  };
+
+  const handleUnsplitTransaction = async (tx: TransactionWithCategory) => {
+    if (!tx.is_split) return;
+    
+    try {
+      const response = await fetch(`/api/transactions/${tx.id}/split`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        fetchTransactions();
+        onCategoryChange?.();
+      }
+    } catch (error) {
+      console.error('Failed to unsplit transaction:', error);
+    }
+  };
+
+  const handleSplitSuccess = () => {
+    fetchTransactions();
+    onCategoryChange?.();
+    setSplittingTransaction(null);
   };
 
   // Bulk selection
@@ -452,8 +483,20 @@ export function MonthlyTransactionList({
                         <td className="py-3 px-4 text-sm text-slate-300 whitespace-nowrap">
                           {formatDate(tx.date)}
                         </td>
-                        <td className="py-3 px-4 text-sm text-slate-200 max-w-[300px] truncate">
-                          {tx.description}
+                        <td className="py-3 px-4 text-sm text-slate-200 max-w-[300px]">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate">{tx.description}</span>
+                            {tx.is_split && (
+                              <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
+                                SPLIT
+                              </span>
+                            )}
+                            {tx.parent_transaction_id && (
+                              <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">
+                                CHILD
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-sm">
                           <CategorySelector
@@ -470,6 +513,28 @@ export function MonthlyTransactionList({
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {/* Split/Unsplit button */}
+                            {tx.is_split ? (
+                              <Button 
+                                variant="ghost" 
+                                size="icon-sm" 
+                                className="text-violet-400 hover:text-violet-300"
+                                onClick={() => handleUnsplitTransaction(tx)}
+                                title="Unsplit transaction"
+                              >
+                                <Undo2 className="w-4 h-4" />
+                              </Button>
+                            ) : !tx.parent_transaction_id && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon-sm" 
+                                className="text-slate-400 hover:text-violet-400"
+                                onClick={() => handleSplitTransaction(tx)}
+                                title="Split transaction"
+                              >
+                                <Split className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button 
                               variant="ghost" 
                               size="icon-sm" 
@@ -544,6 +609,13 @@ export function MonthlyTransactionList({
         onOpenChange={(open) => !open && setDeletingTransaction(null)}
         transaction={deletingTransaction}
         onSuccess={handleTransactionDeleted}
+      />
+
+      <SplitModal
+        open={!!splittingTransaction}
+        onOpenChange={(open) => !open && setSplittingTransaction(null)}
+        transaction={splittingTransaction}
+        onSuccess={handleSplitSuccess}
       />
     </>
   );
