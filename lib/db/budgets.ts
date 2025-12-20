@@ -187,11 +187,20 @@ export function copyBudgetsToMonth(
 
 /**
  * Get budget summary with actual spending for a month
+ * Includes total income from income categories and excludes income from budget calculations
  */
 export function getBudgetSummary(year: number, month: number): {
   budgets: Array<BudgetWithCategory & { actual_amount: number }>;
   totalBudgeted: number;
   totalSpent: number;
+  totalIncome: number;
+  incomeCategories: Array<{
+    sub_category_id: string;
+    sub_category_name: string;
+    upper_category_name: string;
+    upper_category_type: string;
+    actual_amount: number;
+  }>;
 } {
   const db = getDatabase();
   
@@ -203,6 +212,7 @@ export function getBudgetSummary(year: number, month: number): {
   // Note: We exclude split parent transactions (is_split = 1) from totals
   // because their amounts are represented by their child transactions instead.
   // This prevents double-counting when a transaction is split.
+  // Also exclude income categories from budgets (they don't need budgeting)
   const query = `
     SELECT 
       b.*,
@@ -218,11 +228,56 @@ export function getBudgetSummary(year: number, month: number): {
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN "transaction" t ON t.sub_category_id = b.sub_category_id
     WHERE b.year = ? AND b.month = ?
+      AND uc.type != 'income'
     GROUP BY b.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `;
   
   const budgets = db.prepare(query).all(startDate, endDate, year, month) as Array<BudgetWithCategory & { actual_amount: number }>;
+  
+  // Calculate total income from all transactions in income categories
+  const incomeQuery = `
+    SELECT 
+      COALESCE(SUM(t.amount), 0) as total_income
+    FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE uc.type = 'income'
+      AND t.date >= ? AND t.date <= ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+  `;
+  
+  const incomeResult = db.prepare(incomeQuery).get(startDate, endDate) as { total_income: number };
+  const totalIncome = incomeResult.total_income || 0;
+  
+  // Get income categories with their transaction totals for display
+  const incomeCategoriesQuery = `
+    SELECT 
+      sc.id as sub_category_id,
+      sc.name as sub_category_name,
+      uc.name as upper_category_name,
+      uc.type as upper_category_type,
+      COALESCE(SUM(
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
+        THEN t.amount ELSE 0 END
+      ), 0) as actual_amount
+    FROM sub_category sc
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
+    WHERE uc.type = 'income'
+      AND sc.is_deleted = 0
+    GROUP BY sc.id
+    ORDER BY uc.sort_order ASC, sc.sort_order ASC
+  `;
+  
+  const incomeCategories = db.prepare(incomeCategoriesQuery).all(startDate, endDate) as Array<{
+    sub_category_id: string;
+    sub_category_name: string;
+    upper_category_name: string;
+    upper_category_type: string;
+    actual_amount: number;
+  }>;
   
   const totalBudgeted = budgets.reduce((sum, b) => sum + b.amount, 0);
   const totalSpent = budgets.reduce((sum, b) => sum + b.actual_amount, 0);
@@ -231,6 +286,8 @@ export function getBudgetSummary(year: number, month: number): {
     budgets,
     totalBudgeted,
     totalSpent,
+    totalIncome,
+    incomeCategories,
   };
 }
 
@@ -305,6 +362,7 @@ export function getBudgetCarryOver(subCategoryId: string, year: number, month: n
 /**
  * Get all sub-categories with their current budget status for a month
  * This is useful for budget entry interfaces
+ * Includes actual transaction amounts for the month
  */
 export function getCategoriesForBudgetEntry(year: number, month: number): Array<{
   sub_category_id: string;
@@ -315,23 +373,38 @@ export function getCategoriesForBudgetEntry(year: number, month: number): Array<
   average_3mo: number;
   average_6mo: number;
   carry_over: number;
+  actual_amount: number;
 }> {
   const db = getDatabase();
+  
+  // Get date range for the month
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  
+  // Get all categories with their transaction totals for the month
   const subCategories = db.prepare(`
     SELECT 
       sc.id as sub_category_id,
       sc.name as sub_category_name,
       uc.name as upper_category_name,
-      uc.type as upper_category_type
+      uc.type as upper_category_type,
+      COALESCE(SUM(
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
+        THEN t.amount ELSE 0 END
+      ), 0) as actual_amount
     FROM sub_category sc
     JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
     WHERE sc.is_deleted = 0
+    GROUP BY sc.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
-  `).all() as Array<{
+  `).all(startDate, endDate) as Array<{
     sub_category_id: string;
     sub_category_name: string;
     upper_category_name: string;
     upper_category_type: string;
+    actual_amount: number;
   }>;
   
   return subCategories.map(cat => {

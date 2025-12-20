@@ -13,20 +13,44 @@ import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { cn } from '@/lib/utils';
 import type { BudgetWithCategory, BudgetTemplate } from '@/types/database';
 
+interface IncomeCategory {
+  sub_category_id: string;
+  sub_category_name: string;
+  upper_category_name: string;
+  upper_category_type: string;
+  actual_amount: number;
+}
+
 interface BudgetSummaryResponse {
   budgets: Array<BudgetWithCategory & { actual_amount: number }>;
   totalBudgeted: number;
   totalSpent: number;
+  totalIncome: number;
+  incomeCategories: IncomeCategory[];
   year: number;
   month: number;
 }
 
-// Group budgets by upper category
-interface BudgetGroup {
+// Category with budget info for display
+interface CategoryWithBudget {
+  sub_category_id: string;
+  sub_category_name: string;
+  upper_category_name: string;
+  upper_category_type: string;
+  budget_id: string | null;
+  budget_amount: number | null;
+  actual_amount: number;
+  average_3mo: number;
+  average_6mo: number;
+  carry_over: number;
+}
+
+// Group categories by upper category
+interface CategoryGroup {
   upperCategoryId: string;
   upperCategoryName: string;
   upperCategoryType: string;
-  budgets: Array<BudgetWithCategory & { actual_amount: number }>;
+  categories: CategoryWithBudget[];
   totalBudgeted: number;
   totalSpent: number;
 }
@@ -55,8 +79,8 @@ function MonthlyBudgetContent() {
     average_3mo: number;
     average_6mo: number;
     carry_over: number;
+    actual_amount: number;
   }>>([]);
-  const [showAllCategories, setShowAllCategories] = useState(false);
   const [templates, setTemplates] = useState<BudgetTemplate[]>([]);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
@@ -166,11 +190,10 @@ function MonthlyBudgetContent() {
     }
   }, [year, month]);
 
+  // Always fetch all categories on mount and when month changes
   useEffect(() => {
-    if (showAllCategories) {
-      fetchAllCategories();
-    }
-  }, [showAllCategories, fetchAllCategories]);
+    fetchAllCategories();
+  }, [fetchAllCategories]);
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -239,7 +262,7 @@ function MonthlyBudgetContent() {
       
       if (response.ok) {
         const data = await response.json();
-        await fetchBudgetSummary();
+        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
         alert(`Template applied to ${data.appliedCount} categories`);
       } else {
         const error = await response.json();
@@ -276,7 +299,7 @@ function MonthlyBudgetContent() {
       
       if (response.ok) {
         const data = await response.json();
-        await fetchBudgetSummary();
+        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
         alert(`Copied ${data.copiedCount} budgets from previous month`);
       } else {
         const error = await response.json();
@@ -288,27 +311,55 @@ function MonthlyBudgetContent() {
     }
   };
 
-  // Group budgets by upper category
-  const groupedBudgets: BudgetGroup[] = budgetData?.budgets ? 
+  // Group all categories by upper category, merging with budget data
+  // Exclude income categories (they're shown separately)
+  const groupedCategories: CategoryGroup[] = allCategories.length > 0 ? 
     Object.values(
-      budgetData.budgets.reduce((acc, budget) => {
-        const key = budget.upper_category_name;
-        if (!acc[key]) {
-          acc[key] = {
-            upperCategoryId: key, // Using name as key since we don't have the actual ID
-            upperCategoryName: budget.upper_category_name,
-            upperCategoryType: budget.upper_category_type,
-            budgets: [],
-            totalBudgeted: 0,
-            totalSpent: 0,
+      allCategories
+        .filter(cat => cat.upper_category_type !== 'income') // Exclude income
+        .reduce((acc, cat) => {
+          const key = cat.upper_category_name;
+          if (!acc[key]) {
+            acc[key] = {
+              upperCategoryId: key,
+              upperCategoryName: cat.upper_category_name,
+              upperCategoryType: cat.upper_category_type,
+              categories: [],
+              totalBudgeted: 0,
+              totalSpent: 0,
+            };
+          }
+          
+          // Find matching budget if exists
+          const budget = budgetData?.budgets?.find(b => b.sub_category_id === cat.sub_category_id);
+          
+          const categoryWithBudget: CategoryWithBudget = {
+            sub_category_id: cat.sub_category_id,
+            sub_category_name: cat.sub_category_name,
+            upper_category_name: cat.upper_category_name,
+            upper_category_type: cat.upper_category_type,
+            budget_id: budget?.id || null,
+            budget_amount: budget?.amount ?? cat.current_budget,
+            actual_amount: Math.abs(cat.actual_amount), // Expenses are negative, so take absolute value
+            average_3mo: cat.average_3mo,
+            average_6mo: cat.average_6mo,
+            carry_over: cat.carry_over,
           };
-        }
-        acc[key].budgets.push(budget);
-        acc[key].totalBudgeted += budget.amount;
-        acc[key].totalSpent += budget.actual_amount;
-        return acc;
-      }, {} as Record<string, BudgetGroup>)
+          
+          acc[key].categories.push(categoryWithBudget);
+          acc[key].totalBudgeted += categoryWithBudget.budget_amount || 0;
+          acc[key].totalSpent += categoryWithBudget.actual_amount;
+          return acc;
+        }, {} as Record<string, CategoryGroup>)
     ) : [];
+  
+  // Get income categories with their totals
+  const incomeCategories = allCategories
+    .filter(cat => cat.upper_category_type === 'income')
+    .map(cat => ({
+      ...cat,
+      actual_amount: cat.actual_amount, // Income is positive, keep as-is
+    }));
 
   const handleCategoryClick = (categoryId: string, categoryName: string) => {
     if (selectedCategoryId === categoryId) {
@@ -370,12 +421,13 @@ function MonthlyBudgetContent() {
           console.log('Budget saved successfully:', data);
           setEditingBudgetId(null);
           setCreatingBudgetForCategory(null);
-          await fetchBudgetSummary();
+          // Refetch both budget summary and categories to update the UI
+          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
         } catch (parseError) {
           console.error('Failed to parse success response:', parseError, 'Raw:', responseText);
           // Even if parsing fails, try to refresh in case it was saved
           alert('Budget may have been saved, but response was invalid. Please refresh the page.');
-          await fetchBudgetSummary();
+          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
         }
       } else {
         // Try to parse error response
@@ -548,7 +600,22 @@ function MonthlyBudgetContent() {
       </div>
 
       {/* Budget overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Income tile */}
+        <Card className="border-slate-800 bg-slate-900/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-lg bg-emerald-500/10">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              </div>
+              <p className="text-sm text-slate-400">Income</p>
+            </div>
+            <p className="text-2xl font-bold mt-1 tabular-nums text-emerald-400">
+              {isLoading ? '—' : formatCurrency(budgetData?.totalIncome || 0)}
+            </p>
+          </CardContent>
+        </Card>
+        {/* Budgeted tile */}
         <Card className="border-slate-800 bg-slate-900/50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
@@ -632,22 +699,6 @@ function MonthlyBudgetContent() {
                 Clear filter: {selectedCategoryName}
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const newValue = !showAllCategories;
-                setShowAllCategories(newValue);
-                if (newValue && allCategories.length === 0) {
-                  // Only fetch if we don't have categories yet
-                  fetchAllCategories();
-                }
-              }}
-              className="gap-1.5"
-            >
-              <Plus className="w-3 h-3" />
-              {showAllCategories ? 'Hide' : 'Add'} Categories
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -656,122 +707,63 @@ function MonthlyBudgetContent() {
               <div className="w-8 h-8 mx-auto mb-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
               <p>Loading budget data...</p>
             </div>
-          ) : groupedBudgets.length === 0 && !showAllCategories ? (
+          ) : allCategories.length === 0 ? (
             <div className="text-center py-16 text-slate-500">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
                 <Calendar className="w-8 h-8 text-slate-500" />
               </div>
-              <p className="font-medium text-slate-400">No budgets set</p>
-              <p className="text-sm mt-1">Click "Add Categories" to create budgets for your categories</p>
+              <p className="font-medium text-slate-400">No categories found</p>
+              <p className="text-sm mt-1">Create categories in Settings to start budgeting</p>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Show categories without budgets if enabled */}
-              {showAllCategories && (
-                <div className="mb-6 pb-6 border-b border-slate-800">
-                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
-                    Categories Without Budgets
-                  </h3>
-                  {allCategories.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
-                      <p className="text-sm">Loading categories...</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {(() => {
-                        const categoriesWithoutBudget = allCategories.filter(
-                          cat => !budgetData?.budgets?.some(b => b.sub_category_id === cat.sub_category_id)
-                        );
-                        
-                        if (categoriesWithoutBudget.length === 0) {
-                          return (
-                            <div className="text-center py-8 text-slate-500">
-                              <p className="text-sm">All categories have budgets set for this month.</p>
-                            </div>
-                          );
-                        }
-                        
-                        return categoriesWithoutBudget.map((category) => {
-                          const isCreating = creatingBudgetForCategory === category.sub_category_id;
-                          
-                          if (isCreating) {
-                          return (
-                            <div
-                              key={category.sub_category_id}
-                              className="w-full p-3 rounded-lg bg-slate-800/50 border border-cyan-500/30"
-                            >
-                              <div className="mb-2">
-                                <span className="font-medium text-slate-200">
-                                  {category.sub_category_name}
-                                </span>
-                                <span className="text-xs text-slate-500 ml-2">
-                                  ({category.upper_category_name})
-                                </span>
-                              </div>
-                              <InlineBudgetEditor
-                                budgetId={null}
-                                subCategoryId={category.sub_category_id}
-                                subCategoryName={category.sub_category_name}
-                                currentAmount={null}
-                                year={year}
-                                month={month}
-                                onSave={(amount) => handleSaveBudget(category.sub_category_id, amount)}
-                                onCancel={handleCancelEdit}
-                                average3mo={category.average_3mo}
-                                average6mo={category.average_6mo}
-                                carryOver={category.carry_over}
-                              />
-                            </div>
-                          );
-                          }
-                          
-                          return (
-                            <div
-                              key={category.sub_category_id}
-                              className="w-full p-3 rounded-lg bg-slate-800/20 border border-slate-700/50 hover:border-slate-600 transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <span className="font-medium text-slate-300">
-                                    {category.sub_category_name}
-                                  </span>
-                                  <span className="text-xs text-slate-500 ml-2">
-                                    ({category.upper_category_name})
-                                  </span>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleCreateBudget(category.sub_category_id)}
-                                  className="gap-1.5"
-                                >
-                                  <Plus className="w-3 h-3" />
-                                  Add Budget
-                                </Button>
-                              </div>
-                              {(category.average_3mo > 0 || category.average_6mo > 0 || category.carry_over > 0) && (
-                                <div className="mt-2 text-xs text-slate-500">
-                                  {category.carry_over > 0 && (
-                                    <span>Carry-over: {formatCurrency(category.carry_over)} • </span>
-                                  )}
-                                  {category.average_3mo > 0 && (
-                                    <span>3mo avg: {formatCurrency(category.average_3mo)}</span>
-                                  )}
-                                  {category.average_6mo > 0 && category.average_3mo > 0 && (
-                                    <span> • 6mo avg: {formatCurrency(category.average_6mo)}</span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  )}
+              {/* Income categories (read-only) */}
+              {incomeCategories.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-emerald-500/30">
+                    <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
+                      Income
+                    </h3>
+                    <span className="text-sm text-emerald-400 font-mono">
+                      {formatCurrency(budgetData?.totalIncome || incomeCategories.reduce((sum, c) => sum + c.actual_amount, 0))}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {incomeCategories.map((category) => {
+                      const isSelected = selectedCategoryId === category.sub_category_id;
+                      
+                      return (
+                        <button
+                          key={category.sub_category_id}
+                          onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                          className={cn(
+                            'w-full p-3 rounded-lg transition-all text-left',
+                            'bg-emerald-500/5 border',
+                            isSelected 
+                              ? 'bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/20' 
+                              : 'border-emerald-500/10 hover:border-emerald-500/20'
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={cn(
+                              'font-medium',
+                              isSelected ? 'text-emerald-300' : 'text-slate-200'
+                            )}>
+                              {category.sub_category_name}
+                            </span>
+                            <span className="font-mono text-emerald-400">
+                              {formatCurrency(category.actual_amount)}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               
-              {groupedBudgets.map((group) => (
+              {/* Expense/other categories (budgetable) */}
+              {groupedCategories.map((group) => (
                 <div key={group.upperCategoryName}>
                   {/* Upper category header */}
                   <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
@@ -790,113 +782,177 @@ function MonthlyBudgetContent() {
                   
                   {/* Sub-category rows */}
                   <div className="space-y-2">
-                    {group.budgets.map((budget) => {
-                      const percentage = budget.amount > 0 
-                        ? (budget.actual_amount / budget.amount) * 100 
+                    {group.categories.map((category) => {
+                      const hasBudget = category.budget_amount !== null && category.budget_amount > 0;
+                      const percentage = hasBudget 
+                        ? (category.actual_amount / category.budget_amount!) * 100 
                         : 0;
-                      const isOverBudget = percentage > 100;
-                      const isSelected = selectedCategoryId === budget.sub_category_id;
-                      const isEditing = editingBudgetId === budget.id;
-                      const hints = categoryHints[budget.sub_category_id] || { average3mo: 0, average6mo: 0, carryOver: 0 };
+                      const isOverBudget = hasBudget && percentage > 100;
+                      const isSelected = selectedCategoryId === category.sub_category_id;
+                      const isEditing = editingBudgetId === category.budget_id;
+                      const isCreating = creatingBudgetForCategory === category.sub_category_id;
                       
-                      if (isEditing) {
+                      // Editing mode
+                      if (isEditing || isCreating) {
                         return (
                           <div
-                            key={budget.id}
+                            key={category.sub_category_id}
                             className="w-full p-3 rounded-lg bg-slate-800/50 border border-cyan-500/30"
                           >
                             <div className="mb-2">
                               <span className="font-medium text-slate-200">
-                                {budget.sub_category_name}
+                                {category.sub_category_name}
                               </span>
                             </div>
                             <InlineBudgetEditor
-                              budgetId={budget.id}
-                              subCategoryId={budget.sub_category_id}
-                              subCategoryName={budget.sub_category_name}
-                              currentAmount={budget.amount}
+                              budgetId={category.budget_id}
+                              subCategoryId={category.sub_category_id}
+                              subCategoryName={category.sub_category_name}
+                              currentAmount={category.budget_amount}
                               year={year}
                               month={month}
-                              onSave={(amount) => handleSaveBudget(budget.sub_category_id, amount)}
+                              onSave={(amount) => handleSaveBudget(category.sub_category_id, amount)}
                               onCancel={handleCancelEdit}
-                              average3mo={hints.average3mo}
-                              average6mo={hints.average6mo}
-                              carryOver={hints.carryOver}
+                              average3mo={category.average_3mo}
+                              average6mo={category.average_6mo}
+                              carryOver={category.carry_over}
                             />
                           </div>
                         );
                       }
                       
+                      // Category with budget - show comparison display
+                      if (hasBudget) {
+                        return (
+                          <div
+                            key={category.sub_category_id}
+                            className={cn(
+                              'w-full p-3 rounded-lg transition-all',
+                              'bg-slate-800/30 border',
+                              isSelected 
+                                ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20' 
+                                : 'border-transparent hover:border-slate-700'
+                            )}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <button
+                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                className="flex-1 text-left"
+                              >
+                                <span className={cn(
+                                  'font-medium',
+                                  isSelected ? 'text-cyan-300' : 'text-slate-200'
+                                )}>
+                                  {category.sub_category_name}
+                                </span>
+                              </button>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3 text-sm">
+                                  <span className={cn(
+                                    'font-mono',
+                                    isOverBudget ? 'text-red-400' : 'text-slate-300'
+                                  )}>
+                                    {formatCurrency(category.actual_amount)}
+                                  </span>
+                                  <span className="text-slate-500">/</span>
+                                  <span className="font-mono text-slate-400">
+                                    {formatCurrency(category.budget_amount!)}
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (category.budget_id) {
+                                      handleEditBudget(category.budget_id);
+                                    } else {
+                                      handleCreateBudget(category.sub_category_id);
+                                    }
+                                  }}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                              <div 
+                                className={cn(
+                                  'h-full rounded-full transition-all duration-300',
+                                  isOverBudget ? 'bg-red-500' :
+                                  percentage > 80 ? 'bg-amber-500' : 
+                                  isSelected ? 'bg-cyan-400' : 'bg-cyan-500'
+                                )}
+                                style={{ width: `${Math.min(100, percentage)}%` }}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-xs text-slate-500">
+                                {percentage.toFixed(0)}% used
+                              </span>
+                              {isOverBudget && (
+                                <span className="text-xs text-red-400">
+                                  Over by {formatCurrency(category.actual_amount - category.budget_amount!)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Category without budget - show add budget option
                       return (
                         <div
-                          key={budget.id}
+                          key={category.sub_category_id}
                           className={cn(
                             'w-full p-3 rounded-lg transition-all',
-                            'bg-slate-800/30 border',
+                            'bg-slate-800/20 border',
                             isSelected 
                               ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20' 
-                              : 'border-transparent hover:border-slate-700'
+                              : 'border-slate-700/30 hover:border-slate-600'
                           )}
                         >
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between">
                             <button
-                              onClick={() => handleCategoryClick(budget.sub_category_id, budget.sub_category_name)}
+                              onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                               className="flex-1 text-left"
                             >
                               <span className={cn(
                                 'font-medium',
-                                isSelected ? 'text-cyan-300' : 'text-slate-200'
+                                isSelected ? 'text-cyan-300' : 'text-slate-300'
                               )}>
-                                {budget.sub_category_name}
+                                {category.sub_category_name}
                               </span>
-                            </button>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-3 text-sm">
-                                <span className={cn(
-                                  'font-mono',
-                                  isOverBudget ? 'text-red-400' : 'text-slate-300'
-                                )}>
-                                  {formatCurrency(budget.actual_amount)}
+                              {category.actual_amount > 0 && (
+                                <span className="ml-2 text-sm text-slate-500">
+                                  ({formatCurrency(category.actual_amount)} spent)
                                 </span>
-                                <span className="text-slate-500">/</span>
-                                <span className="font-mono text-slate-400">
-                                  {formatCurrency(budget.amount)}
-                                </span>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditBudget(budget.id);
-                                }}
-                                className="h-7 w-7 p-0"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div 
-                              className={cn(
-                                'h-full rounded-full transition-all duration-300',
-                                isOverBudget ? 'bg-red-500' :
-                                percentage > 80 ? 'bg-amber-500' : 
-                                isSelected ? 'bg-cyan-400' : 'bg-cyan-500'
                               )}
-                              style={{ width: `${Math.min(100, percentage)}%` }}
-                            />
+                            </button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreateBudget(category.sub_category_id);
+                              }}
+                              className="gap-1.5 text-xs"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Set Budget
+                            </Button>
                           </div>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-xs text-slate-500">
-                              {percentage.toFixed(0)}% used
-                            </span>
-                            {isOverBudget && (
-                              <span className="text-xs text-red-400">
-                                Over by {formatCurrency(budget.actual_amount - budget.amount)}
-                              </span>
-                            )}
-                          </div>
+                          {(category.average_3mo > 0 || category.average_6mo > 0) && (
+                            <div className="mt-2 text-xs text-slate-500">
+                              {category.average_3mo > 0 && (
+                                <span>3mo avg: {formatCurrency(category.average_3mo)}</span>
+                              )}
+                              {category.average_6mo > 0 && category.average_3mo > 0 && (
+                                <span> • 6mo avg: {formatCurrency(category.average_6mo)}</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
