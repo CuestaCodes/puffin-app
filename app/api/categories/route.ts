@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const includeDeleted = searchParams.get('includeDeleted') === 'true';
-    const debug = searchParams.get('debug') === 'true';
     
     const upperCategories = getUpperCategories();
     const subCategories = getSubCategories(includeDeleted);
@@ -29,18 +28,6 @@ export async function GET(request: NextRequest) {
       ...upper,
       subCategories: subCategories.filter(sub => sub.upper_category_id === upper.id),
     }));
-
-    // Debug mode: log all category IDs to help diagnose data issues
-    if (debug) {
-      console.log('=== DEBUG: All Categories ===');
-      console.log('Upper Categories:', upperCategories.map(u => ({ id: u.id, name: u.name })));
-      console.log('Sub Categories:', subCategories.map(s => ({ 
-        id: s.id, 
-        name: s.name, 
-        upper_category_id: s.upper_category_id,
-        isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id)
-      })));
-    }
 
     return NextResponse.json({ 
       categories: grouped,

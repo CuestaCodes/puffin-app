@@ -162,9 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      console.log('Creating/updating budget with data:', validation.data);
       const budget = upsertBudget(validation.data);
-      console.log('Budget created/updated successfully:', budget);
       return NextResponse.json({ budget }, { status: 201 });
     } catch (dbError) {
       console.error('Database error creating budget:', {

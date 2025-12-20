@@ -195,7 +195,6 @@ export function initializeMonthlyBudgets(year: number, month: number): number {
  */
 export function createBudgetsFrom12MonthAverage(year: number, month: number): number {
   const db = getDatabase();
-  const now = new Date().toISOString();
   
   // Get all non-income sub-categories
   const categories = db.prepare(`
@@ -212,36 +211,23 @@ export function createBudgetsFrom12MonthAverage(year: number, month: number): nu
   
   let count = 0;
   
-  const updateAll = db.transaction(() => {
-    for (const cat of categories) {
-      // Get 12-month average for this category, using the 12 months BEFORE the target month
-      const average = getCategoryAverage(cat.sub_category_id, 12, year, month);
-      
-      // Round to 2 decimal places
-      const roundedAverage = Math.round(average * 100) / 100;
-      
-      // Check if budget exists
-      const existing = getBudgetByCategoryAndMonth(cat.sub_category_id, year, month);
-      
-      if (existing) {
-        // Update existing budget
-        db.prepare(`
-          UPDATE budget SET amount = ?, updated_at = ? WHERE id = ?
-        `).run(roundedAverage, now, existing.id);
-      } else {
-        // Create new budget
-        const id = generateId();
-        db.prepare(`
-          INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(id, cat.sub_category_id, year, month, roundedAverage, now, now);
-      }
-      
-      count++;
-    }
-  });
-  
-  updateAll();
+  for (const cat of categories) {
+    // Get 12-month average for this category, using the 12 months BEFORE the target month
+    const average = getCategoryAverage(cat.sub_category_id, 12, year, month);
+    
+    // Round to 2 decimal places
+    const roundedAverage = Math.round(average * 100) / 100;
+    
+    // Use upsertBudget for DRY - it handles both create and update
+    upsertBudget({
+      sub_category_id: cat.sub_category_id,
+      year,
+      month,
+      amount: roundedAverage,
+    });
+    
+    count++;
+  }
   
   return count;
 }

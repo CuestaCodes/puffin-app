@@ -55,12 +55,6 @@ interface CategoryGroup {
   totalSpent: number;
 }
 
-interface CategoryHints {
-  average3mo: number;
-  average6mo: number;
-  carryOver: number;
-}
-
 function MonthlyBudgetContent() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [budgetData, setBudgetData] = useState<BudgetSummaryResponse | null>(null);
@@ -69,7 +63,6 @@ function MonthlyBudgetContent() {
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [creatingBudgetForCategory, setCreatingBudgetForCategory] = useState<string | null>(null);
-  const [categoryHints, setCategoryHints] = useState<Record<string, CategoryHints>>({});
   const [allCategories, setAllCategories] = useState<Array<{
     sub_category_id: string;
     sub_category_name: string;
@@ -128,29 +121,7 @@ function MonthlyBudgetContent() {
       const response = await fetch(`/api/budgets?${params}`);
       if (response.ok) {
         const data: BudgetSummaryResponse = await response.json();
-        console.log('Fetched budget summary:', data);
         setBudgetData(data);
-        
-        // Fetch hints for all categories
-        const hints: Record<string, CategoryHints> = {};
-        for (const budget of data.budgets) {
-          try {
-            const [avg3Res, avg6Res, carryOverRes] = await Promise.all([
-              fetch(`/api/budgets?categoryId=${budget.sub_category_id}&averageMonths=3`),
-              fetch(`/api/budgets?categoryId=${budget.sub_category_id}&averageMonths=6`),
-              fetch(`/api/budgets?categoryId=${budget.sub_category_id}&carryOver=true&year=${year}&month=${month}`),
-            ]);
-            
-            const avg3 = avg3Res.ok ? (await avg3Res.json()).average : 0;
-            const avg6 = avg6Res.ok ? (await avg6Res.json()).average : 0;
-            const carryOver = carryOverRes.ok ? (await carryOverRes.json()).carryOver : 0;
-            
-            hints[budget.sub_category_id] = { average3mo: avg3, average6mo: avg6, carryOver };
-          } catch (err) {
-            console.error('Failed to fetch hints for category:', budget.sub_category_id, err);
-          }
-        }
-        setCategoryHints(hints);
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('Failed to fetch budget summary - response not ok:', response.status, errorData);
@@ -179,7 +150,6 @@ function MonthlyBudgetContent() {
       const response = await fetch(`/api/budgets?${params}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched categories for budget entry:', data);
         setAllCategories(data.categories || []);
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -206,7 +176,6 @@ function MonthlyBudgetContent() {
       if (response.ok) {
         const data = await response.json();
         if (data.initializedCount > 0) {
-          console.log(`Initialized ${data.initializedCount} budgets to $0`);
           // Refresh data to show the new budgets
           await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
         }
@@ -425,7 +394,6 @@ function MonthlyBudgetContent() {
     }));
 
   const handleCategoryClick = (categoryId: string, categoryName: string) => {
-    console.log('Category clicked:', { categoryId, categoryName, currentSelected: selectedCategoryId });
     if (selectedCategoryId === categoryId) {
       // Toggle off if same category clicked
       setSelectedCategoryId(null);
@@ -459,30 +427,18 @@ function MonthlyBudgetContent() {
         amount,
       };
       
-      console.log('Saving budget:', requestBody);
-      
       const response = await fetch('/api/budgets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
       
-      // Log response details before parsing
-      console.log('Budget save response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        contentType: response.headers.get('content-type'),
-      });
-      
       // Read response as text first (can only read once)
       const responseText = await response.text();
-      console.log('Response body (raw):', responseText || '(empty)');
       
       if (response.ok) {
         try {
           const data = responseText ? JSON.parse(responseText) : {};
-          console.log('Budget saved successfully:', data);
           setEditingBudgetId(null);
           setCreatingBudgetForCategory(null);
           // Refetch both budget summary and categories to update the UI

@@ -106,11 +106,6 @@ export function MonthlyTransactionList({
       if (searchQuery) params.set('search', searchQuery);
       if (categoryFilter) params.set('categoryId', categoryFilter);
 
-      console.log('Fetching transactions with params:', {
-        categoryFilter,
-        url: `/api/transactions?${params}`,
-      });
-
       const response = await fetch(`/api/transactions?${params}`);
       if (response.ok) {
         const data: TransactionListResponse = await response.json();
