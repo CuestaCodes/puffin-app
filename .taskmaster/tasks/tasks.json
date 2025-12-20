@@ -645,10 +645,10 @@
       },
       {
         "id": 10,
-        "title": "Dashboard Analytics and Google Drive Sync",
-        "description": "Create analytics dashboard with charts and implement Google Drive synchronization",
-        "details": "1. Install Recharts: `npm install recharts`\n2. Build analytics API endpoints for dashboard data:\n   - Income percentage breakdown by sub-category\n   - Monthly spending trends\n   - Upper category trends over time\n3. Create dashboard layout with summary cards (total income, expenses, net)\n4. Implement charts: line chart for trends, pie chart for income allocation\n5. Add period selectors (3, 6, 12 months) for trend analysis\n6. Install Google APIs: `npm install googleapis`\n7. Implement Google Drive OAuth2 authentication flow\n8. Create sync functionality: push (upload) and pull (download) database\n9. Add local backup creation before sync operations\n10. Build sync UI with manual trigger buttons and status indicators\n11. Implement blocking sync modal on app close\n12. Add 'Last synced' timestamp display in header",
-        "testStrategy": "Test chart rendering with various data sets, Google Drive authentication flow, sync upload/download functionality, backup creation, and conflict resolution. Verify analytics calculations are accurate and sync preserves data integrity.",
+        "title": "Dashboard Analytics",
+        "description": "Create analytics dashboard with charts for financial data visualization",
+        "details": "1. Install Recharts: `npm install recharts`\n2. Build analytics API endpoints for dashboard data:\n   - Income percentage breakdown by sub-category\n   - Monthly spending trends\n   - Upper category trends over time\n3. Create dashboard layout with summary cards (total income, expenses, net)\n4. Implement charts: line chart for trends, pie chart for income allocation\n5. Add period selectors (3, 6, 12 months) for trend analysis",
+        "testStrategy": "Test chart rendering with various data sets. Verify analytics calculations are accurate.",
         "priority": "medium",
         "dependencies": [
           9
@@ -686,49 +686,6 @@
             "details": "Create line charts for monthly trends and pie charts for income allocation breakdown. Add period selectors for 3, 6, and 12-month views. Implement chart interactivity, tooltips, and responsive design with proper data formatting.",
             "status": "pending",
             "testStrategy": "Test chart rendering with various data sets, period selector functionality, and chart responsiveness"
-          },
-          {
-            "id": 4,
-            "title": "Google Drive OAuth2 Integration",
-            "description": "Implement Google Drive authentication flow and API integration",
-            "dependencies": [],
-            "details": "Install googleapis package and set up OAuth2 authentication flow for Google Drive access. Create secure credential storage, handle authentication callbacks, and implement token refresh logic. Set up Google Drive API client configuration.",
-            "status": "pending",
-            "testStrategy": "Test OAuth2 flow, token refresh, and Google Drive API connectivity with proper error handling"
-          },
-          {
-            "id": 5,
-            "title": "Sync Functionality (Upload/Download)",
-            "description": "Create bidirectional sync functionality for database backup and restore with Google Drive",
-            "dependencies": [
-              4
-            ],
-            "details": "Implement push (upload) and pull (download) database sync operations. Create database export/import functionality with proper data serialization. Handle file naming conventions and version management on Google Drive.",
-            "status": "pending",
-            "testStrategy": "Test upload/download operations, data integrity verification, and sync conflict scenarios"
-          },
-          {
-            "id": 6,
-            "title": "Backup and Conflict Resolution",
-            "description": "Implement local backup creation and conflict resolution mechanisms for sync operations",
-            "dependencies": [
-              5
-            ],
-            "details": "Create local backup functionality before sync operations to prevent data loss. Implement conflict detection and resolution strategies for concurrent modifications. Add data validation and rollback capabilities for failed sync operations.",
-            "status": "pending",
-            "testStrategy": "Test backup creation, conflict detection, resolution strategies, and rollback functionality"
-          },
-          {
-            "id": 7,
-            "title": "Sync UI and Status Management",
-            "description": "Build user interface for sync management with status indicators and manual controls",
-            "dependencies": [
-              5,
-              6
-            ],
-            "details": "Create sync UI with manual trigger buttons, progress indicators, and status displays. Implement blocking sync modal on app close, add 'Last synced' timestamp in header, and create sync history log. Handle error states and user notifications.",
-            "status": "pending",
-            "testStrategy": "Test sync UI interactions, status updates, modal behavior, and error state handling"
           }
         ]
       },
@@ -804,10 +761,10 @@
       },
       {
         "id": 12,
-        "title": "Google Drive Configuration Settings",
-        "description": "Build settings UI for Google Drive folder configuration with validation, offline-only mode support, and disconnect functionality",
-        "details": "1. Create Google Drive configuration section in Settings page\n2. Build folder URL input field that extracts folder ID automatically from pasted URL\n3. Implement folder validation on save:\n   - Authenticate with user's Google account (OAuth2 flow)\n   - List folder contents via Drive API to verify access\n   - Create/delete test file (.puffin-validation-test) to confirm write access\n   - Display success message with folder name confirmation\n   - Show clear error messages for failures (Folder not found, No access, Read-only access)\n4. Store folder ID in local config file (not SQLite database)\n5. Implement 'Not configured' state with setup prompt\n6. Hide sync-related UI (banner, prompts) until sync is configured\n7. Build 'Disconnect' button to remove sync configuration\n8. Clear stored folder ID and OAuth tokens on disconnect\n9. Support multi-user shared folder setup (independent validation per user)\n10. Store OAuth refresh token securely (encrypted local file in dev mode)",
-        "testStrategy": "Test folder URL parsing and ID extraction. Verify validation flow with valid/invalid folders. Test disconnect functionality and state transitions. Verify offline-only mode UI hiding. Test error message display for various failure scenarios.",
+        "title": "Google Drive Sync and Configuration",
+        "description": "Implement Google Drive synchronization with OAuth2 authentication, folder configuration, sync functionality, and UI management",
+        "details": "1. Install Google APIs: `npm install googleapis`\n2. Create Google Drive configuration section in Settings page\n3. Build folder URL input field that extracts folder ID automatically from pasted URL\n4. Implement Google Drive OAuth2 authentication flow\n5. Implement folder validation on save:\n   - Authenticate with user's Google account (OAuth2 flow)\n   - List folder contents via Drive API to verify access\n   - Create/delete test file (.puffin-validation-test) to confirm write access\n   - Display success message with folder name confirmation\n   - Show clear error messages for failures (Folder not found, No access, Read-only access)\n6. Create sync functionality: push (upload) and pull (download) database\n7. Add local backup creation before sync operations\n8. Implement conflict detection and resolution strategies\n9. Build sync UI with manual trigger buttons and status indicators\n10. Implement blocking sync modal on app close\n11. Add 'Last synced' timestamp display in header\n12. Store folder ID in local config file (not SQLite database)\n13. Implement 'Not configured' state with setup prompt\n14. Hide sync-related UI (banner, prompts) until sync is configured\n15. Build 'Disconnect' button to remove sync configuration\n16. Clear stored folder ID and OAuth tokens on disconnect\n17. Support multi-user shared folder setup (independent validation per user)\n18. Store OAuth refresh token securely (encrypted local file in dev mode)",
+        "testStrategy": "Test folder URL parsing and ID extraction. Verify OAuth2 flow and token refresh. Test validation flow with valid/invalid folders. Test sync upload/download functionality. Test backup creation and conflict resolution. Verify sync UI interactions and status updates. Test disconnect functionality and state transitions.",
         "priority": "medium",
         "dependencies": [
           10
@@ -830,9 +787,9 @@
             "dependencies": [
               1
             ],
-            "details": "Implement the complete OAuth2 flow for Google Drive API access. This includes setting up the authentication redirect, handling the callback, and securely storing the OAuth refresh tokens in encrypted local files (dev mode). Ensure proper error handling for authentication failures and token refresh scenarios.",
+            "details": "Install googleapis package and implement the complete OAuth2 flow for Google Drive API access. This includes setting up the authentication redirect, handling the callback, and securely storing the OAuth refresh tokens in encrypted local files (dev mode). Ensure proper error handling for authentication failures and token refresh scenarios. Set up Google Drive API client configuration.",
             "status": "pending",
-            "testStrategy": "Test OAuth flow with valid/invalid credentials, verify token storage encryption, and test token refresh functionality"
+            "testStrategy": "Test OAuth flow with valid/invalid credentials, verify token storage encryption, test token refresh functionality, and Google Drive API connectivity"
           },
           {
             "id": 3,
@@ -858,6 +815,40 @@
           },
           {
             "id": 5,
+            "title": "Sync Functionality (Upload/Download)",
+            "description": "Create bidirectional sync functionality for database backup and restore with Google Drive",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement push (upload) and pull (download) database sync operations. Create database export/import functionality with proper data serialization. Handle file naming conventions and version management on Google Drive.",
+            "status": "pending",
+            "testStrategy": "Test upload/download operations, data integrity verification, and sync conflict scenarios"
+          },
+          {
+            "id": 6,
+            "title": "Backup and Conflict Resolution",
+            "description": "Implement local backup creation and conflict resolution mechanisms for sync operations",
+            "dependencies": [
+              5
+            ],
+            "details": "Create local backup functionality before sync operations to prevent data loss. Implement conflict detection and resolution strategies for concurrent modifications. Add data validation and rollback capabilities for failed sync operations.",
+            "status": "pending",
+            "testStrategy": "Test backup creation, conflict detection, resolution strategies, and rollback functionality"
+          },
+          {
+            "id": 7,
+            "title": "Sync UI and Status Management",
+            "description": "Build user interface for sync management with status indicators and manual controls",
+            "dependencies": [
+              5,
+              6
+            ],
+            "details": "Create sync UI with manual trigger buttons, progress indicators, and status displays. Implement blocking sync modal on app close, add 'Last synced' timestamp in header, and create sync history log. Handle error states and user notifications.",
+            "status": "pending",
+            "testStrategy": "Test sync UI interactions, status updates, modal behavior, and error state handling"
+          },
+          {
+            "id": 8,
             "title": "Build Disconnect Functionality",
             "description": "Implement disconnect button and cleanup process to remove sync configuration and clear stored tokens",
             "dependencies": [
@@ -1141,7 +1132,7 @@
     ],
     "metadata": {
       "created": "2025-12-16T10:23:48.489Z",
-      "updated": "2025-12-21T04:15:00.000Z",
+      "updated": "2025-12-21T12:00:00.000Z",
       "description": "Tasks for master context"
     }
   }
