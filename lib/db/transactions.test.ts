@@ -240,7 +240,7 @@ describe('Transaction Splitting', () => {
     expect(threeSplits.reduce((sum, a) => sum + a, 0)).toBe(100);
   });
 
-  it('should exclude split parent transactions from totals to prevent double-counting', () => {
+  it('should exclude split parent transactions from TOTALS to prevent double-counting', () => {
     const now = new Date().toISOString();
     const parentId = 'tx-1';
     
@@ -258,22 +258,30 @@ describe('Transaction Splitting', () => {
       VALUES ('child-2', '2025-01-15', 'Part 2', -40.00, ?, 0, 0, ?, ?)
     `).run(parentId, now, now);
     
-    // Query excluding split parents (is_split = 0)
-    // This should return only the children, not the parent
-    const nonSplitTransactions = db.prepare(
+    // All transactions are SHOWN in the list (parent + children)
+    const allTransactions = db.prepare(
+      'SELECT * FROM "transaction" WHERE is_deleted = 0'
+    ).all() as Array<{ id: string; amount: number; is_split: number }>;
+    
+    // Should have 3 (parent + 2 children) - all are visible
+    expect(allTransactions).toHaveLength(3);
+    
+    // But for TOTALS, we exclude split parents (is_split = 0)
+    // This is what budget summary queries use
+    const transactionsForTotals = db.prepare(
       'SELECT * FROM "transaction" WHERE is_deleted = 0 AND is_split = 0'
     ).all() as Array<{ id: string; amount: number }>;
     
-    // Should have 2 children (the parent has is_split = 1, so it's excluded)
-    expect(nonSplitTransactions).toHaveLength(2);
+    // Should have 2 children only (parent has is_split = 1, excluded from totals)
+    expect(transactionsForTotals).toHaveLength(2);
     
     // Total should be -100 (60 + 40), NOT -200 (100 + 60 + 40)
-    const total = nonSplitTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const total = transactionsForTotals.reduce((sum, t) => sum + t.amount, 0);
     expect(total).toBeCloseTo(-100, 2);
     
-    // Verify parent IS excluded
-    const parentInList = nonSplitTransactions.find(t => t.id === parentId);
-    expect(parentInList).toBeUndefined();
+    // Verify parent IS excluded from totals
+    const parentInTotals = transactionsForTotals.find(t => t.id === parentId);
+    expect(parentInTotals).toBeUndefined();
   });
 });
 

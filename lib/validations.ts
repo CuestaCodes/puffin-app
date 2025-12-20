@@ -117,7 +117,6 @@ export const transactionFilterSchema = z.object({
   maxAmount: z.number().optional(),
   uncategorized: z.boolean().optional(),
   includeDeleted: z.boolean().optional(),
-  includeSplitParents: z.boolean().optional(), // When true, show split parent transactions (default: false)
 });
 
 export const paginationSchema = z.object({

@@ -469,7 +469,8 @@ export function MonthlyTransactionList({
                         key={tx.id} 
                         className={cn(
                           'hover:bg-slate-800/50 transition-colors',
-                          selectedIds.has(tx.id) && 'bg-cyan-500/5'
+                          selectedIds.has(tx.id) && 'bg-cyan-500/5',
+                          tx.is_split && 'opacity-50' // Greyed out - amounts are in children
                         )}
                       >
                         <td className="py-3 px-2">
