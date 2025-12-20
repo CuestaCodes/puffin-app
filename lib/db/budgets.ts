@@ -70,37 +70,70 @@ export function upsertBudget(data: {
   const db = getDatabase();
   const now = new Date().toISOString();
   
+  // Verify the sub_category exists and is not deleted
+  const categoryCheck = db.prepare(`
+    SELECT id FROM sub_category 
+    WHERE id = ? AND is_deleted = 0
+  `).get(data.sub_category_id);
+  
+  if (!categoryCheck) {
+    throw new Error(`Sub-category with ID ${data.sub_category_id} does not exist or has been deleted`);
+  }
+  
   // Check if budget exists
   const existing = getBudgetByCategoryAndMonth(data.sub_category_id, data.year, data.month);
   
   if (existing) {
-    db.prepare(`
-      UPDATE budget SET amount = ?, updated_at = ? WHERE id = ?
-    `).run(data.amount, now, existing.id);
-    
-    return {
-      ...existing,
-      amount: data.amount,
-      updated_at: now,
-    };
+    try {
+      db.prepare(`
+        UPDATE budget SET amount = ?, updated_at = ? WHERE id = ?
+      `).run(data.amount, now, existing.id);
+      
+      return {
+        ...existing,
+        amount: data.amount,
+        updated_at: now,
+      };
+    } catch (error) {
+      throw new Error(`Failed to update budget: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
   
   const id = generateId();
   
-  db.prepare(`
-    INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, data.sub_category_id, data.year, data.month, data.amount, now, now);
-  
-  return {
-    id,
-    sub_category_id: data.sub_category_id,
-    year: data.year,
-    month: data.month,
-    amount: data.amount,
-    created_at: now,
-    updated_at: now,
-  };
+  try {
+    db.prepare(`
+      INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, data.sub_category_id, data.year, data.month, data.amount, now, now);
+    
+    return {
+      id,
+      sub_category_id: data.sub_category_id,
+      year: data.year,
+      month: data.month,
+      amount: data.amount,
+      created_at: now,
+      updated_at: now,
+    };
+  } catch (error) {
+    // Check for unique constraint violation
+    if (error instanceof Error && error.message.includes('UNIQUE constraint')) {
+      // Budget was created between check and insert, try update instead
+      const existing = getBudgetByCategoryAndMonth(data.sub_category_id, data.year, data.month);
+      if (existing) {
+        db.prepare(`
+          UPDATE budget SET amount = ?, updated_at = ? WHERE id = ?
+        `).run(data.amount, now, existing.id);
+        return {
+          ...existing,
+          amount: data.amount,
+          updated_at: now,
+        };
+      }
+    }
+    throw new Error(`Failed to create budget: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**

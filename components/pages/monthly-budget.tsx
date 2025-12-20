@@ -104,6 +104,7 @@ function MonthlyBudgetContent() {
       const response = await fetch(`/api/budgets?${params}`);
       if (response.ok) {
         const data: BudgetSummaryResponse = await response.json();
+        console.log('Fetched budget summary:', data);
         setBudgetData(data);
         
         // Fetch hints for all categories
@@ -126,9 +127,14 @@ function MonthlyBudgetContent() {
           }
         }
         setCategoryHints(hints);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Failed to fetch budget summary - response not ok:', response.status, errorData);
+        setBudgetData(null);
       }
     } catch (error) {
       console.error('Failed to fetch budget summary:', error);
+      setBudgetData(null);
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +155,11 @@ function MonthlyBudgetContent() {
       const response = await fetch(`/api/budgets?${params}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched categories for budget entry:', data);
         setAllCategories(data.categories || []);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Failed to fetch categories - response not ok:', response.status, errorData);
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error);
@@ -327,29 +337,81 @@ function MonthlyBudgetContent() {
 
   const handleSaveBudget = async (subCategoryId: string, amount: number) => {
     try {
+      const requestBody = {
+        sub_category_id: subCategoryId,
+        year,
+        month,
+        amount,
+      };
+      
+      console.log('Saving budget:', requestBody);
+      
       const response = await fetch('/api/budgets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sub_category_id: subCategoryId,
-          year,
-          month,
-          amount,
-        }),
+        body: JSON.stringify(requestBody),
       });
       
+      // Log response details before parsing
+      console.log('Budget save response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        contentType: response.headers.get('content-type'),
+      });
+      
+      // Read response as text first (can only read once)
+      const responseText = await response.text();
+      console.log('Response body (raw):', responseText || '(empty)');
+      
       if (response.ok) {
-        setEditingBudgetId(null);
-        setCreatingBudgetForCategory(null);
-        await fetchBudgetSummary();
+        try {
+          const data = responseText ? JSON.parse(responseText) : {};
+          console.log('Budget saved successfully:', data);
+          setEditingBudgetId(null);
+          setCreatingBudgetForCategory(null);
+          await fetchBudgetSummary();
+        } catch (parseError) {
+          console.error('Failed to parse success response:', parseError, 'Raw:', responseText);
+          // Even if parsing fails, try to refresh in case it was saved
+          alert('Budget may have been saved, but response was invalid. Please refresh the page.');
+          await fetchBudgetSummary();
+        }
       } else {
-        const error = await response.json();
-        console.error('Failed to save budget:', error);
-        alert('Failed to save budget: ' + (error.error || 'Unknown error'));
+        // Try to parse error response
+        let errorMessage = `Server error (${response.status}): ${response.statusText}`;
+        
+        if (responseText) {
+          try {
+            const error = JSON.parse(responseText);
+            console.error('Failed to save budget - API error:', {
+              status: response.status,
+              statusText: response.statusText,
+              responseText,
+              parsedError: error,
+              errorKeys: Object.keys(error),
+            });
+            
+            // Try multiple possible error message fields
+            errorMessage = error.error || 
+                          error.message || 
+                          (error.details?.fieldErrors ? JSON.stringify(error.details.fieldErrors) : null) ||
+                          (error.details ? JSON.stringify(error.details) : null) ||
+                          (Object.keys(error).length > 0 ? JSON.stringify(error) : null) ||
+                          errorMessage;
+          } catch (parseError) {
+            console.error('Failed to parse error response as JSON:', parseError, 'Raw text:', responseText);
+            errorMessage = `Server error (${response.status}): ${responseText || response.statusText}`;
+          }
+        } else {
+          console.error('Empty error response body');
+        }
+        
+        alert('Failed to save budget: ' + errorMessage);
       }
     } catch (error) {
       console.error('Error saving budget:', error);
-      alert('Failed to save budget');
+      alert('Failed to save budget: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -574,8 +636,10 @@ function MonthlyBudgetContent() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setShowAllCategories(!showAllCategories);
-                if (!showAllCategories) {
+                const newValue = !showAllCategories;
+                setShowAllCategories(newValue);
+                if (newValue && allCategories.length === 0) {
+                  // Only fetch if we don't have categories yet
                   fetchAllCategories();
                 }
               }}
@@ -592,29 +656,45 @@ function MonthlyBudgetContent() {
               <div className="w-8 h-8 mx-auto mb-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
               <p>Loading budget data...</p>
             </div>
-          ) : groupedBudgets.length === 0 ? (
+          ) : groupedBudgets.length === 0 && !showAllCategories ? (
             <div className="text-center py-16 text-slate-500">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
                 <Calendar className="w-8 h-8 text-slate-500" />
               </div>
               <p className="font-medium text-slate-400">No budgets set</p>
-              <p className="text-sm mt-1">Create categories and set budgets in Settings</p>
+              <p className="text-sm mt-1">Click "Add Categories" to create budgets for your categories</p>
             </div>
           ) : (
             <div className="space-y-6">
               {/* Show categories without budgets if enabled */}
-              {showAllCategories && allCategories.length > 0 && (
+              {showAllCategories && (
                 <div className="mb-6 pb-6 border-b border-slate-800">
                   <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">
                     Categories Without Budgets
                   </h3>
-                  <div className="space-y-2">
-                    {allCategories
-                      .filter(cat => !budgetData?.budgets.some(b => b.sub_category_id === cat.sub_category_id))
-                      .map((category) => {
-                        const isCreating = creatingBudgetForCategory === category.sub_category_id;
+                  {allCategories.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <p className="text-sm">Loading categories...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(() => {
+                        const categoriesWithoutBudget = allCategories.filter(
+                          cat => !budgetData?.budgets?.some(b => b.sub_category_id === cat.sub_category_id)
+                        );
                         
-                        if (isCreating) {
+                        if (categoriesWithoutBudget.length === 0) {
+                          return (
+                            <div className="text-center py-8 text-slate-500">
+                              <p className="text-sm">All categories have budgets set for this month.</p>
+                            </div>
+                          );
+                        }
+                        
+                        return categoriesWithoutBudget.map((category) => {
+                          const isCreating = creatingBudgetForCategory === category.sub_category_id;
+                          
+                          if (isCreating) {
                           return (
                             <div
                               key={category.sub_category_id}
@@ -643,49 +723,51 @@ function MonthlyBudgetContent() {
                               />
                             </div>
                           );
-                        }
-                        
-                        return (
-                          <div
-                            key={category.sub_category_id}
-                            className="w-full p-3 rounded-lg bg-slate-800/20 border border-slate-700/50 hover:border-slate-600 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="font-medium text-slate-300">
-                                  {category.sub_category_name}
-                                </span>
-                                <span className="text-xs text-slate-500 ml-2">
-                                  ({category.upper_category_name})
-                                </span>
+                          }
+                          
+                          return (
+                            <div
+                              key={category.sub_category_id}
+                              className="w-full p-3 rounded-lg bg-slate-800/20 border border-slate-700/50 hover:border-slate-600 transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="font-medium text-slate-300">
+                                    {category.sub_category_name}
+                                  </span>
+                                  <span className="text-xs text-slate-500 ml-2">
+                                    ({category.upper_category_name})
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleCreateBudget(category.sub_category_id)}
+                                  className="gap-1.5"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add Budget
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleCreateBudget(category.sub_category_id)}
-                                className="gap-1.5"
-                              >
-                                <Plus className="w-3 h-3" />
-                                Add Budget
-                              </Button>
+                              {(category.average_3mo > 0 || category.average_6mo > 0 || category.carry_over > 0) && (
+                                <div className="mt-2 text-xs text-slate-500">
+                                  {category.carry_over > 0 && (
+                                    <span>Carry-over: {formatCurrency(category.carry_over)} • </span>
+                                  )}
+                                  {category.average_3mo > 0 && (
+                                    <span>3mo avg: {formatCurrency(category.average_3mo)}</span>
+                                  )}
+                                  {category.average_6mo > 0 && category.average_3mo > 0 && (
+                                    <span> • 6mo avg: {formatCurrency(category.average_6mo)}</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            {(category.average_3mo > 0 || category.average_6mo > 0 || category.carry_over > 0) && (
-                              <div className="mt-2 text-xs text-slate-500">
-                                {category.carry_over > 0 && (
-                                  <span>Carry-over: {formatCurrency(category.carry_over)} • </span>
-                                )}
-                                {category.average_3mo > 0 && (
-                                  <span>3mo avg: {formatCurrency(category.average_3mo)}</span>
-                                )}
-                                {category.average_6mo > 0 && category.average_3mo > 0 && (
-                                  <span> • 6mo avg: {formatCurrency(category.average_6mo)}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
                 </div>
               )}
               

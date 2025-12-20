@@ -106,19 +106,52 @@ export async function POST(request: NextRequest) {
     const validation = createBudgetSchema.safeParse(body);
     
     if (!validation.success) {
+      const errorDetails = validation.error.flatten();
+      console.error('Budget validation failed:', {
+        body,
+        errors: errorDetails,
+      });
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.flatten() },
+        { 
+          error: 'Validation failed', 
+          message: 'Invalid budget data',
+          details: errorDetails 
+        },
         { status: 400 }
       );
     }
 
-    const budget = upsertBudget(validation.data);
-    
-    return NextResponse.json({ budget }, { status: 201 });
+    try {
+      console.log('Creating/updating budget with data:', validation.data);
+      const budget = upsertBudget(validation.data);
+      console.log('Budget created/updated successfully:', budget);
+      return NextResponse.json({ budget }, { status: 201 });
+    } catch (dbError) {
+      console.error('Database error creating budget:', {
+        error: dbError,
+        message: dbError instanceof Error ? dbError.message : 'Unknown error',
+        stack: dbError instanceof Error ? dbError.stack : undefined,
+        data: validation.data,
+      });
+      return NextResponse.json(
+        { 
+          error: 'Failed to create budget',
+          message: dbError instanceof Error ? dbError.message : 'Database error occurred'
+        },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Error creating budget:', error);
+    console.error('Unexpected error creating budget:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { error: 'Failed to create budget' },
+      { 
+        error: 'Failed to create budget',
+        message: error instanceof Error ? error.message : 'An unexpected error occurred'
+      },
       { status: 500 }
     );
   }

@@ -49,7 +49,7 @@ export const updateUpperCategorySchema = z.object({
 
 // Budget schemas
 export const createBudgetSchema = z.object({
-  sub_category_id: z.string().regex(uuidPattern, 'Invalid category ID'),
+  sub_category_id: z.string().min(1, 'Category ID is required'), // Allow any non-empty string, database will validate foreign key
   year: z.number().int().min(2000).max(2100),
   month: z.number().int().min(1).max(12),
   amount: z.number().min(0, 'Budget amount must be positive'),
