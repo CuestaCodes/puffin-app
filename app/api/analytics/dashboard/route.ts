@@ -4,9 +4,8 @@ import { requireAuth } from '@/lib/auth';
 import { initializeDatabase } from '@/lib/db';
 import {
   getDashboardSummary,
-  getMonthlyTrends,
+  getMonthlyTrendsByYear,
   getExpenseBreakdown,
-  getIncomeBreakdown,
   getRecentTransactions,
 } from '@/lib/db/analytics';
 
@@ -19,37 +18,31 @@ export async function GET(request: NextRequest) {
     initializeDatabase();
 
     const { searchParams } = new URL(request.url);
-    const months = parseInt(searchParams.get('months') || '6');
+    const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
-    // Calculate date ranges for current and previous periods
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // Calculate date ranges for the selected year
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
 
-    // For summary, use current month vs previous month
-    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    // For summary comparison, use previous year
+    const prevYearStart = new Date(year - 1, 0, 1);
+    const prevYearEnd = new Date(year - 1, 11, 31);
 
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
     // Get all analytics data
     const summary = getDashboardSummary(
-      formatDate(currentMonthStart),
-      formatDate(currentMonthEnd),
-      formatDate(prevMonthStart),
-      formatDate(prevMonthEnd)
+      formatDate(yearStart),
+      formatDate(yearEnd),
+      formatDate(prevYearStart),
+      formatDate(prevYearEnd)
     );
 
-    const trends = getMonthlyTrends(months);
+    const trends = getMonthlyTrendsByYear(year);
 
     const expenseBreakdown = getExpenseBreakdown(
-      formatDate(currentMonthStart),
-      formatDate(currentMonthEnd)
-    );
-
-    const incomeBreakdown = getIncomeBreakdown(
-      formatDate(currentMonthStart),
-      formatDate(currentMonthEnd)
+      formatDate(yearStart),
+      formatDate(yearEnd)
     );
 
     const recentTransactions = getRecentTransactions(10);
@@ -58,12 +51,11 @@ export async function GET(request: NextRequest) {
       summary,
       trends,
       expenseBreakdown,
-      incomeBreakdown,
       recentTransactions,
       period: {
-        start: formatDate(currentMonthStart),
-        end: formatDate(currentMonthEnd),
-        months,
+        year,
+        start: formatDate(yearStart),
+        end: formatDate(yearEnd),
       },
     });
   } catch (error) {

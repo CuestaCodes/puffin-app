@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -16,8 +16,6 @@ import {
   Pie,
   Cell,
   Legend,
-  BarChart,
-  Bar,
 } from 'recharts';
 import type { TransactionWithCategory } from '@/types/database';
 
@@ -54,7 +52,6 @@ interface DashboardData {
   summary: DashboardSummary;
   trends: MonthlyTrend[];
   expenseBreakdown: CategoryBreakdown[];
-  incomeBreakdown: CategoryBreakdown[];
   recentTransactions: TransactionWithCategory[];
 }
 
@@ -72,12 +69,12 @@ const CHART_COLORS = [
 export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [months, setMonths] = useState(6);
+  const [year, setYear] = useState(new Date().getFullYear());
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/analytics/dashboard?months=${months}`);
+      const response = await fetch(`/api/analytics/dashboard?year=${year}`);
       if (response.ok) {
         const result = await response.json();
         setData(result);
@@ -87,7 +84,7 @@ export function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [months]);
+  }, [year]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -135,23 +132,28 @@ export function Dashboard() {
             Overview of your financial health
           </p>
         </div>
-        {/* Period selector */}
-        <div className="flex gap-2">
-          {[3, 6, 12].map((m) => (
-            <Button
-              key={m}
-              variant={months === m ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMonths(m)}
-              className={
-                months === m
-                  ? 'bg-cyan-600 hover:bg-cyan-500'
-                  : 'border-slate-700 text-slate-300 hover:bg-slate-800'
-              }
-            >
-              {m}M
-            </Button>
-          ))}
+        {/* Year selector */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setYear(year - 1)}
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 w-8"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-lg font-semibold text-white min-w-[60px] text-center">
+            {year}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setYear(year + 1)}
+            disabled={year >= new Date().getFullYear()}
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 w-8 disabled:opacity-50"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
@@ -230,14 +232,6 @@ export function Dashboard() {
                   />
                   <Line
                     type="monotone"
-                    dataKey="income"
-                    name="Income"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ fill: '#10b981', strokeWidth: 2 }}
-                  />
-                  <Line
-                    type="monotone"
                     dataKey="expenses"
                     name="Expenses"
                     stroke="#ef4444"
@@ -263,76 +257,85 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Expense Breakdown Pie Chart */}
+        {/* Income Trends Line Chart */}
         <Card className="border-slate-800 bg-slate-900/50">
           <CardHeader>
-            <CardTitle className="text-lg text-slate-100">Expense Breakdown</CardTitle>
+            <CardTitle className="text-lg text-slate-100">Income Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (
+            {data?.trends && data.trends.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={data.expenseBreakdown.slice(0, 8)}
-                    dataKey="amount"
-                    nameKey="categoryName"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={100}
-                    label={({ categoryName, percentage }) =>
-                      `${categoryName} (${percentage}%)`
-                    }
-                    labelLine={{ stroke: '#64748b' }}
-                  >
-                    {data.expenseBreakdown.slice(0, 8).map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
+                <LineChart data={data.trends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis
+                    dataKey="monthLabel"
+                    stroke="#64748b"
+                    fontSize={12}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    stroke="#64748b"
+                    fontSize={12}
+                    tickLine={false}
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: '#1e293b',
                       border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
-                    formatter={(value: number) => [formatCurrency(value), 'Amount']}
+                    labelStyle={{ color: '#f1f5f9' }}
+                    formatter={(value: number) => [formatCurrency(value), '']}
                   />
-                </PieChart>
+                  <Line
+                    type="monotone"
+                    dataKey="income"
+                    name="Income"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={{ fill: '#10b981', strokeWidth: 2 }}
+                  />
+                  <Legend />
+                </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                <p>No expense data for this period</p>
+                <p>Import transactions to see income trends</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Income Breakdown Bar Chart */}
+      {/* Expense Breakdown Pie Chart */}
       <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader>
-          <CardTitle className="text-lg text-slate-100">Income Sources</CardTitle>
+          <CardTitle className="text-lg text-slate-100">Expense Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
-          {data?.incomeBreakdown && data.incomeBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={data.incomeBreakdown} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  type="number"
-                  stroke="#64748b"
-                  fontSize={12}
-                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="categoryName"
-                  stroke="#64748b"
-                  fontSize={12}
-                  width={120}
-                />
+          {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.expenseBreakdown.slice(0, 8)}
+                  dataKey="amount"
+                  nameKey="categoryName"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ categoryName, percentage }) =>
+                    `${categoryName} (${percentage}%)`
+                  }
+                  labelLine={{ stroke: '#64748b' }}
+                >
+                  {data.expenseBreakdown.slice(0, 8).map((_, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={CHART_COLORS[index % CHART_COLORS.length]}
+                    />
+                  ))}
+                </Pie>
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#1e293b',
@@ -341,12 +344,11 @@ export function Dashboard() {
                   }}
                   formatter={(value: number) => [formatCurrency(value), 'Amount']}
                 />
-                <Bar dataKey="amount" fill="#10b981" radius={[0, 4, 4, 0]} />
-              </BarChart>
+              </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-48 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
-              <p>No income data for this period</p>
+            <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
+              <p>No expense data for this period</p>
             </div>
           )}
         </CardContent>
@@ -427,7 +429,7 @@ function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgCol
             <p className="text-sm text-slate-400">{title}</p>
             <p className="text-2xl font-bold mt-1 tabular-nums text-white">{value}</p>
             <p className={`text-xs mt-1 ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-              {change} from last month
+              {change} from last year
             </p>
           </div>
           <div className={`p-3 rounded-xl ${bgColor}`}>

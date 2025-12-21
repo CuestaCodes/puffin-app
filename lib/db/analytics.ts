@@ -116,50 +116,50 @@ export function getDashboardSummary(
 }
 
 /**
- * Get monthly spending trends
+ * Get monthly spending trends for a specific year
  */
-export function getMonthlyTrends(months: number = 6): MonthlyTrend[] {
+export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
   const db = getDatabase();
 
   const query = `
     WITH RECURSIVE months AS (
-      SELECT date('now', 'start of month', '-' || (? - 1) || ' months') as month_start
+      SELECT 1 as month_num
       UNION ALL
-      SELECT date(month_start, '+1 month')
+      SELECT month_num + 1
       FROM months
-      WHERE month_start < date('now', 'start of month')
+      WHERE month_num < 12
     )
     SELECT
-      strftime('%Y-%m', m.month_start) as month,
+      ? || '-' || printf('%02d', m.month_num) as month,
       COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
       COALESCE(SUM(CASE WHEN uc.type IN ('expense', 'bill', 'debt') THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
       COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings
     FROM months m
-    LEFT JOIN "transaction" t ON strftime('%Y-%m', t.date) = strftime('%Y-%m', m.month_start)
+    LEFT JOIN "transaction" t ON strftime('%Y', t.date) = ?
+      AND CAST(strftime('%m', t.date) AS INTEGER) = m.month_num
       AND t.is_deleted = 0
       AND t.is_split = 0
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
       AND (uc.type IS NULL OR uc.type != 'transfer')
-    GROUP BY strftime('%Y-%m', m.month_start)
-    ORDER BY month ASC
+    GROUP BY m.month_num
+    ORDER BY m.month_num ASC
   `;
 
-  const results = db.prepare(query).all(months) as Array<{
+  const yearStr = year.toString();
+  const results = db.prepare(query).all(yearStr, yearStr) as Array<{
     month: string;
     income: number;
     expenses: number;
     savings: number;
   }>;
 
-  return results.map(row => {
-    const [year, monthNum] = row.month.split('-');
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthLabel = `${monthNames[parseInt(monthNum) - 1]} ${year}`;
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+  return results.map((row, index) => {
     return {
       month: row.month,
-      monthLabel,
+      monthLabel: monthNames[index],
       income: row.income || 0,
       expenses: row.expenses || 0,
       savings: row.savings || 0,
