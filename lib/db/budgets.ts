@@ -153,13 +153,13 @@ export function initializeMonthlyBudgets(year: number, month: number): number {
   const db = getDatabase();
   const now = new Date().toISOString();
   
-  // Get all non-income sub-categories that don't have a budget for this month
+  // Get all non-income, non-transfer sub-categories that don't have a budget for this month
   const categoriesWithoutBudget = db.prepare(`
     SELECT sc.id as sub_category_id
     FROM sub_category sc
     JOIN upper_category uc ON sc.upper_category_id = uc.id
-    WHERE sc.is_deleted = 0 
-      AND uc.type != 'income'
+    WHERE sc.is_deleted = 0
+      AND uc.type NOT IN ('income', 'transfer')
       AND sc.id NOT IN (
         SELECT sub_category_id FROM budget WHERE year = ? AND month = ?
       )
@@ -196,13 +196,13 @@ export function initializeMonthlyBudgets(year: number, month: number): number {
 export function createBudgetsFrom12MonthAverage(year: number, month: number): number {
   const db = getDatabase();
   
-  // Get all non-income sub-categories
+  // Get all non-income, non-transfer sub-categories
   const categories = db.prepare(`
     SELECT sc.id as sub_category_id
     FROM sub_category sc
     JOIN upper_category uc ON sc.upper_category_id = uc.id
-    WHERE sc.is_deleted = 0 
-      AND uc.type != 'income'
+    WHERE sc.is_deleted = 0
+      AND uc.type NOT IN ('income', 'transfer')
   `).all() as Array<{ sub_category_id: string }>;
   
   if (categories.length === 0) {
@@ -299,9 +299,10 @@ export function getBudgetSummary(year: number, month: number): {
   // Note: We exclude split parent transactions (is_split = 1) from totals
   // because their amounts are represented by their child transactions instead.
   // This prevents double-counting when a transaction is split.
-  // Also exclude income categories from budgets (they don't need budgeting)
+  // Also exclude income and transfer categories from budgets (they don't need budgeting)
+  // Transfer transactions are like splits - visible but excluded from calculations
   const query = `
-    SELECT 
+    SELECT
       b.*,
       sc.name as sub_category_name,
       uc.name as upper_category_name,
@@ -315,7 +316,7 @@ export function getBudgetSummary(year: number, month: number): {
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN "transaction" t ON t.sub_category_id = b.sub_category_id
     WHERE b.year = ? AND b.month = ?
-      AND uc.type != 'income'
+      AND uc.type NOT IN ('income', 'transfer')
     GROUP BY b.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `;

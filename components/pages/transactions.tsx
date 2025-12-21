@@ -38,6 +38,7 @@ const emptyFilters: FilterValues = {
   startDate: null,
   endDate: null,
   categoryId: null,
+  sourceId: null,
   minAmount: null,
   maxAmount: null,
   uncategorized: false,
@@ -98,6 +99,7 @@ function TransactionsPageContent() {
       if (filters.startDate) params.set('startDate', filters.startDate);
       if (filters.endDate) params.set('endDate', filters.endDate);
       if (filters.categoryId) params.set('categoryId', filters.categoryId);
+      if (filters.sourceId) params.set('sourceId', filters.sourceId);
       if (filters.minAmount !== null) params.set('minAmount', filters.minAmount.toString());
       if (filters.maxAmount !== null) params.set('maxAmount', filters.maxAmount.toString());
       if (filters.uncategorized) params.set('uncategorized', 'true');
@@ -486,16 +488,24 @@ function TransactionsPageContent() {
                             {formatDate(tx.date)}
                           </td>
                           <td className="py-3 px-4 text-sm text-slate-200 max-w-[300px]">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="truncate">{tx.description}</span>
-                              {tx.is_split && (
+                              {!!tx.is_split && (
                                 <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
                                   SPLIT
                                 </span>
                               )}
-                              {tx.parent_transaction_id && (
+                              {!!tx.parent_transaction_id && (
                                 <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">
                                   CHILD
+                                </span>
+                              )}
+                              {tx.source_name && (
+                                <span 
+                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                  title={`Source: ${tx.source_name}`}
+                                >
+                                  {tx.source_name}
                                 </span>
                               )}
                             </div>

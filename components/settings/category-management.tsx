@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { UpperCategory, SubCategoryWithUpper } from '@/types/database';
 import { cn } from '@/lib/utils';
+import { SourceManagement } from './source-management';
 
 interface CategoryGroup {
   id: string;
@@ -375,6 +376,9 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
           </Button>
         </div>
       )}
+
+      {/* Sources section */}
+      <SourceManagement className="mb-6" />
 
       {/* Category groups */}
       <div className="space-y-4">

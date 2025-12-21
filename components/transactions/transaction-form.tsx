@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CategorySelector } from './category-selector';
+import { SourceSelector } from './source-selector';
 import type { TransactionWithCategory } from '@/types/database';
 
 interface TransactionFormProps {
@@ -55,6 +56,7 @@ export function TransactionForm({
   const [isExpense, setIsExpense] = useState(true);
   const [notes, setNotes] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [sourceId, setSourceId] = useState<string | null>(null);
   
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,6 +72,7 @@ export function TransactionForm({
       setIsExpense(transaction.amount < 0);
       setNotes(transaction.notes || '');
       setCategoryId(transaction.sub_category_id);
+      setSourceId(transaction.source_id);
     } else {
       // Reset for new transaction - use defaultDate if provided
       const initialDate = defaultDate ? new Date(defaultDate + 'T12:00:00') : new Date();
@@ -79,6 +82,7 @@ export function TransactionForm({
       setIsExpense(true);
       setNotes('');
       setCategoryId(null);
+      setSourceId(null);
     }
     setErrors({});
   }, [transaction, open, defaultDate]);
@@ -117,6 +121,7 @@ export function TransactionForm({
         amount: finalAmount,
         notes: notes.trim() || null,
         sub_category_id: categoryId,
+        source_id: sourceId,
       };
       
       let response: Response;
@@ -289,7 +294,17 @@ export function TransactionForm({
                 placeholder="Select a category..."
               />
             </div>
-            
+
+            {/* Source */}
+            <div className="grid gap-2">
+              <Label className="text-slate-300">Source (optional)</Label>
+              <SourceSelector
+                value={sourceId}
+                onChange={setSourceId}
+                placeholder="Select a source..."
+              />
+            </div>
+
             {/* Notes */}
             <div className="grid gap-2">
               <Label htmlFor="notes" className="text-slate-300">Notes (optional)</Label>

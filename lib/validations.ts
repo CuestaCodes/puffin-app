@@ -14,6 +14,7 @@ export const createTransactionSchema = z.object({
   amount: z.number().refine(val => val !== 0, 'Amount cannot be zero'),
   notes: z.string().max(1000, 'Notes too long').nullable().optional(),
   sub_category_id: z.string().regex(uuidPattern, 'Invalid category ID').nullable().optional(),
+  source_id: z.string().regex(uuidPattern, 'Invalid source ID').nullable().optional(),
 });
 
 export const updateTransactionSchema = z.object({
@@ -22,6 +23,7 @@ export const updateTransactionSchema = z.object({
   amount: z.number().refine(val => val !== 0, 'Amount cannot be zero').optional(),
   notes: z.string().max(1000, 'Notes too long').nullable().optional(),
   sub_category_id: z.string().regex(uuidPattern, 'Invalid category ID').nullable().optional(),
+  source_id: z.string().regex(uuidPattern, 'Invalid source ID').nullable().optional(),
 });
 
 export const splitTransactionSchema = z.object({
@@ -112,6 +114,7 @@ export const transactionFilterSchema = z.object({
   endDate: z.string().regex(datePattern).optional(),
   categoryId: z.string().regex(uuidPattern).optional(),
   upperCategoryId: z.enum(['income', 'expense', 'saving', 'bill', 'debt', 'transfer']).optional(),
+  sourceId: z.string().regex(uuidPattern).optional(),
   search: z.string().max(200).optional(),
   minAmount: z.number().optional(),
   maxAmount: z.number().optional(),

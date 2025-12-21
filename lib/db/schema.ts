@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS sub_category (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Sources (for tracking transaction origin, e.g., Bendigo, Maxxia)
+CREATE TABLE IF NOT EXISTS source (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Transactions
 CREATE TABLE IF NOT EXISTS "transaction" (
   id TEXT PRIMARY KEY,
@@ -38,6 +47,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
   amount REAL NOT NULL,
   notes TEXT,
   sub_category_id TEXT REFERENCES sub_category(id),
+  source_id TEXT REFERENCES source(id),
   is_split INTEGER NOT NULL DEFAULT 0,
   parent_transaction_id TEXT REFERENCES "transaction"(id),
   is_deleted INTEGER NOT NULL DEFAULT 0,
@@ -93,6 +103,7 @@ CREATE TABLE IF NOT EXISTS sync_log (
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_transaction_date ON "transaction"(date);
 CREATE INDEX IF NOT EXISTS idx_transaction_sub_category ON "transaction"(sub_category_id);
+CREATE INDEX IF NOT EXISTS idx_transaction_source ON "transaction"(source_id);
 CREATE INDEX IF NOT EXISTS idx_transaction_parent ON "transaction"(parent_transaction_id);
 CREATE INDEX IF NOT EXISTS idx_transaction_deleted ON "transaction"(is_deleted);
 CREATE INDEX IF NOT EXISTS idx_sub_category_upper ON sub_category(upper_category_id);

@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       endDate: searchParams.get('endDate') || undefined,
       categoryId: searchParams.get('categoryId') || undefined,
       upperCategoryId: searchParams.get('upperCategoryId') || undefined,
+      sourceId: searchParams.get('sourceId') || undefined,
       search: searchParams.get('search') || undefined,
       minAmount: searchParams.get('minAmount') ? Number(searchParams.get('minAmount')) : undefined,
       maxAmount: searchParams.get('maxAmount') ? Number(searchParams.get('maxAmount')) : undefined,

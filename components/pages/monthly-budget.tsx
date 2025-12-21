@@ -83,6 +83,19 @@ function MonthlyBudgetContent() {
   // Ref for smooth scrolling to transactions
   const transactionsRef = useRef<HTMLDivElement>(null);
   
+  // Handle escape key to cancel editing
+  useEffect(() => {
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setEditingBudgetId(null);
+        setCreatingBudgetForCategory(null);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscKey);
+    return () => window.removeEventListener('keydown', handleEscKey);
+  }, []);
+  
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1; // 1-12
 
@@ -344,11 +357,11 @@ function MonthlyBudgetContent() {
   };
 
   // Group all categories by upper category, merging with budget data
-  // Exclude income categories (they're shown separately)
+  // Exclude income and transfer categories (they're shown separately as read-only)
   const groupedCategories: CategoryGroup[] = allCategories.length > 0 ? 
     Object.values(
       allCategories
-        .filter(cat => cat.upper_category_type !== 'income') // Exclude income
+        .filter(cat => cat.upper_category_type !== 'income' && cat.upper_category_type !== 'transfer') // Exclude income and transfer
         .reduce((acc, cat) => {
           const key = cat.upper_category_name;
           if (!acc[key]) {
@@ -392,6 +405,17 @@ function MonthlyBudgetContent() {
       ...cat,
       actual_amount: cat.actual_amount, // Income is positive, keep as-is
     }));
+
+  // Get transfer categories with their totals (read-only, not contributing to budget)
+  const transferCategories = allCategories
+    .filter(cat => cat.upper_category_type === 'transfer')
+    .map(cat => ({
+      ...cat,
+      actual_amount: Math.abs(cat.actual_amount), // Take absolute value for display
+    }));
+  
+  // Calculate transfer totals
+  const totalTransfers = transferCategories.reduce((sum, c) => sum + c.actual_amount, 0);
 
   const handleCategoryClick = (categoryId: string, categoryName: string) => {
     if (selectedCategoryId === categoryId) {
@@ -783,6 +807,51 @@ function MonthlyBudgetContent() {
                               {category.sub_category_name}
                             </span>
                             <span className="font-mono text-emerald-400">
+                              {formatCurrency(category.actual_amount)}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {/* Transfer categories (read-only, not contributing to budget) */}
+              {transferCategories.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-blue-500/30">
+                    <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider">
+                      Transfers
+                    </h3>
+                    <span className="text-sm text-blue-400 font-mono">
+                      {formatCurrency(totalTransfers)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {transferCategories.map((category) => {
+                      const isSelected = selectedCategoryId === category.sub_category_id;
+                      
+                      return (
+                        <button
+                          key={category.sub_category_id}
+                          onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                          className={cn(
+                            'w-full p-3 rounded-lg transition-all text-left',
+                            'bg-blue-500/5 border',
+                            isSelected 
+                              ? 'bg-blue-500/10 border-blue-500/30 ring-1 ring-blue-500/20' 
+                              : 'border-blue-500/10 hover:border-blue-500/20'
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={cn(
+                              'font-medium',
+                              isSelected ? 'text-blue-300' : 'text-slate-200'
+                            )}>
+                              {category.sub_category_name}
+                            </span>
+                            <span className="font-mono text-blue-400">
                               {formatCurrency(category.actual_amount)}
                             </span>
                           </div>

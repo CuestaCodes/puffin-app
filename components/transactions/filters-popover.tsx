@@ -15,11 +15,13 @@ import {
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CategorySelector } from './category-selector';
+import { SourceSelector } from './source-selector';
 
 export interface FilterValues {
   startDate: string | null;
   endDate: string | null;
   categoryId: string | null;
+  sourceId: string | null;
   minAmount: number | null;
   maxAmount: number | null;
   uncategorized: boolean;
@@ -51,6 +53,7 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
       startDate: null,
       endDate: null,
       categoryId: null,
+      sourceId: null,
       minAmount: null,
       maxAmount: null,
       uncategorized: false,
@@ -64,6 +67,7 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
     filters.startDate,
     filters.endDate,
     filters.categoryId,
+    filters.sourceId,
     filters.minAmount,
     filters.maxAmount,
     filters.uncategorized,
@@ -202,6 +206,17 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
               value={local.categoryId}
               onChange={(id) => setLocal(prev => ({ ...prev, categoryId: id, uncategorized: false }))}
               placeholder="Any category"
+            />
+          </div>
+          
+          {/* Source filter */}
+          <div className="space-y-2">
+            <Label className="text-slate-300 text-sm">Source</Label>
+            <SourceSelector
+              value={local.sourceId}
+              onChange={(id) => setLocal(prev => ({ ...prev, sourceId: id }))}
+              placeholder="Any source"
+              allowCreate={false}
             />
           </div>
           

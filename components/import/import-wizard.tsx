@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FileSpreadsheet, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,14 +10,15 @@ import { PreviewTable } from './preview-table';
 import { parseCSV, detectColumnMapping } from '@/lib/csv/parser';
 import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
 import { cn } from '@/lib/utils';
-import type { 
-  CSVParseResult, 
-  ColumnMapping, 
-  DateFormat, 
-  ImportPreview, 
+import type {
+  CSVParseResult,
+  ColumnMapping,
+  DateFormat,
+  ImportPreview,
   ParsedRow,
-  ImportResult 
+  ImportResult
 } from '@/types/import';
+import type { Source } from '@/types/database';
 
 type ImportStep = 'upload' | 'mapping' | 'preview' | 'complete';
 
@@ -47,6 +48,24 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [sources, setSources] = useState<Source[]>([]);
+
+  // Fetch sources on mount
+  useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        const response = await fetch('/api/sources');
+        if (response.ok) {
+          const data = await response.json();
+          setSources(data.sources || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch sources:', error);
+      }
+    };
+    fetchSources();
+  }, []);
 
   // Step 1: Handle file upload
   const handleFileSelect = useCallback(async (file: File) => {
@@ -100,11 +119,10 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           errors.push(`Invalid date: "${dateStr}"`);
         }
         
-        // Parse description
-        const description = row[columnMapping.description]?.trim() || null;
-        if (!description) {
-          errors.push('Missing description');
-        }
+        // Parse description - use default if missing
+        const rawDescription = row[columnMapping.description]?.trim();
+        const description = rawDescription || 'No description';
+        const hasDefaultDescription = !rawDescription;
         
         // Parse amount
         const amountStr = row[columnMapping.amount];
@@ -132,6 +150,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           errors,
           isDuplicate: false, // Will be checked server-side
           isSelected: errors.length === 0, // Auto-select valid rows
+          hasDefaultDescription,
         };
       });
       
@@ -241,6 +260,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         date: row.parsed.date!,
         description: row.parsed.description!,
         amount: row.parsed.amount!,
+        source_id: selectedSourceId,
       }));
       
       const response = await fetch('/api/transactions/import', {
@@ -263,7 +283,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [preview, onComplete]);
+  }, [preview, onComplete, selectedSourceId]);
 
   const handleReset = () => {
     setCurrentStep('upload');
@@ -362,15 +382,39 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
         {/* Step: Preview */}
         {currentStep === 'preview' && preview && (
-          <PreviewTable
-            preview={preview}
-            onRowToggle={handleRowToggle}
-            onSelectAll={handleSelectAll}
-            onDeselectAll={handleDeselectAll}
-            onContinue={handleImport}
-            onBack={() => setCurrentStep('mapping')}
-            isLoading={isLoading}
-          />
+          <div className="space-y-4">
+            {/* Source selection for import */}
+            <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Assign Source to All Transactions (optional)
+              </label>
+              <select
+                value={selectedSourceId || ''}
+                onChange={(e) => setSelectedSourceId(e.target.value || null)}
+                className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">No source</option>
+                {sources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                This source will be applied to all imported transactions
+              </p>
+            </div>
+
+            <PreviewTable
+              preview={preview}
+              onRowToggle={handleRowToggle}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
+              onContinue={handleImport}
+              onBack={() => setCurrentStep('mapping')}
+              isLoading={isLoading}
+            />
+          </div>
         )}
 
         {/* Step: Complete */}

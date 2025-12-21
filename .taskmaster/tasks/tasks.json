@@ -1128,6 +1128,201 @@
             "testStrategy": "Test build output generation with correct naming convention, verify executable works as portable app, validate release documentation completeness"
           }
         ]
+      },
+      {
+        "id": 17,
+        "title": "Import Enhancement - Handle Missing Descriptions",
+        "description": "Allow CSV import to proceed with rows that have missing descriptions by using a default value",
+        "details": "1. Update CSV parsing logic to detect missing/empty description fields\n2. Apply default value 'No description' for transactions with empty descriptions\n3. Update import preview to show rows with missing descriptions (with visual indicator)\n4. Ensure validation does not reject rows with empty descriptions\n5. Add option in import settings to customize the default description value\n6. Update import summary to count rows that used default description\n7. Test with various CSV formats where description column is empty or missing",
+        "testStrategy": "Test CSV import with files containing empty description fields. Verify default value is applied correctly. Test preview shows rows with defaulted descriptions. Verify import summary accurately reports defaulted rows.",
+        "priority": "high",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update CSV Parsing to Handle Empty Descriptions",
+            "description": "Modify the CSV parser to accept rows with missing or empty description fields",
+            "dependencies": [],
+            "details": "Update the CSV parsing logic to not reject rows with empty description values. Detect missing/empty description fields during parsing and flag them for default value application. Ensure the parser continues processing even when description is blank.",
+            "status": "pending",
+            "testStrategy": "Test parsing CSVs with empty description fields, null values, and whitespace-only descriptions"
+          },
+          {
+            "id": 2,
+            "title": "Apply Default Description Value",
+            "description": "Implement logic to apply 'No description' default value for empty descriptions",
+            "dependencies": [
+              1
+            ],
+            "details": "Create a function to apply the default 'No description' value to transactions with empty descriptions. Apply this during the import processing stage. Add visual indicator in the preview table for rows where default was applied (e.g., italicized or different color).",
+            "status": "pending",
+            "testStrategy": "Verify default value is applied correctly during import. Test that preview shows visual indicator for defaulted rows."
+          },
+          {
+            "id": 3,
+            "title": "Update Import Summary and Validation",
+            "description": "Update validation to allow empty descriptions and report defaulted rows in summary",
+            "dependencies": [
+              2
+            ],
+            "details": "Remove or modify validation rules that reject empty descriptions. Update the import summary to include a count of rows that used the default description. Ensure accurate reporting of all import statistics including defaulted descriptions.",
+            "status": "pending",
+            "testStrategy": "Test import summary accurately counts and reports defaulted description rows. Verify validation no longer rejects empty descriptions."
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "title": "Transfer Sub-Category Transaction Handling",
+        "description": "Transactions tagged with any transfer sub-category should be greyed out and excluded from all calculations like split parent transactions",
+        "details": "1. Identify all sub-categories under the 'Transfer' upper category\n2. Update transaction display logic to grey out transactions with transfer sub-categories\n3. Modify all calculation/aggregation queries to exclude transfer sub-category transactions:\n   - Monthly budget totals\n   - Category summaries\n   - Dashboard analytics\n   - Income/expense totals\n4. Apply same visual styling as split parent transactions (greyed, de-emphasized)\n5. Ensure transfer transactions are still visible in transaction lists but clearly marked\n6. Update any existing tests to account for transfer exclusion logic\n7. Add tooltip or indicator explaining why transfer transactions are excluded",
+        "testStrategy": "Test that transfer sub-category transactions are visually greyed. Verify all calculations exclude transfer transactions. Test budget views, dashboard analytics, and category summaries all properly exclude transfers. Verify transfer transactions remain visible but de-emphasized in lists.",
+        "priority": "high",
+        "dependencies": [
+          6,
+          7,
+          9
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Identify Transfer Sub-Categories in Queries",
+            "description": "Create query logic to identify transactions belonging to transfer upper category",
+            "dependencies": [],
+            "details": "Create a utility function or query join that identifies transactions whose sub-category belongs to the Transfer upper category. This will be used across multiple components for filtering and styling decisions.",
+            "status": "pending",
+            "testStrategy": "Test that transfer sub-categories are correctly identified. Verify query returns all and only transactions in transfer category."
+          },
+          {
+            "id": 2,
+            "title": "Update Calculation Queries to Exclude Transfers",
+            "description": "Modify all aggregation and calculation queries to exclude transfer transactions",
+            "dependencies": [
+              1
+            ],
+            "details": "Update monthly budget totals, category summaries, dashboard analytics, and income/expense calculations to exclude transactions with transfer sub-categories. Ensure consistency across all reporting features. This mirrors the existing exclusion of Transfer upper category.",
+            "status": "pending",
+            "testStrategy": "Verify budget totals exclude transfer transactions. Test dashboard analytics, category summaries all properly exclude transfers."
+          },
+          {
+            "id": 3,
+            "title": "Apply Visual Styling for Transfer Transactions",
+            "description": "Grey out transfer sub-category transactions in transaction lists with visual indicator",
+            "dependencies": [
+              1
+            ],
+            "details": "Apply the same greyed-out visual styling used for split parent transactions to transfer sub-category transactions. Ensure they remain visible in lists but are clearly de-emphasized. Add tooltip or indicator explaining that transfer transactions are excluded from calculations.",
+            "status": "pending",
+            "testStrategy": "Test visual styling matches split parent transactions. Verify tooltip displays correct explanation. Test across all transaction list views."
+          }
+        ]
+      },
+      {
+        "id": 19,
+        "title": "Transaction Source Field",
+        "description": "Add a new 'source' field for transactions to track the origin (e.g., Bendigo, Maxxia) with filtering and import capabilities",
+        "details": "1. Add 'source' column to Transaction table in database schema\n2. Create Source management in settings (CRUD for source names)\n3. Add source dropdown to manual transaction entry form\n4. Add source selection option in CSV import wizard (apply to all imported rows)\n5. Implement source filter in transaction list views\n6. Add source to transaction search functionality\n7. Display source as a tag/badge on transaction rows\n8. Allow bulk update of source for selected transactions\n9. Update API endpoints to support source field\n10. Add source to transaction detail view/edit modal\n11. Consider adding source to import column mapping (optional per-row source)",
+        "testStrategy": "Test source field CRUD operations. Verify source can be set during manual entry and import. Test filtering by source works correctly. Verify search includes source field. Test bulk source update functionality.",
+        "priority": "medium",
+        "dependencies": [
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Database Schema and API Updates for Source Field",
+            "description": "Add source column to Transaction table and update API endpoints",
+            "dependencies": [],
+            "details": "Add 'source' column (nullable string or foreign key to Sources table) to Transaction table. Create database migration. Update transaction API endpoints (GET, POST, PATCH) to handle source field. Update TypeScript types and Zod validation schemas.",
+            "status": "pending",
+            "testStrategy": "Test database migration creates column correctly. Verify API endpoints accept and return source field."
+          },
+          {
+            "id": 2,
+            "title": "Source Management UI",
+            "description": "Create settings interface for managing source names (CRUD operations)",
+            "dependencies": [
+              1
+            ],
+            "details": "Add Source management section in settings page. Implement create, rename, and delete operations for sources. Create Sources table if using separate table approach. Display list of existing sources with edit/delete options.",
+            "status": "pending",
+            "testStrategy": "Test CRUD operations for sources. Verify source names persist correctly. Test deletion protection if sources are in use."
+          },
+          {
+            "id": 3,
+            "title": "Source Selection in Transaction Entry and Import",
+            "description": "Add source dropdown to manual entry form and import wizard",
+            "dependencies": [
+              2
+            ],
+            "details": "Add source dropdown selector to manual transaction entry form. Add source selection step in CSV import wizard to apply source to all imported rows. Optionally allow source as a mappable column for per-row source from CSV.",
+            "status": "pending",
+            "testStrategy": "Test source can be selected during manual entry. Verify import wizard applies source to all rows. Test optional per-row source mapping."
+          },
+          {
+            "id": 4,
+            "title": "Source Filtering and Display",
+            "description": "Implement source filter in transaction lists and display source as tag/badge",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Add source filter dropdown to transaction list views. Display source as a small tag/badge on transaction rows. Include source in transaction search functionality. Add source field to transaction detail view/edit modal. Implement bulk source update for selected transactions.",
+            "status": "pending",
+            "testStrategy": "Test filtering by source works correctly. Verify search includes source. Test source display on transaction rows. Test bulk update functionality."
+          }
+        ]
+      },
+      {
+        "id": 20,
+        "title": "Display Transaction Notes in UI",
+        "description": "Show transaction notes directly under the description in the transaction list with smaller, de-emphasized styling",
+        "details": "1. Update transaction row component to display notes field\n2. Position notes directly under the description text\n3. Apply smaller font size (e.g., text-sm or text-xs)\n4. Apply de-emphasized styling (grey color, lighter weight)\n5. Truncate long notes with ellipsis and show full notes on hover/tooltip\n6. Ensure notes don't disrupt row layout or spacing\n7. Handle empty notes gracefully (no extra space)\n8. Apply consistent styling across all transaction list views (inbox, monthly, etc.)\n9. Consider adding ability to expand/collapse notes if very long",
+        "testStrategy": "Verify notes display correctly under descriptions. Test styling is appropriately de-emphasized. Test truncation and tooltip for long notes. Verify empty notes don't affect layout. Test across all transaction list views.",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update Transaction Row Component Layout",
+            "description": "Modify transaction row to include notes below description",
+            "dependencies": [],
+            "details": "Update the transaction row component to include a secondary line for notes. Position notes directly under the description. Ensure the layout handles cases with and without notes gracefully (no extra space when notes are empty).",
+            "status": "pending",
+            "testStrategy": "Test layout with and without notes. Verify empty notes don't create extra whitespace."
+          },
+          {
+            "id": 2,
+            "title": "Apply Notes Styling",
+            "description": "Style notes with smaller, de-emphasized grey font",
+            "dependencies": [
+              1
+            ],
+            "details": "Apply text-sm or text-xs font size to notes. Use grey color (e.g., text-muted-foreground or text-gray-500). Apply lighter font weight if needed. Ensure styling is consistent with overall UI design language.",
+            "status": "pending",
+            "testStrategy": "Verify styling is appropriately smaller and de-emphasized. Test visual consistency across light/dark modes if applicable."
+          },
+          {
+            "id": 3,
+            "title": "Handle Long Notes with Truncation",
+            "description": "Truncate long notes with ellipsis and show full content on hover",
+            "dependencies": [
+              2
+            ],
+            "details": "Implement text truncation for notes exceeding a reasonable length (e.g., single line). Add ellipsis for truncated notes. Show full notes content in a tooltip on hover. Consider optional expand/collapse functionality for very long notes.",
+            "status": "pending",
+            "testStrategy": "Test truncation triggers at correct length. Verify tooltip shows full notes. Test across all transaction list views (inbox, monthly, etc.)."
+          }
+        ]
       }
     ],
     "metadata": {

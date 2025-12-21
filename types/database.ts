@@ -26,6 +26,14 @@ export interface SubCategory {
   updated_at: string;
 }
 
+export interface Source {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Transaction {
   id: string;
   date: string;
@@ -33,6 +41,7 @@ export interface Transaction {
   amount: number; // negative for expenses, positive for income
   notes: string | null;
   sub_category_id: string | null;
+  source_id: string | null;
   is_split: boolean;
   parent_transaction_id: string | null;
   is_deleted: boolean;
@@ -85,6 +94,7 @@ export interface TransactionWithCategory extends Transaction {
   sub_category_name?: string;
   upper_category_name?: string;
   upper_category_type?: UpperCategory['type'];
+  source_name?: string;
 }
 
 export interface SubCategoryWithUpper extends SubCategory {
@@ -106,6 +116,7 @@ export interface CreateTransactionInput {
   amount: number;
   notes?: string | null;
   sub_category_id?: string | null;
+  source_id?: string | null;
 }
 
 export interface UpdateTransactionInput {
@@ -114,6 +125,7 @@ export interface UpdateTransactionInput {
   amount?: number;
   notes?: string | null;
   sub_category_id?: string | null;
+  source_id?: string | null;
 }
 
 export interface CreateSubCategoryInput {

@@ -44,7 +44,12 @@ export function getTransactions(
     conditions.push('sc.upper_category_id = ?');
     params.push(filter.upperCategoryId);
   }
-  
+
+  if (filter.sourceId) {
+    conditions.push('t.source_id = ?');
+    params.push(filter.sourceId);
+  }
+
   if (filter.uncategorized) {
     conditions.push('t.sub_category_id IS NULL');
   }
@@ -90,14 +95,16 @@ export function getTransactions(
   const orderDirection = pagination.sortOrder === 'asc' ? 'ASC' : 'DESC';
   
   const query = `
-    SELECT 
+    SELECT
       t.*,
       sc.name as sub_category_name,
       uc.name as upper_category_name,
-      uc.type as upper_category_type
+      uc.type as upper_category_type,
+      s.name as source_name
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN source s ON t.source_id = s.id
     ${whereClause}
     ORDER BY ${orderColumn} ${orderDirection}, t.created_at DESC
     LIMIT ? OFFSET ?
@@ -117,14 +124,16 @@ export function getTransactions(
 export function getTransactionById(id: string): TransactionWithCategory | null {
   const db = getDatabase();
   const query = `
-    SELECT 
+    SELECT
       t.*,
       sc.name as sub_category_name,
       uc.name as upper_category_name,
-      uc.type as upper_category_type
+      uc.type as upper_category_type,
+      s.name as source_name
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN source s ON t.source_id = s.id
     WHERE t.id = ?
   `;
   const result = db.prepare(query).get(id) as TransactionWithCategory | undefined;
@@ -140,16 +149,17 @@ export function createTransaction(data: {
   amount: number;
   notes?: string | null;
   sub_category_id?: string | null;
+  source_id?: string | null;
 }): Transaction {
   const db = getDatabase();
   const id = generateId();
   const now = new Date().toISOString();
-  
+
   db.prepare(`
-    INSERT INTO "transaction" (id, date, description, amount, notes, sub_category_id, is_split, is_deleted, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
-  `).run(id, data.date, data.description, data.amount, data.notes || null, data.sub_category_id || null, now, now);
-  
+    INSERT INTO "transaction" (id, date, description, amount, notes, sub_category_id, source_id, is_split, is_deleted, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+  `).run(id, data.date, data.description, data.amount, data.notes || null, data.sub_category_id || null, data.source_id || null, now, now);
+
   return {
     id,
     date: data.date,
@@ -157,6 +167,7 @@ export function createTransaction(data: {
     amount: data.amount,
     notes: data.notes || null,
     sub_category_id: data.sub_category_id || null,
+    source_id: data.source_id || null,
     is_split: false,
     parent_transaction_id: null,
     is_deleted: false,
@@ -174,13 +185,14 @@ export function updateTransaction(id: string, data: {
   amount?: number;
   notes?: string | null;
   sub_category_id?: string | null;
+  source_id?: string | null;
 }): Transaction | null {
   const db = getDatabase();
-  
+
   // Build update query dynamically
   const updates: string[] = [];
   const params: (string | number | null)[] = [];
-  
+
   if (data.date !== undefined) {
     updates.push('date = ?');
     params.push(data.date);
@@ -201,17 +213,21 @@ export function updateTransaction(id: string, data: {
     updates.push('sub_category_id = ?');
     params.push(data.sub_category_id);
   }
-  
+  if (data.source_id !== undefined) {
+    updates.push('source_id = ?');
+    params.push(data.source_id);
+  }
+
   if (updates.length === 0) {
     return getTransactionById(id) as Transaction | null;
   }
-  
+
   updates.push('updated_at = ?');
   params.push(new Date().toISOString());
   params.push(id);
-  
+
   db.prepare(`UPDATE "transaction" SET ${updates.join(', ')} WHERE id = ?`).run(...params);
-  
+
   return getTransactionById(id) as Transaction | null;
 }
 
@@ -247,21 +263,22 @@ export function createTransactions(transactions: Array<{
   amount: number;
   notes?: string | null;
   sub_category_id?: string | null;
+  source_id?: string | null;
 }>): Transaction[] {
   const db = getDatabase();
   const now = new Date().toISOString();
-  
+
   const insert = db.prepare(`
-    INSERT INTO "transaction" (id, date, description, amount, notes, sub_category_id, is_split, is_deleted, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+    INSERT INTO "transaction" (id, date, description, amount, notes, sub_category_id, source_id, is_split, is_deleted, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
   `);
-  
+
   const created: Transaction[] = [];
-  
+
   const insertMany = db.transaction((txns) => {
     for (const txn of txns) {
       const id = generateId();
-      insert.run(id, txn.date, txn.description, txn.amount, txn.notes || null, txn.sub_category_id || null, now, now);
+      insert.run(id, txn.date, txn.description, txn.amount, txn.notes || null, txn.sub_category_id || null, txn.source_id || null, now, now);
       created.push({
         id,
         date: txn.date,
@@ -269,6 +286,7 @@ export function createTransactions(transactions: Array<{
         amount: txn.amount,
         notes: txn.notes || null,
         sub_category_id: txn.sub_category_id || null,
+        source_id: txn.source_id || null,
         is_split: false,
         parent_transaction_id: null,
         is_deleted: false,
@@ -277,9 +295,9 @@ export function createTransactions(transactions: Array<{
       });
     }
   });
-  
+
   insertMany(transactions);
-  
+
   return created;
 }
 
@@ -417,16 +435,18 @@ export function splitTransaction(
  */
 export function getChildTransactions(parentId: string): TransactionWithCategory[] {
   const db = getDatabase();
-  
+
   return db.prepare(`
-    SELECT 
+    SELECT
       t.*,
       sc.name as sub_category_name,
       uc.name as upper_category_name,
-      uc.type as upper_category_type
+      uc.type as upper_category_type,
+      s.name as source_name
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN source s ON t.source_id = s.id
     WHERE t.parent_transaction_id = ? AND t.is_deleted = 0
     ORDER BY t.created_at ASC
   `).all(parentId) as TransactionWithCategory[];

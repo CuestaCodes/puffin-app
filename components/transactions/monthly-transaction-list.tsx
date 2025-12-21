@@ -464,13 +464,18 @@ export function MonthlyTransactionList({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {transactions.map((tx) => (
-                      <tr 
-                        key={tx.id} 
+                    {transactions.map((tx) => {
+                      // Grey out split parents and transfer category transactions
+                      const isTransfer = tx.upper_category_type === 'transfer';
+                      const isGreyedOut = tx.is_split || isTransfer;
+
+                      return (
+                      <tr
+                        key={tx.id}
                         className={cn(
                           'hover:bg-slate-800/50 transition-colors',
                           selectedIds.has(tx.id) && 'bg-cyan-500/5',
-                          tx.is_split && 'opacity-50' // Greyed out - amounts are in children
+                          isGreyedOut && 'opacity-50' // Greyed out - excluded from calculations
                         )}
                       >
                         <td className="py-3 px-2">
@@ -485,17 +490,43 @@ export function MonthlyTransactionList({
                           {formatDate(tx.date)}
                         </td>
                         <td className="py-3 px-4 text-sm text-slate-200 max-w-[300px]">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate">{tx.description}</span>
-                            {tx.is_split && (
-                              <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
-                                SPLIT
-                              </span>
-                            )}
-                            {tx.parent_transaction_id && (
-                              <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">
-                                CHILD
-                              </span>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate">{tx.description}</span>
+                              {!!tx.is_split && (
+                                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
+                                  SPLIT
+                                </span>
+                              )}
+                              {!!tx.parent_transaction_id && (
+                                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">
+                                  CHILD
+                                </span>
+                              )}
+                              {isTransfer && (
+                                <span
+                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                                  title="Transfer transactions are excluded from budget calculations"
+                                >
+                                  TRANSFER
+                                </span>
+                              )}
+                              {tx.source_name && (
+                                <span
+                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                  title={`Source: ${tx.source_name}`}
+                                >
+                                  {tx.source_name}
+                                </span>
+                              )}
+                            </div>
+                            {tx.notes && (
+                              <p
+                                className="text-xs text-slate-500 truncate max-w-[280px]"
+                                title={tx.notes}
+                              >
+                                {tx.notes}
+                              </p>
                             )}
                           </div>
                         </td>
@@ -555,7 +586,8 @@ export function MonthlyTransactionList({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -185,8 +185,14 @@ export function PreviewTable({
                     )}
                   </td>
                   <td className="px-3 py-2 text-slate-200 max-w-[300px] truncate">
-                    {row.parsed.description || (
-                      <span className="text-red-400">Missing</span>
+                    {row.hasDefaultDescription ? (
+                      <span className="text-slate-400 italic" title="Default description applied">
+                        {row.parsed.description}
+                      </span>
+                    ) : (
+                      row.parsed.description || (
+                        <span className="text-red-400">Missing</span>
+                      )
                     )}
                   </td>
                   <td className={cn(

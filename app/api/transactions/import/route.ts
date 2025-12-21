@@ -14,6 +14,7 @@ const importTransactionSchema = z.object({
   amount: z.number().refine(val => val !== 0, 'Amount cannot be zero'),
   notes: z.string().max(1000).nullable().optional(),
   sub_category_id: z.string().nullable().optional(),
+  source_id: z.string().nullable().optional(),
 });
 
 const importRequestSchema = z.object({
@@ -63,9 +64,9 @@ export async function POST(request: Request) {
     // Prepare insert statement (table is "transaction" singular, quoted due to reserved word)
     const insertStmt = db.prepare(`
       INSERT INTO "transaction" (
-        id, date, description, amount, notes, sub_category_id,
+        id, date, description, amount, notes, sub_category_id, source_id,
         is_split, parent_transaction_id, is_deleted, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, 0, datetime('now'), datetime('now'))
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, datetime('now'), datetime('now'))
     `);
     
     // Process all transactions within a single database transaction for atomicity
@@ -104,7 +105,8 @@ export async function POST(request: Request) {
             tx.description,
             tx.amount,
             tx.notes || null,
-            tx.sub_category_id || null
+            tx.sub_category_id || null,
+            tx.source_id || null
           );
           
           importedFingerprints.add(fingerprint);

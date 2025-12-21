@@ -40,24 +40,66 @@ export function getDatabase(): Database.Database {
 export function initializeDatabase(): void {
   // Fast path: if we've already initialized in this process
   if (isInitialized) return;
-  
+
   const database = getDatabase();
-  
+
   // Check if tables actually exist (handles cold starts and process restarts)
   // Note: table is named "transaction" (singular) in the schema
   const tableExists = database.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='transaction'"
   ).get();
-  
+
   if (!tableExists) {
     // Run schema creation
     database.exec(SCHEMA_SQL);
-    
+
     // Seed default data
     database.exec(SEED_SQL);
+  } else {
+    // Run migrations for existing databases
+    runMigrations(database);
   }
-  
+
   isInitialized = true;
+}
+
+/**
+ * Run database migrations for schema updates
+ */
+function runMigrations(database: Database.Database): void {
+  // Migration 1: Add source table and source_id column to transactions
+  const sourceTableExists = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='source'"
+  ).get();
+
+  if (!sourceTableExists) {
+    // Create source table
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS source (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Add source_id column to transaction table if it doesn't exist
+    const columnExists = database.prepare(
+      "SELECT * FROM pragma_table_info('transaction') WHERE name='source_id'"
+    ).get();
+
+    if (!columnExists) {
+      database.exec(`
+        ALTER TABLE "transaction" ADD COLUMN source_id TEXT REFERENCES source(id)
+      `);
+
+      // Create index for source_id
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_transaction_source ON "transaction"(source_id)
+      `);
+    }
+  }
 }
 
 /**
