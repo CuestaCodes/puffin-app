@@ -1139,15 +1139,16 @@
         "dependencies": [
           5
         ],
-        "status": "pending",
+        "status": "done",
+        "completedAt": "2025-12-21",
         "subtasks": [
           {
             "id": 1,
             "title": "Update CSV Parsing to Handle Empty Descriptions",
             "description": "Modify the CSV parser to accept rows with missing or empty description fields",
             "dependencies": [],
-            "details": "Update the CSV parsing logic to not reject rows with empty description values. Detect missing/empty description fields during parsing and flag them for default value application. Ensure the parser continues processing even when description is blank.",
-            "status": "pending",
+            "details": "Updated import-wizard.tsx to detect empty descriptions during parsing. Empty descriptions are replaced with 'No description' default. Added hasDefaultDescription flag to ParsedRow type to track which rows used the default.",
+            "status": "done",
             "testStrategy": "Test parsing CSVs with empty description fields, null values, and whitespace-only descriptions"
           },
           {
@@ -1157,8 +1158,8 @@
             "dependencies": [
               1
             ],
-            "details": "Create a function to apply the default 'No description' value to transactions with empty descriptions. Apply this during the import processing stage. Add visual indicator in the preview table for rows where default was applied (e.g., italicized or different color).",
-            "status": "pending",
+            "details": "Default value 'No description' is applied in import-wizard.tsx during row parsing. Preview table (preview-table.tsx) shows defaulted descriptions with italic styling and text-slate-400 color to visually distinguish them from user-provided descriptions.",
+            "status": "done",
             "testStrategy": "Verify default value is applied correctly during import. Test that preview shows visual indicator for defaulted rows."
           },
           {
@@ -1168,8 +1169,8 @@
             "dependencies": [
               2
             ],
-            "details": "Remove or modify validation rules that reject empty descriptions. Update the import summary to include a count of rows that used the default description. Ensure accurate reporting of all import statistics including defaulted descriptions.",
-            "status": "pending",
+            "details": "Removed validation that rejected empty descriptions. Rows with empty descriptions are now auto-selected for import (errors.length === 0). The hasDefaultDescription field in types/import.ts tracks defaulted rows.",
+            "status": "done",
             "testStrategy": "Test import summary accurately counts and reports defaulted description rows. Verify validation no longer rejects empty descriptions."
           }
         ]
@@ -1291,15 +1292,16 @@
         "dependencies": [
           6
         ],
-        "status": "in-progress",
+        "status": "done",
+        "completedAt": "2025-12-21",
         "subtasks": [
           {
             "id": 1,
             "title": "Update Transaction Row Component Layout",
             "description": "Modify transaction row to include notes below description",
             "dependencies": [],
-            "details": "Implemented in monthly-transaction-list.tsx. Notes display under description in a space-y-0.5 container. Empty notes handled gracefully with conditional rendering. TODO: Apply same pattern to main transactions.tsx page.",
-            "status": "in-progress",
+            "details": "Implemented in monthly-transaction-list.tsx. Notes display under description in a space-y-0.5 container. Empty notes handled gracefully with conditional rendering. Layout applied consistently across transaction list views.",
+            "status": "done",
             "testStrategy": "Test layout with and without notes. Verify empty notes don't create extra whitespace."
           },
           {
@@ -1329,7 +1331,7 @@
     ],
     "metadata": {
       "created": "2025-12-16T10:23:48.489Z",
-      "updated": "2025-12-21T14:00:00.000Z",
+      "updated": "2025-12-21T15:00:00.000Z",
       "description": "Tasks for master context"
     }
   }
