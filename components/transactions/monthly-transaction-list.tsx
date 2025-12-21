@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Plus, Search, X, ChevronLeft, ChevronRight, 
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter
 } from 'lucide-react';
 import { 
   TransactionForm, 
   DeleteDialog, 
   CategorySelector,
   SplitModal,
+  FiltersPopover,
+  type FilterValues,
 } from '@/components/transactions';
 import type { TransactionWithCategory } from '@/types/database';
 import { cn } from '@/lib/utils';
@@ -37,6 +39,17 @@ interface MonthlyTransactionListProps {
   onCategoryChange?: () => void;
 }
 
+// Empty filter values - date range is managed by the month view, so those are always null
+const emptyFilters: FilterValues = {
+  startDate: null,
+  endDate: null,
+  categoryId: null,
+  sourceId: null,
+  minAmount: null,
+  maxAmount: null,
+  uncategorized: false,
+};
+
 function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
   if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
   return sortOrder === 'asc' 
@@ -51,8 +64,9 @@ export function MonthlyTransactionList({
   onClearCategoryFilter,
   onCategoryChange 
 }: MonthlyTransactionListProps) {
-  // Search
+  // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<FilterValues>(emptyFilters);
   
   // Modals
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -105,6 +119,12 @@ export function MonthlyTransactionList({
 
       if (searchQuery) params.set('search', searchQuery);
       if (categoryFilter) params.set('categoryId', categoryFilter);
+      
+      // Apply additional filters (excluding date range which is controlled by month view)
+      if (filters.sourceId) params.set('sourceId', filters.sourceId);
+      if (filters.minAmount !== null) params.set('minAmount', filters.minAmount.toString());
+      if (filters.maxAmount !== null) params.set('maxAmount', filters.maxAmount.toString());
+      if (filters.uncategorized) params.set('uncategorized', 'true');
 
       const response = await fetch(`/api/transactions?${params}`);
       if (response.ok) {
@@ -118,12 +138,12 @@ export function MonthlyTransactionList({
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchQuery, sortBy, sortOrder, categoryFilter, getMonthDateRange]);
+  }, [page, searchQuery, sortBy, sortOrder, categoryFilter, filters, getMonthDateRange]);
 
-  // Reset page when month or category changes
+  // Reset page when month, category, or filters change
   useEffect(() => {
     setPage(1);
-  }, [year, month, categoryFilter]);
+  }, [year, month, categoryFilter, filters]);
 
   useEffect(() => {
     fetchTransactions();
@@ -326,7 +346,7 @@ export function MonthlyTransactionList({
           </Button>
         </CardHeader>
         <CardContent>
-          {/* Search bar with category filter indicator */}
+          {/* Search bar with filters and category filter indicator */}
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -345,6 +365,16 @@ export function MonthlyTransactionList({
                 </button>
               )}
             </div>
+            <FiltersPopover 
+              filters={filters} 
+              onChange={setFilters}
+              hideDateRange
+            >
+              <Button variant="outline" className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
+                <Filter className="w-4 h-4" />
+                Filters
+              </Button>
+            </FiltersPopover>
             {categoryFilter && onClearCategoryFilter && (
               <Button
                 variant="outline"

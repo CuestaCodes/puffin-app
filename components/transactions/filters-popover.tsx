@@ -31,9 +31,13 @@ interface FiltersPopoverProps {
   filters: FilterValues;
   onChange: (filters: FilterValues) => void;
   children: React.ReactNode;
+  /** Hide date range filter (useful when date is controlled externally, e.g., monthly view) */
+  hideDateRange?: boolean;
+  /** Hide category filter (useful when category is controlled externally) */
+  hideCategory?: boolean;
 }
 
-export function FiltersPopover({ filters, onChange, children }: FiltersPopoverProps) {
+export function FiltersPopover({ filters, onChange, children, hideDateRange, hideCategory }: FiltersPopoverProps) {
   const [open, setOpen] = useState(false);
   const [local, setLocal] = useState<FilterValues>(filters);
   const [startCalOpen, setStartCalOpen] = useState(false);
@@ -64,9 +68,9 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
   };
 
   const activeFilterCount = [
-    filters.startDate,
-    filters.endDate,
-    filters.categoryId,
+    !hideDateRange && filters.startDate,
+    !hideDateRange && filters.endDate,
+    !hideCategory && filters.categoryId,
     filters.sourceId,
     filters.minAmount,
     filters.maxAmount,
@@ -102,68 +106,70 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
           </div>
           
           {/* Date range */}
-          <div className="space-y-2">
-            <Label className="text-slate-300 text-sm">Date Range</Label>
-            <div className="flex gap-2">
-              <Popover open={startCalOpen} onOpenChange={setStartCalOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      'flex-1 justify-start text-left font-normal',
-                      'bg-slate-800/50 border-slate-700 text-slate-100 hover:bg-slate-800',
-                      !local.startDate && 'text-slate-500'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-3 w-3" />
-                    {local.startDate ? format(new Date(local.startDate), 'MMM d') : 'Start'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={local.startDate ? new Date(local.startDate) : undefined}
-                    onSelect={(d) => {
-                      setLocal(prev => ({ ...prev, startDate: d ? format(d, 'yyyy-MM-dd') : null }));
-                      setStartCalOpen(false);
-                    }}
-                    className="bg-slate-900"
-                  />
-                </PopoverContent>
-              </Popover>
-              
-              <span className="text-slate-500 self-center">to</span>
-              
-              <Popover open={endCalOpen} onOpenChange={setEndCalOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      'flex-1 justify-start text-left font-normal',
-                      'bg-slate-800/50 border-slate-700 text-slate-100 hover:bg-slate-800',
-                      !local.endDate && 'text-slate-500'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-3 w-3" />
-                    {local.endDate ? format(new Date(local.endDate), 'MMM d') : 'End'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={local.endDate ? new Date(local.endDate) : undefined}
-                    onSelect={(d) => {
-                      setLocal(prev => ({ ...prev, endDate: d ? format(d, 'yyyy-MM-dd') : null }));
-                      setEndCalOpen(false);
-                    }}
-                    className="bg-slate-900"
-                  />
-                </PopoverContent>
-              </Popover>
+          {!hideDateRange && (
+            <div className="space-y-2">
+              <Label className="text-slate-300 text-sm">Date Range</Label>
+              <div className="flex gap-2">
+                <Popover open={startCalOpen} onOpenChange={setStartCalOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        'flex-1 justify-start text-left font-normal',
+                        'bg-slate-800/50 border-slate-700 text-slate-100 hover:bg-slate-800',
+                        !local.startDate && 'text-slate-500'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {local.startDate ? format(new Date(local.startDate), 'MMM d') : 'Start'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={local.startDate ? new Date(local.startDate) : undefined}
+                      onSelect={(d) => {
+                        setLocal(prev => ({ ...prev, startDate: d ? format(d, 'yyyy-MM-dd') : null }));
+                        setStartCalOpen(false);
+                      }}
+                      className="bg-slate-900"
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <span className="text-slate-500 self-center">to</span>
+                
+                <Popover open={endCalOpen} onOpenChange={setEndCalOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        'flex-1 justify-start text-left font-normal',
+                        'bg-slate-800/50 border-slate-700 text-slate-100 hover:bg-slate-800',
+                        !local.endDate && 'text-slate-500'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {local.endDate ? format(new Date(local.endDate), 'MMM d') : 'End'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={local.endDate ? new Date(local.endDate) : undefined}
+                      onSelect={(d) => {
+                        setLocal(prev => ({ ...prev, endDate: d ? format(d, 'yyyy-MM-dd') : null }));
+                        setEndCalOpen(false);
+                      }}
+                      className="bg-slate-900"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
-          </div>
+          )}
           
           {/* Amount range */}
           <div className="space-y-2">
@@ -200,14 +206,16 @@ export function FiltersPopover({ filters, onChange, children }: FiltersPopoverPr
           </div>
           
           {/* Category filter */}
-          <div className="space-y-2">
-            <Label className="text-slate-300 text-sm">Category</Label>
-            <CategorySelector
-              value={local.categoryId}
-              onChange={(id) => setLocal(prev => ({ ...prev, categoryId: id, uncategorized: false }))}
-              placeholder="Any category"
-            />
-          </div>
+          {!hideCategory && (
+            <div className="space-y-2">
+              <Label className="text-slate-300 text-sm">Category</Label>
+              <CategorySelector
+                value={local.categoryId}
+                onChange={(id) => setLocal(prev => ({ ...prev, categoryId: id, uncategorized: false }))}
+                placeholder="Any category"
+              />
+            </div>
+          )}
           
           {/* Source filter */}
           <div className="space-y-2">
