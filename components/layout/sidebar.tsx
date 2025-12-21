@@ -2,11 +2,10 @@
 
 import { cn } from '@/lib/utils';
 import type { PageId } from './app-shell';
-import { 
-  LayoutDashboard, 
-  List, 
-  Inbox, 
-  Calendar, 
+import {
+  LayoutDashboard,
+  List,
+  Calendar,
   Settings,
   ChevronLeft,
   ChevronRight
@@ -23,7 +22,6 @@ interface SidebarProps {
 const navItems: { id: PageId; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'transactions', label: 'Transactions', icon: List },
-  { id: 'inbox', label: 'Inbox', icon: Inbox },
   { id: 'monthly', label: 'Monthly Budget', icon: Calendar },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

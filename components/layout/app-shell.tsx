@@ -6,11 +6,10 @@ import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { Dashboard } from '@/components/pages/dashboard';
 import { TransactionsPage } from '@/components/pages/transactions';
-import { InboxPage } from '@/components/pages/inbox';
 import { MonthlyBudgetPage } from '@/components/pages/monthly-budget';
 import { SettingsPage } from '@/components/pages/settings';
 
-export type PageId = 'dashboard' | 'transactions' | 'inbox' | 'monthly' | 'settings';
+export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'settings';
 
 export function AppShell() {
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
@@ -23,8 +22,6 @@ export function AppShell() {
         return <Dashboard />;
       case 'transactions':
         return <TransactionsPage />;
-      case 'inbox':
-        return <InboxPage />;
       case 'monthly':
         return <MonthlyBudgetPage />;
       case 'settings':
