@@ -438,9 +438,9 @@ function MonthlyBudgetContent() {
   };
 
   // Handle budget refresh when transactions change
-  const handleCategoryChange = () => {
+  const handleCategoryChange = async () => {
     // Refresh both budget summary (for upper category totals) and all categories (for sub-category totals)
-    Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+    await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
   };
 
   const handleSaveBudget = async (subCategoryId: string, amount: number) => {

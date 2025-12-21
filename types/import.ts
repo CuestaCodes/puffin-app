@@ -20,7 +20,7 @@ export interface ParsedRow {
   errors: string[];
   isDuplicate: boolean;
   isSelected: boolean;
-  hasDefaultDescription?: boolean; // True when description was empty and defaulted to "No description"
+  hasDefaultDescription: boolean; // True when description was empty and defaulted to "No description"
 }
 
 export interface CSVParseResult {

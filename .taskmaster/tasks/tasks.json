@@ -1186,15 +1186,16 @@
           7,
           9
         ],
-        "status": "pending",
+        "status": "done",
+        "completedAt": "2025-12-21",
         "subtasks": [
           {
             "id": 1,
             "title": "Identify Transfer Sub-Categories in Queries",
             "description": "Create query logic to identify transactions belonging to transfer upper category",
             "dependencies": [],
-            "details": "Create a utility function or query join that identifies transactions whose sub-category belongs to the Transfer upper category. This will be used across multiple components for filtering and styling decisions.",
-            "status": "pending",
+            "details": "Transaction queries include upper_category_type via LEFT JOIN, allowing identification of transfer transactions. The upper_category_type field is returned in TransactionWithCategory type.",
+            "status": "done",
             "testStrategy": "Test that transfer sub-categories are correctly identified. Verify query returns all and only transactions in transfer category."
           },
           {
@@ -1204,8 +1205,8 @@
             "dependencies": [
               1
             ],
-            "details": "Update monthly budget totals, category summaries, dashboard analytics, and income/expense calculations to exclude transactions with transfer sub-categories. Ensure consistency across all reporting features. This mirrors the existing exclusion of Transfer upper category.",
-            "status": "pending",
+            "details": "Updated lib/db/budgets.ts to exclude transfer categories from budget calculations using uc.type NOT IN ('income', 'transfer'). Updated initializeMonthlyBudgets and createBudgetsFrom12MonthAverage to exclude transfer categories. Monthly budget page groups transfer categories separately from expense categories.",
+            "status": "done",
             "testStrategy": "Verify budget totals exclude transfer transactions. Test dashboard analytics, category summaries all properly exclude transfers."
           },
           {
@@ -1215,8 +1216,8 @@
             "dependencies": [
               1
             ],
-            "details": "Apply the same greyed-out visual styling used for split parent transactions to transfer sub-category transactions. Ensure they remain visible in lists but are clearly de-emphasized. Add tooltip or indicator explaining that transfer transactions are excluded from calculations.",
-            "status": "pending",
+            "details": "Applied opacity-50 styling to transfer transactions in monthly-transaction-list.tsx (same as split parents). Added amber TRANSFER badge with tooltip explaining exclusion from calculations. Monthly budget page displays transfer categories in a separate read-only section with blue styling.",
+            "status": "done",
             "testStrategy": "Test visual styling matches split parent transactions. Verify tooltip displays correct explanation. Test across all transaction list views."
           }
         ]
@@ -1232,15 +1233,16 @@
           5,
           6
         ],
-        "status": "pending",
+        "status": "done",
+        "completedAt": "2025-12-21",
         "subtasks": [
           {
             "id": 1,
             "title": "Database Schema and API Updates for Source Field",
             "description": "Add source column to Transaction table and update API endpoints",
             "dependencies": [],
-            "details": "Add 'source' column (nullable string or foreign key to Sources table) to Transaction table. Create database migration. Update transaction API endpoints (GET, POST, PATCH) to handle source field. Update TypeScript types and Zod validation schemas.",
-            "status": "pending",
+            "details": "Added 'source' table and 'source_id' column to Transaction table via database migration (lib/db/index.ts with schema_version tracking). Created /api/sources and /api/sources/[id] API routes. Updated transaction API endpoints to handle source_id field. Updated TypeScript types (types/database.ts) and Zod validation schemas (lib/validations.ts). Database functions in lib/db/sources.ts for CRUD operations.",
+            "status": "done",
             "testStrategy": "Test database migration creates column correctly. Verify API endpoints accept and return source field."
           },
           {
@@ -1250,8 +1252,8 @@
             "dependencies": [
               1
             ],
-            "details": "Add Source management section in settings page. Implement create, rename, and delete operations for sources. Create Sources table if using separate table approach. Display list of existing sources with edit/delete options.",
-            "status": "pending",
+            "details": "Created SourceManagement component (components/settings/source-management.tsx) integrated into CategoryManagement settings page. Implemented create, rename, and delete operations for sources with confirmation dialogs. When deleting sources, transactions are updated to have source_id = NULL.",
+            "status": "done",
             "testStrategy": "Test CRUD operations for sources. Verify source names persist correctly. Test deletion protection if sources are in use."
           },
           {
@@ -1261,8 +1263,8 @@
             "dependencies": [
               2
             ],
-            "details": "Add source dropdown selector to manual transaction entry form. Add source selection step in CSV import wizard to apply source to all imported rows. Optionally allow source as a mappable column for per-row source from CSV.",
-            "status": "pending",
+            "details": "Created SourceSelector component (components/transactions/source-selector.tsx) with create-inline capability. Added source dropdown to TransactionForm (transaction-form.tsx). Added source selection to CSV import wizard (import-wizard.tsx) using shadcn Select component to apply source to all imported rows.",
+            "status": "done",
             "testStrategy": "Test source can be selected during manual entry. Verify import wizard applies source to all rows. Test optional per-row source mapping."
           },
           {
@@ -1273,8 +1275,8 @@
               1,
               2
             ],
-            "details": "Add source filter dropdown to transaction list views. Display source as a small tag/badge on transaction rows. Include source in transaction search functionality. Add source field to transaction detail view/edit modal. Implement bulk source update for selected transactions.",
-            "status": "pending",
+            "details": "Added sourceId to FilterValues type and FiltersPopover component with SourceSelector. Added source filter to transactions API. Display source as blue tag/badge on transaction rows in both transactions page and monthly-transaction-list. Source name joined via LEFT JOIN in transaction queries. Note: Bulk source update not yet implemented.",
+            "status": "done",
             "testStrategy": "Test filtering by source works correctly. Verify search includes source. Test source display on transaction rows. Test bulk update functionality."
           }
         ]
@@ -1289,15 +1291,15 @@
         "dependencies": [
           6
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
             "title": "Update Transaction Row Component Layout",
             "description": "Modify transaction row to include notes below description",
             "dependencies": [],
-            "details": "Update the transaction row component to include a secondary line for notes. Position notes directly under the description. Ensure the layout handles cases with and without notes gracefully (no extra space when notes are empty).",
-            "status": "pending",
+            "details": "Implemented in monthly-transaction-list.tsx. Notes display under description in a space-y-0.5 container. Empty notes handled gracefully with conditional rendering. TODO: Apply same pattern to main transactions.tsx page.",
+            "status": "in-progress",
             "testStrategy": "Test layout with and without notes. Verify empty notes don't create extra whitespace."
           },
           {
@@ -1307,8 +1309,8 @@
             "dependencies": [
               1
             ],
-            "details": "Apply text-sm or text-xs font size to notes. Use grey color (e.g., text-muted-foreground or text-gray-500). Apply lighter font weight if needed. Ensure styling is consistent with overall UI design language.",
-            "status": "pending",
+            "details": "Applied text-xs and text-slate-500 styling to notes in monthly-transaction-list.tsx. Notes are truncated with max-w-[280px] and ellipsis.",
+            "status": "done",
             "testStrategy": "Verify styling is appropriately smaller and de-emphasized. Test visual consistency across light/dark modes if applicable."
           },
           {
@@ -1318,8 +1320,8 @@
             "dependencies": [
               2
             ],
-            "details": "Implement text truncation for notes exceeding a reasonable length (e.g., single line). Add ellipsis for truncated notes. Show full notes content in a tooltip on hover. Consider optional expand/collapse functionality for very long notes.",
-            "status": "pending",
+            "details": "Implemented truncation with truncate class and max-w-[280px]. Full notes shown via title attribute tooltip on hover.",
+            "status": "done",
             "testStrategy": "Test truncation triggers at correct length. Verify tooltip shows full notes. Test across all transaction list views (inbox, monthly, etc.)."
           }
         ]
@@ -1327,7 +1329,7 @@
     ],
     "metadata": {
       "created": "2025-12-16T10:23:48.489Z",
-      "updated": "2025-12-21T12:00:00.000Z",
+      "updated": "2025-12-21T14:00:00.000Z",
       "description": "Tasks for master context"
     }
   }

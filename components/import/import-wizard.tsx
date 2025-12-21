@@ -4,6 +4,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { FileSpreadsheet, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { FileUpload } from './file-upload';
 import { ColumnMappingComponent } from './column-mapping';
 import { PreviewTable } from './preview-table';
@@ -385,21 +387,25 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           <div className="space-y-4">
             {/* Source selection for import */}
             <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <Label className="block text-sm font-medium text-slate-300 mb-2">
                 Assign Source to All Transactions (optional)
-              </label>
-              <select
-                value={selectedSourceId || ''}
-                onChange={(e) => setSelectedSourceId(e.target.value || null)}
-                className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              </Label>
+              <Select
+                value={selectedSourceId || '__none__'}
+                onValueChange={(value) => setSelectedSourceId(value === '__none__' ? null : value)}
               >
-                <option value="">No source</option>
-                {sources.map((source) => (
-                  <option key={source.id} value={source.id}>
-                    {source.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-slate-100">
+                  <SelectValue placeholder="No source" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="__none__" className="text-slate-400">No source</SelectItem>
+                  {sources.map((source) => (
+                    <SelectItem key={source.id} value={source.id}>
+                      {source.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="mt-1 text-xs text-slate-500">
                 This source will be applied to all imported transactions
               </p>

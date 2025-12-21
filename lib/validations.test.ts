@@ -112,6 +112,39 @@ describe('Transaction Validation Schemas', () => {
       
       expect(result.success).toBe(true);
     });
+
+    it('should validate transaction with source_id', () => {
+      const result = createTransactionSchema.safeParse({
+        date: '2025-01-15',
+        description: 'Test transaction',
+        amount: -50.00,
+        source_id: '123e4567-e89b-12d3-a456-426614174000',
+      });
+      
+      expect(result.success).toBe(true);
+    });
+
+    it('should allow null source_id', () => {
+      const result = createTransactionSchema.safeParse({
+        date: '2025-01-15',
+        description: 'Test',
+        amount: -50.00,
+        source_id: null,
+      });
+      
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid source_id format', () => {
+      const result = createTransactionSchema.safeParse({
+        date: '2025-01-15',
+        description: 'Test',
+        amount: -50.00,
+        source_id: 'invalid-id',
+      });
+      
+      expect(result.success).toBe(false);
+    });
   });
 
   describe('updateTransactionSchema', () => {
@@ -572,6 +605,7 @@ describe('Filter and Pagination Schemas', () => {
         startDate: '2025-01-01',
         endDate: '2025-01-31',
         categoryId: '123e4567-e89b-12d3-a456-426614174000',
+        sourceId: '123e4567-e89b-12d3-a456-426614174001',
         search: 'grocery',
         minAmount: -1000,
         maxAmount: 0,
@@ -579,6 +613,22 @@ describe('Filter and Pagination Schemas', () => {
       });
       
       expect(result.success).toBe(true);
+    });
+
+    it('should validate filter with sourceId', () => {
+      const result = transactionFilterSchema.safeParse({
+        sourceId: '123e4567-e89b-12d3-a456-426614174000',
+      });
+      
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid sourceId format', () => {
+      const result = transactionFilterSchema.safeParse({
+        sourceId: 'invalid-source-id',
+      });
+      
+      expect(result.success).toBe(false);
     });
 
     it('should validate empty filter', () => {

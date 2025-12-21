@@ -20,6 +20,17 @@ interface SourceSelectorProps {
   allowCreate?: boolean;
 }
 
+/**
+ * Source selector component for picking transaction sources.
+ * 
+ * Note: Unlike CategorySelector which uses a shared Context, this component fetches
+ * sources on each mount. This is acceptable because:
+ * 1. Sources are typically few (5-10 max) and the API call is lightweight
+ * 2. SourceSelector is rarely rendered multiple times on the same page
+ * 3. The simplicity of self-contained state outweighs the minor duplicate fetches
+ * 
+ * If performance becomes an issue with many selectors, consider creating a SourceContext.
+ */
 export function SourceSelector({
   value,
   onChange,

@@ -63,16 +63,55 @@ export function initializeDatabase(): void {
   isInitialized = true;
 }
 
+/** Current schema version - increment when adding new migrations */
+const CURRENT_SCHEMA_VERSION = 1;
+
 /**
- * Run database migrations for schema updates
+ * Get the current schema version from the database
  */
-function runMigrations(database: Database.Database): void {
-  // Migration 1: Add source table and source_id column to transactions
-  const sourceTableExists = database.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='source'"
+function getSchemaVersion(database: Database.Database): number {
+  // Check if schema_version table exists
+  const tableExists = database.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
   ).get();
 
-  if (!sourceTableExists) {
+  if (!tableExists) {
+    // Create schema_version table
+    database.exec(`
+      CREATE TABLE schema_version (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        version INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    // Insert initial version (0 = no migrations applied yet)
+    database.exec(`INSERT INTO schema_version (id, version) VALUES (1, 0)`);
+    return 0;
+  }
+
+  const result = database.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number } | undefined;
+  return result?.version ?? 0;
+}
+
+/**
+ * Update the schema version in the database
+ */
+function setSchemaVersion(database: Database.Database, version: number): void {
+  database.prepare(`
+    UPDATE schema_version SET version = ?, updated_at = datetime('now') WHERE id = 1
+  `).run(version);
+}
+
+/**
+ * Run database migrations for schema updates.
+ * Uses a schema_version table to track which migrations have been applied.
+ * Each migration is idempotent and only runs if the current version is less than required.
+ */
+function runMigrations(database: Database.Database): void {
+  const currentVersion = getSchemaVersion(database);
+
+  // Migration 1: Add source table and source_id column to transactions
+  if (currentVersion < 1) {
     // Create source table
     database.exec(`
       CREATE TABLE IF NOT EXISTS source (
@@ -99,7 +138,12 @@ function runMigrations(database: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_transaction_source ON "transaction"(source_id)
       `);
     }
+
+    setSchemaVersion(database, 1);
   }
+
+  // Future migrations go here:
+  // if (currentVersion < 2) { ... setSchemaVersion(database, 2); }
 }
 
 /**

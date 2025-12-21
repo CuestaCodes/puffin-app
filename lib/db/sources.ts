@@ -69,6 +69,8 @@ export function updateSource(id: string, data: {
 }): Source | null {
   const db = getDatabase();
   
+  // SAFETY: The `updates` array only contains hard-coded column names ('name = ?', 'sort_order = ?', 'updated_at = ?').
+  // User input is always passed via parameterized queries (?), never interpolated into the SQL string.
   const updates: string[] = [];
   const params: (string | number)[] = [];
   
