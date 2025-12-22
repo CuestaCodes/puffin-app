@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { initializeDatabase } from '@/lib/db';
-import { 
-  getBudgetsByMonth, 
+import {
+  getBudgetsByMonth,
   getBudgetSummary,
   upsertBudget,
   copyBudgetsToMonth,
@@ -15,6 +15,21 @@ import {
 } from '@/lib/db/budgets';
 import { createBudgetSchema } from '@/lib/validations';
 
+/**
+ * Safely parse an integer from a query parameter with bounds checking
+ */
+function safeParseInt(
+  value: string | null,
+  min: number,
+  max: number,
+  fallback: number
+): number {
+  if (!value) return fallback;
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed) || parsed < min || parsed > max) return fallback;
+  return parsed;
+}
+
 // GET /api/budgets - Get budgets for a month
 export async function GET(request: NextRequest) {
   const { isAuthenticated, response } = await requireAuth();
@@ -24,22 +39,20 @@ export async function GET(request: NextRequest) {
     initializeDatabase();
     
     const { searchParams } = new URL(request.url);
-    const yearParam = searchParams.get('year');
-    const monthParam = searchParams.get('month');
     const withSummary = searchParams.get('summary') === 'true';
     const forEntry = searchParams.get('forEntry') === 'true';
     const categoryId = searchParams.get('categoryId');
-    const averageMonths = searchParams.get('averageMonths');
-    
-    // Default to current month
+    const averageMonthsParam = searchParams.get('averageMonths');
+
+    // Safe parsing with bounds checking
     const now = new Date();
-    const year = yearParam ? parseInt(yearParam) : now.getFullYear();
-    const month = monthParam ? parseInt(monthParam) : now.getMonth() + 1;
+    const year = safeParseInt(searchParams.get('year'), 2000, 2100, now.getFullYear());
+    const month = safeParseInt(searchParams.get('month'), 1, 12, now.getMonth() + 1);
+    const averageMonths = safeParseInt(averageMonthsParam, 1, 24, 3);
     
     // Get category average if requested
-    if (categoryId && averageMonths) {
-      const months = parseInt(averageMonths) || 3;
-      const average = getCategoryAverage(categoryId, months);
+    if (categoryId && averageMonthsParam) {
+      const average = getCategoryAverage(categoryId, averageMonths);
       return NextResponse.json({ average });
     }
     

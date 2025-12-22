@@ -1,6 +1,29 @@
 // Types for CSV import functionality
 
-export type DateFormat = 'YYYY-MM-DD' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'DD-MM-YYYY' | 'auto';
+// ============================================
+// Type Constants (use these for runtime checks)
+// ============================================
+
+export const DATE_FORMATS = [
+  'YYYY-MM-DD',
+  'DD/MM/YYYY',
+  'MM/DD/YYYY',
+  'DD-MM-YYYY',
+  'auto',
+] as const;
+
+export type DateFormat = typeof DATE_FORMATS[number];
+
+export const IMPORT_STAGES = [
+  'uploading',
+  'parsing',
+  'validating',
+  'importing',
+  'complete',
+  'error',
+] as const;
+
+export type ImportStage = typeof IMPORT_STAGES[number];
 
 export interface ColumnMapping {
   date: number;
@@ -62,7 +85,7 @@ export interface ImportError {
 }
 
 export interface ImportProgress {
-  stage: 'uploading' | 'parsing' | 'validating' | 'importing' | 'complete' | 'error';
+  stage: ImportStage;
   current: number;
   total: number;
   message: string;

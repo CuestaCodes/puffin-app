@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { useCategories } from './category-context';
-import type { UpperCategory, SubCategoryWithUpper } from '@/types/database';
+import type { UpperCategory, SubCategoryWithUpper, UpperCategoryType } from '@/types/database';
 
 interface CategorySelectorProps {
   value: string | null;
@@ -91,16 +91,18 @@ export function CategorySelector({
     onChange(null);
   };
 
-  const getCategoryTypeColor = (type: string) => {
-    switch (type) {
-      case 'income': return 'text-emerald-400';
-      case 'expense': return 'text-red-400';
-      case 'saving': return 'text-cyan-400';
-      case 'bill': return 'text-orange-400';
-      case 'debt': return 'text-purple-400';
-      case 'transfer': return 'text-slate-400';
-      default: return 'text-slate-400';
-    }
+  // Type-safe color mapping - exhaustive by construction
+  const CATEGORY_TYPE_COLORS = {
+    income: 'text-emerald-400',
+    expense: 'text-red-400',
+    saving: 'text-cyan-400',
+    bill: 'text-orange-400',
+    debt: 'text-purple-400',
+    transfer: 'text-slate-400',
+  } as const satisfies Record<UpperCategoryType, string>;
+
+  const getCategoryTypeColor = (type: UpperCategoryType): string => {
+    return CATEGORY_TYPE_COLORS[type];
   };
 
   if (compact) {
@@ -213,7 +215,7 @@ function CategoryList({
   categories: CategoriesData | null;
   value: string | null;
   handleSelect: (id: string) => void;
-  getCategoryTypeColor: (type: string) => string;
+  getCategoryTypeColor: (type: UpperCategoryType) => string;
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;

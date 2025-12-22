@@ -1,5 +1,30 @@
 // Database type definitions for Puffin personal finance app
 
+// ============================================
+// Type Constants (use these for runtime checks)
+// ============================================
+
+export const UPPER_CATEGORY_TYPES = [
+  'income',
+  'expense',
+  'saving',
+  'bill',
+  'debt',
+  'transfer',
+] as const;
+
+export type UpperCategoryType = typeof UPPER_CATEGORY_TYPES[number];
+
+export const SYNC_ACTIONS = ['push', 'pull'] as const;
+export type SyncAction = typeof SYNC_ACTIONS[number];
+
+export const SYNC_STATUSES = ['success', 'failed', 'in_progress'] as const;
+export type SyncStatus = typeof SYNC_STATUSES[number];
+
+// ============================================
+// Database Models
+// ============================================
+
 export interface LocalUser {
   id: string;
   password_hash: string;
@@ -10,7 +35,7 @@ export interface LocalUser {
 export interface UpperCategory {
   id: string;
   name: string;
-  type: 'income' | 'expense' | 'saving' | 'bill' | 'debt' | 'transfer';
+  type: UpperCategoryType;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -80,8 +105,8 @@ export interface AutoCategoryRule {
 
 export interface SyncLog {
   id: string;
-  action: 'push' | 'pull';
-  status: 'success' | 'failed' | 'in_progress';
+  action: SyncAction;
+  status: SyncStatus;
   file_name: string | null;
   file_size: number | null;
   error_message: string | null;
@@ -109,7 +134,10 @@ export interface BudgetWithCategory extends Budget {
   actual_amount?: number;
 }
 
-// Input types for creating/updating records
+// ============================================
+// Input Types (for creating/updating records)
+// ============================================
+
 export interface CreateTransactionInput {
   date: string;
   description: string;
@@ -119,14 +147,8 @@ export interface CreateTransactionInput {
   source_id?: string | null;
 }
 
-export interface UpdateTransactionInput {
-  date?: string;
-  description?: string;
-  amount?: number;
-  notes?: string | null;
-  sub_category_id?: string | null;
-  source_id?: string | null;
-}
+// All fields optional for updates - uses Partial utility type
+export type UpdateTransactionInput = Partial<CreateTransactionInput>;
 
 export interface CreateSubCategoryInput {
   upper_category_id: string;

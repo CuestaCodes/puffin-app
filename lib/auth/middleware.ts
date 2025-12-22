@@ -17,16 +17,28 @@ export async function getSession(): Promise<SessionData> {
 }
 
 /**
- * Check if the current request is authenticated
- * Use in API routes: const { isAuthenticated, response } = await requireAuth();
+ * Discriminated union for auth result
+ * When isAuthenticated is false, response is guaranteed to exist
  */
-export async function requireAuth(): Promise<{
-  isAuthenticated: boolean;
-  session: SessionData;
-  response?: NextResponse;
-}> {
+export type AuthResult =
+  | {
+      isAuthenticated: true;
+      session: SessionData;
+    }
+  | {
+      isAuthenticated: false;
+      session: SessionData;
+      response: NextResponse;
+    };
+
+/**
+ * Check if the current request is authenticated
+ * Use in API routes: const auth = await requireAuth();
+ * if (!auth.isAuthenticated) return auth.response; // Type-safe!
+ */
+export async function requireAuth(): Promise<AuthResult> {
   const session = await getSession();
-  
+
   if (!session.isLoggedIn) {
     return {
       isAuthenticated: false,
@@ -37,7 +49,7 @@ export async function requireAuth(): Promise<{
       ),
     };
   }
-  
+
   return {
     isAuthenticated: true,
     session,
