@@ -10,7 +10,7 @@ import {
 } from '@/lib/db/budgets';
 
 // GET /api/budgets/templates - Get all templates
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const { isAuthenticated, response } = await requireAuth();
   if (!isAuthenticated) return response;
 

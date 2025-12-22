@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, FileText, BarChart2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { cn } from '@/lib/utils';
@@ -463,7 +463,7 @@ function MonthlyBudgetContent() {
       
       if (response.ok) {
         try {
-          const data = responseText ? JSON.parse(responseText) : {};
+          const _data = responseText ? JSON.parse(responseText) : {};
           setEditingBudgetId(null);
           setCreatingBudgetForCategory(null);
           // Refetch both budget summary and categories to update the UI

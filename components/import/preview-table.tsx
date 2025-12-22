@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Check, X, AlertCircle, CheckCircle, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { ParsedRow, ImportPreview } from '@/types/import';
+import type { ImportPreview } from '@/types/import';
 import { formatDateForDisplay } from '@/lib/csv/date-parser';
 
 interface PreviewTableProps {

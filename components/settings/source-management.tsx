@@ -218,7 +218,7 @@ export function SourceManagement({ className }: SourceManagementProps) {
             <div className="text-center py-8 text-slate-500">
               <Wallet className="w-12 h-12 mx-auto mb-3 text-slate-600" />
               <p className="text-sm">No sources yet.</p>
-              <p className="text-xs mt-1">Add sources like "Bendigo Bank", "Credit Card", "PayPal"</p>
+              <p className="text-xs mt-1">Add sources like &quot;Bendigo Bank&quot;, &quot;Credit Card&quot;, &quot;PayPal&quot;</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -361,7 +361,7 @@ export function SourceManagement({ className }: SourceManagementProps) {
             <DialogDescription className="text-slate-400">
               Are you sure you want to delete <strong className="text-slate-200">{deletingSource?.name}</strong>?
               <br /><br />
-              Transactions using this source will have their source set to "None".
+              Transactions using this source will have their source set to &quot;None&quot;.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

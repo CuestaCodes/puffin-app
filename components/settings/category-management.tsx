@@ -433,7 +433,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
               <CardContent className="pt-0 pb-4">
                 {group.subCategories.length === 0 ? (
                   <p className="text-sm text-slate-500 italic py-2">
-                    No categories yet. Click "Add" to create one.
+                    No categories yet. Click &quot;Add&quot; to create one.
                   </p>
                 ) : (
                   <div className="space-y-1">

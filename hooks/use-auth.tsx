@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           error: data.error || 'Failed to check session',
         }));
       }
-    } catch (error) {
+    } catch (_error) {
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }));
         return false;
       }
-    } catch (error) {
+    } catch (_error) {
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         error: null,
       }));
-    } catch (error) {
+    } catch (_error) {
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }));
         return false;
       }
-    } catch (error) {
+    } catch (_error) {
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -153,8 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Check session on mount
+  // Check session on mount - this is a valid pattern for initial data fetching
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial auth check on mount is intentional
     checkSession();
   }, [checkSession]);
 

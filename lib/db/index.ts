@@ -64,7 +64,7 @@ export function initializeDatabase(): void {
 }
 
 /** Current schema version - increment when adding new migrations */
-const CURRENT_SCHEMA_VERSION = 1;
+const _CURRENT_SCHEMA_VERSION = 1;
 
 /**
  * Get the current schema version from the database

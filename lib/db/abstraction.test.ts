@@ -15,7 +15,6 @@ import {
   createDatabaseAdapter,
   clearDatabaseAdapter,
   type DatabaseAdapter,
-  type QueryResult,
   type MutationResult,
 } from './abstraction';
 

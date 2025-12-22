@@ -22,12 +22,12 @@ interface InlineBudgetEditorProps {
 }
 
 export function InlineBudgetEditor({
-  budgetId,
-  subCategoryId,
-  subCategoryName,
+  budgetId: _budgetId,
+  subCategoryId: _subCategoryId,
+  subCategoryName: _subCategoryName,
   currentAmount,
-  year,
-  month,
+  year: _year,
+  month: _month,
   onSave,
   onCancel,
   average3mo = 0,

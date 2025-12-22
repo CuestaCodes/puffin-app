@@ -181,7 +181,7 @@ describe('Budget Operations', () => {
         DELETE FROM sub_category;
         DELETE FROM upper_category;
       `);
-    } catch (e) {
+    } catch (_e) {
       // Ignore errors
     }
   });
