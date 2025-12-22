@@ -12,46 +12,65 @@ import {
 
 // GET /api/analytics/dashboard - Get all dashboard data
 export async function GET(request: NextRequest) {
+  console.log('=== Dashboard API called ===');
+
   const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  if (!isAuthenticated) {
+    console.log('Dashboard API - Not authenticated');
+    return response;
+  }
 
   try {
+    console.log('Dashboard API - Initializing database...');
     initializeDatabase();
 
     const { searchParams } = new URL(request.url);
     const year = parseInt(searchParams.get('year') || new Date().getFullYear().toString());
 
+    // Format date as YYYY-MM-DD without timezone conversion issues
+    const formatDate = (year: number, month: number, day: number) =>
+      `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
     // Calculate date ranges for the selected year
-    const yearStart = new Date(year, 0, 1);
-    const yearEnd = new Date(year, 11, 31);
+    const yearStartStr = formatDate(year, 1, 1);
+    const yearEndStr = formatDate(year, 12, 31);
 
     // For summary comparison, use previous year
-    const prevYearStart = new Date(year - 1, 0, 1);
-    const prevYearEnd = new Date(year - 1, 11, 31);
-
-    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    const prevYearStartStr = formatDate(year - 1, 1, 1);
+    const prevYearEndStr = formatDate(year - 1, 12, 31);
 
     // Get all analytics data
     const summary = getDashboardSummary(
-      formatDate(yearStart),
-      formatDate(yearEnd),
-      formatDate(prevYearStart),
-      formatDate(prevYearEnd)
+      yearStartStr,
+      yearEndStr,
+      prevYearStartStr,
+      prevYearEndStr
     );
 
     const trends = getMonthlyTrendsByYear(year);
 
     const upperCategoryBreakdown = getUpperCategoryBreakdown(
-      formatDate(yearStart),
-      formatDate(yearEnd)
+      yearStartStr,
+      yearEndStr
     );
 
     const expenseBreakdown = getExpenseBreakdown(
-      formatDate(yearStart),
-      formatDate(yearEnd)
+      yearStartStr,
+      yearEndStr
     );
 
     const recentTransactions = getRecentTransactions(10);
+
+    // Debug: log breakdown data
+    console.log('Dashboard API - Year:', year);
+    console.log('Dashboard API - Date range:', yearStartStr, 'to', yearEndStr);
+    console.log('Dashboard API - Summary:', JSON.stringify(summary));
+    console.log('Dashboard API - Trends count:', trends.length);
+    console.log('Dashboard API - upperCategoryBreakdown:', JSON.stringify(upperCategoryBreakdown));
+    console.log('Dashboard API - expenseBreakdown count:', expenseBreakdown.length);
+    if (expenseBreakdown.length > 0) {
+      console.log('Dashboard API - First expense:', JSON.stringify(expenseBreakdown[0]));
+    }
 
     return NextResponse.json({
       summary,
@@ -61,8 +80,8 @@ export async function GET(request: NextRequest) {
       recentTransactions,
       period: {
         year,
-        start: formatDate(yearStart),
-        end: formatDate(yearEnd),
+        start: yearStartStr,
+        end: yearEndStr,
       },
     });
   } catch (error) {

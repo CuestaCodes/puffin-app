@@ -4,11 +4,12 @@ import type { TransactionWithCategory } from '@/types/database';
 
 export interface DashboardSummary {
   totalIncome: number;
-  totalExpenses: number;
+  totalSpend: number; // Includes expenses, bills, debt, AND savings
   netBalance: number;
   totalSavings: number;
+  savingsRate: number; // Savings / Income * 100
   incomeChange: number; // Percentage change from previous period
-  expenseChange: number;
+  spendChange: number;
   netChange: number;
   savingsChange: number;
 }
@@ -96,15 +97,16 @@ export function getDashboardSummary(
   };
 
   // Calculate totals and changes
+  // Total Spend includes expenses, bills, debt, AND savings
   const totalIncome = current.income || 0;
-  const totalExpenses = (current.expenses || 0) + (current.bills || 0) + (current.debt || 0);
   const totalSavings = current.savings || 0;
-  const netBalance = totalIncome - totalExpenses - totalSavings;
+  const totalSpend = (current.expenses || 0) + (current.bills || 0) + (current.debt || 0) + totalSavings;
+  const netBalance = totalIncome - totalSpend;
 
   const prevIncome = previous.income || 0;
-  const prevExpenses = (previous.expenses || 0) + (previous.bills || 0) + (previous.debt || 0);
   const prevSavings = previous.savings || 0;
-  const prevNet = prevIncome - prevExpenses - prevSavings;
+  const prevSpend = (previous.expenses || 0) + (previous.bills || 0) + (previous.debt || 0) + prevSavings;
+  const prevNet = prevIncome - prevSpend;
 
   // Calculate percentage changes
   const calcChange = (current: number, previous: number): number => {
@@ -112,13 +114,17 @@ export function getDashboardSummary(
     return Math.round(((current - previous) / Math.abs(previous)) * 100);
   };
 
+  // Calculate savings rate (savings / income * 100)
+  const savingsRate = totalIncome > 0 ? Math.round((totalSavings / totalIncome) * 1000) / 10 : 0;
+
   return {
     totalIncome,
-    totalExpenses,
+    totalSpend,
     netBalance,
     totalSavings,
+    savingsRate,
     incomeChange: calcChange(totalIncome, prevIncome),
-    expenseChange: calcChange(totalExpenses, prevExpenses),
+    spendChange: calcChange(totalSpend, prevSpend),
     netChange: calcChange(netBalance, prevNet),
     savingsChange: calcChange(totalSavings, prevSavings),
   };
