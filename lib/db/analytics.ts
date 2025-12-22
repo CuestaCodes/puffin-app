@@ -19,7 +19,16 @@ export interface MonthlyTrend {
   income: number;
   expenses: number;
   savings: number;
+  bills: number;
+  debt: number;
   net: number;
+}
+
+export interface UpperCategoryBreakdown {
+  type: string;
+  label: string;
+  amount: number;
+  percentage: number;
 }
 
 export interface CategoryBreakdown {
@@ -132,8 +141,10 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
     SELECT
       ? || '-' || printf('%02d', m.month_num) as month,
       COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN uc.type IN ('expense', 'bill', 'debt') THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
-      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings
+      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
+      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt
     FROM months m
     LEFT JOIN "transaction" t ON strftime('%Y', t.date) = ?
       AND CAST(strftime('%m', t.date) AS INTEGER) = m.month_num
@@ -152,20 +163,69 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
     income: number;
     expenses: number;
     savings: number;
+    bills: number;
+    debt: number;
   }>;
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   return results.map((row, index) => {
+    const totalSpending = (row.expenses || 0) + (row.bills || 0) + (row.debt || 0) + (row.savings || 0);
     return {
       month: row.month,
       monthLabel: monthNames[index],
       income: row.income || 0,
       expenses: row.expenses || 0,
       savings: row.savings || 0,
-      net: (row.income || 0) - (row.expenses || 0) - (row.savings || 0),
+      bills: row.bills || 0,
+      debt: row.debt || 0,
+      net: (row.income || 0) - totalSpending,
     };
   });
+}
+
+/**
+ * Get spending breakdown by upper category type for a period
+ */
+export function getUpperCategoryBreakdown(startDate: string, endDate: string): UpperCategoryBreakdown[] {
+  const db = getDatabase();
+
+  const query = `
+    SELECT
+      uc.type,
+      COALESCE(SUM(ABS(t.amount)), 0) as amount
+    FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE t.date >= ? AND t.date <= ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+      AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+    GROUP BY uc.type
+    HAVING amount > 0
+    ORDER BY amount DESC
+  `;
+
+  const results = db.prepare(query).all(startDate, endDate) as Array<{
+    type: string;
+    amount: number;
+  }>;
+
+  const total = results.reduce((sum, row) => sum + row.amount, 0);
+
+  const labels: Record<string, string> = {
+    expense: 'Expenses',
+    bill: 'Bills',
+    debt: 'Debt',
+    saving: 'Savings',
+  };
+
+  return results.map(row => ({
+    type: row.type,
+    label: labels[row.type] || row.type,
+    amount: row.amount,
+    percentage: total > 0 ? Math.round((row.amount / total) * 1000) / 10 : 0,
+  }));
 }
 
 /**

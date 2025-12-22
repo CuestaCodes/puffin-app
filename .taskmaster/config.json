@@ -34,7 +34,9 @@
     "anonymousTelemetry": true,
     "userId": "1234567890"
   },
-  "claudeCode": {},
+  "claudeCode": {
+    "testFailurePolicy": "When Vitest tests fail, do NOT automatically fix the issue or modify the test. Report failing tests to user and wait for input."
+  },
   "codexCli": {},
   "grokCli": {
     "timeout": 120000,

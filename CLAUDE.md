@@ -40,6 +40,62 @@ types/         # TypeScript type definitions
 data/          # SQLite database file (development)
 ```
 
+## TypeScript Best Practices
+
+### Use `as const` for Literal Types
+TypeScript widens types by default. Use `as const` to preserve literal types and make objects read-only. Great for config files, routes, and exact values.
+```typescript
+// Bad - method becomes string
+const request = { method: "get", url: "/api" };
+
+// Good - method stays as "get"
+const request = { method: "get", url: "/api" } as const;
+```
+
+### Discriminated Unions
+Avoid interfaces with many optional properties. Create separate interfaces sharing a common "discriminant" property to enable type narrowing in switch statements.
+```typescript
+// Bad - optional properties everywhere
+interface ApiState { status: string; data?: User; error?: string; }
+
+// Good - discriminated union
+type ApiState =
+  | { status: "loading" }
+  | { status: "success"; data: User }
+  | { status: "error"; error: string };
+```
+
+### Use `satisfies` Over Type Annotations
+Type annotations widen types and lose specifics. `satisfies` keeps literal types while validating against a type, and provides protection against typos.
+```typescript
+// Bad - loses literal type
+const button: ButtonConfig = { variant: "primary" };
+// button.variant is "primary" | "secondary" | "muted"
+
+// Good - keeps literal type
+const button = { variant: "primary" } satisfies ButtonConfig;
+// button.variant is "primary"
+```
+
+### Template Literal Types for String Patterns
+Enforce string patterns at compile time for CSS units, API endpoints, etc.
+```typescript
+type CSSUnit = "rem" | "px" | "em";
+type CSSValue = `${number}${CSSUnit}`;
+// "20px" works, "20" fails
+```
+
+### Utility Types
+- `Required<T>` - makes all properties required
+- `Partial<T>` - makes all properties optional
+- `Omit<T, K>` - removes specific properties
+- `Pick<T, K>` - selects specific properties
+
+### Common Gotchas
+- **Object keys are always strings** - even `{ 1: "a" }` has string keys
+- **Empty `{}` type** - accepts any non-null value, use `Record<string, never>` for truly empty objects
+- **Optional chaining returns `T | undefined`** - handle undefined before accessing nested properties
+
 ## Key Conventions
 
 ### Amount Signs
@@ -124,6 +180,12 @@ npm run tauri build  # Build portable Windows .exe
 - Use Vitest for unit and integration tests
 - Test files alongside source: `*.test.ts`
 - Prioritise tests for calculation logic (totals, percentages, budget comparisons)
+
+### Test Failure Policy
+**IMPORTANT:** When Vitest tests fail, do NOT automatically fix the issue or modify the test. Instead:
+1. Report the failing test(s) and error message to the user
+2. Explain what the test is checking and why it might be failing
+3. Wait for user input on how to proceed (fix the code, update the test, or investigate further)
 
 ## Important Notes
 

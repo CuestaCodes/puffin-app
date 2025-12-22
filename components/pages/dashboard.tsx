@@ -36,7 +36,16 @@ interface MonthlyTrend {
   income: number;
   expenses: number;
   savings: number;
+  bills: number;
+  debt: number;
   net: number;
+}
+
+interface UpperCategoryBreakdown {
+  type: string;
+  label: string;
+  amount: number;
+  percentage: number;
 }
 
 interface CategoryBreakdown {
@@ -51,6 +60,7 @@ interface CategoryBreakdown {
 interface DashboardData {
   summary: DashboardSummary;
   trends: MonthlyTrend[];
+  upperCategoryBreakdown: UpperCategoryBreakdown[];
   expenseBreakdown: CategoryBreakdown[];
   recentTransactions: TransactionWithCategory[];
 }
@@ -65,6 +75,24 @@ const CHART_COLORS = [
   '#6366f1', // indigo
   '#14b8a6', // teal
 ];
+
+// Colors for upper category types
+const UPPER_CATEGORY_COLORS: Record<string, string> = {
+  expense: '#ef4444', // red
+  bill: '#f59e0b',    // amber
+  debt: '#ec4899',    // pink
+  saving: '#8b5cf6',  // violet
+};
+
+// Format Y axis with decimal values for smaller scales
+const formatYAxis = (value: number): string => {
+  if (value === 0) return '$0';
+  if (value >= 1000) {
+    const k = value / 1000;
+    return k % 1 === 0 ? `$${k}k` : `$${k.toFixed(1)}k`;
+  }
+  return `$${value}`;
+};
 
 export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -219,7 +247,7 @@ export function Dashboard() {
                     stroke="#64748b"
                     fontSize={12}
                     tickLine={false}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={formatYAxis}
                   />
                   <Tooltip
                     contentStyle={{
@@ -237,6 +265,22 @@ export function Dashboard() {
                     stroke="#ef4444"
                     strokeWidth={2}
                     dot={{ fill: '#ef4444', strokeWidth: 2 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bills"
+                    name="Bills"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={{ fill: '#f59e0b', strokeWidth: 2 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="debt"
+                    name="Debt"
+                    stroke="#ec4899"
+                    strokeWidth={2}
+                    dot={{ fill: '#ec4899', strokeWidth: 2 }}
                   />
                   <Line
                     type="monotone"
@@ -277,7 +321,7 @@ export function Dashboard() {
                     stroke="#64748b"
                     fontSize={12}
                     tickLine={false}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={formatYAxis}
                   />
                   <Tooltip
                     contentStyle={{
@@ -308,51 +352,100 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Expense Breakdown Pie Chart */}
-      <Card className="border-slate-800 bg-slate-900/50">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-100">Expense Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={data.expenseBreakdown.slice(0, 8)}
-                  dataKey="amount"
-                  nameKey="categoryName"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label={({ categoryName, percentage }) =>
-                    `${categoryName} (${percentage}%)`
-                  }
-                  labelLine={{ stroke: '#64748b' }}
-                >
-                  {data.expenseBreakdown.slice(0, 8).map((_, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={CHART_COLORS[index % CHART_COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: number) => [formatCurrency(value), 'Amount']}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
-              <p>No expense data for this period</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Pie Charts section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Spending by Type Pie Chart */}
+        <Card className="border-slate-800 bg-slate-900/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-100">Spending by Type</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data?.upperCategoryBreakdown && data.upperCategoryBreakdown.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={data.upperCategoryBreakdown}
+                    dataKey="amount"
+                    nameKey="label"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label={({ label, percentage }) =>
+                      `${label} (${percentage}%)`
+                    }
+                    labelLine={{ stroke: '#64748b' }}
+                  >
+                    {data.upperCategoryBreakdown.map((item) => (
+                      <Cell
+                        key={`cell-${item.type}`}
+                        fill={UPPER_CATEGORY_COLORS[item.type] || '#64748b'}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number) => [formatCurrency(value), 'Amount']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <p>No spending data for this period</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Spending by Category Pie Chart */}
+        <Card className="border-slate-800 bg-slate-900/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-100">Spending by Category</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={data.expenseBreakdown.slice(0, 10)}
+                    dataKey="amount"
+                    nameKey="categoryName"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label={({ categoryName, percentage }) =>
+                      `${categoryName} (${percentage}%)`
+                    }
+                    labelLine={{ stroke: '#64748b' }}
+                  >
+                    {data.expenseBreakdown.slice(0, 10).map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number) => [formatCurrency(value), 'Amount']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <p>No category data for this period</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Recent transactions */}
       <Card className="border-slate-800 bg-slate-900/50">

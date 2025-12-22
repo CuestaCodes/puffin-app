@@ -5,6 +5,7 @@ import { initializeDatabase } from '@/lib/db';
 import {
   getDashboardSummary,
   getMonthlyTrendsByYear,
+  getUpperCategoryBreakdown,
   getExpenseBreakdown,
   getRecentTransactions,
 } from '@/lib/db/analytics';
@@ -40,6 +41,11 @@ export async function GET(request: NextRequest) {
 
     const trends = getMonthlyTrendsByYear(year);
 
+    const upperCategoryBreakdown = getUpperCategoryBreakdown(
+      formatDate(yearStart),
+      formatDate(yearEnd)
+    );
+
     const expenseBreakdown = getExpenseBreakdown(
       formatDate(yearStart),
       formatDate(yearEnd)
@@ -50,6 +56,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       summary,
       trends,
+      upperCategoryBreakdown,
       expenseBreakdown,
       recentTransactions,
       period: {

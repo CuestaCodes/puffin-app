@@ -1,0 +1,26 @@
+# Puffin Project Rules for Cursor
+
+## Test Failure Policy
+**CRITICAL:** When Vitest tests fail, do NOT automatically fix the issue or modify the test. Instead:
+1. Report the failing test(s) and error message to the user
+2. Explain what the test is checking and why it might be failing
+3. Wait for user input on how to proceed (fix the code, update the test, or investigate further)
+
+## TypeScript Best Practices
+- Use `as const` for literal types and config objects
+- Prefer discriminated unions over interfaces with optional properties
+- Use `satisfies` over type annotations to preserve literal types
+- Use template literal types for string pattern enforcement
+- Remember: object keys are always strings, `{}` accepts any non-null value
+
+## Project Conventions
+- Negative amounts = Expenses, Positive amounts = Income
+- Transfer category excluded from all reporting calculations
+- Use soft delete (`is_deleted` flag) for transactions
+- Test files alongside source: `*.test.ts`
+
+## Code Style
+- Use Tailwind CSS for styling
+- Use shadcn/ui components (Radix primitives)
+- Follow existing patterns in the codebase
+- Prioritise tests for calculation logic
