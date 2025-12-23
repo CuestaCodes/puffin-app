@@ -126,7 +126,8 @@ The application is designed for individuals or households who want full control 
 **How it works:**
 - Single portable .exe file — no installer required
 - Double-click to launch; no dependencies for end users
-- Auto-update notifications prompt user to download new versions
+- Distributed via GitHub Releases for version management and easy downloads
+- Auto-update notifications prompt user to download new versions from GitHub Releases
 - All data stored in standard Windows user data location (%APPDATA%)
 
 # User Experience
@@ -661,7 +662,7 @@ export async function getTransactions() {
 - Display version in Settings page footer
 - Release notes viewable from update notification (link to GitHub release)
 
-### 9.8 Distribution
+### 9.8 Distribution via GitHub Releases
 
 **Build Outputs**
 - `Puffin-vX.X.X-windows-x64.exe` — Portable executable
@@ -669,8 +670,15 @@ export async function getTransactions() {
 
 **Release Process**
 - Build via GitHub Actions (optional automation for future)
-- Upload to GitHub Releases
+- Upload to GitHub Releases as the primary distribution channel
+- Users download new versions directly from GitHub Releases page
 - Update download link on documentation/landing page (if applicable)
+
+**GitHub Releases Benefits**
+- Version history and release notes visible to users
+- Direct download links for each version
+- Changelog tracking through release descriptions
+- Community engagement via release discussions
 
 ## Future Enhancements (Post-MVP)
 

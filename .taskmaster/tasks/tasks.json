@@ -1067,8 +1067,8 @@
       },
       {
         "id": 16,
-        "title": "Window Close Handling, Auto-Update, and Distribution",
-        "description": "Implement native window close sync prompt, auto-update notification system, and finalize distribution pipeline",
+        "title": "Window Close Handling, Auto-Update, and GitHub Releases Distribution",
+        "description": "Implement native window close sync prompt, auto-update notification system via GitHub Releases API, and finalize GitHub Releases distribution pipeline",
         "details": "1. Intercept window close event via Tauri API\n2. Trigger sync prompt before allowing close (reuse Phase 7 modal)\n3. Prevent close until sync completes or user explicitly skips\n4. Only show sync prompt if sync is configured\n5. Implement auto-update checking:\n   - Check GitHub Releases API on app launch\n   - Compare local version against latest available\n   - Display non-blocking notification banner if update available\n   - 'Version X.X available — [Download] [Dismiss]'\n   - Download button opens browser to release page\n6. Display version number in Settings page footer\n7. Keep version in sync between tauri.conf.json and package.json\n8. Configure build outputs:\n   - Puffin-vX.X.X-windows-x64.exe (portable executable)\n   - Optional: .zip for easier hosting\n9. Document release process for GitHub Releases\n10. Optional: Set up GitHub Actions for automated builds",
         "testStrategy": "Test window close interception and sync prompt display. Verify close is blocked until sync completes or skips. Test auto-update version comparison logic. Verify notification banner UI. Test download link opens correctly. Verify version display in Settings.",
         "priority": "low",
@@ -1118,12 +1118,12 @@
           },
           {
             "id": 5,
-            "title": "Configure Distribution Pipeline and Documentation",
-            "description": "Set up build outputs configuration and document release process for GitHub Releases",
+            "title": "Configure GitHub Releases Distribution Pipeline",
+            "description": "Set up build outputs configuration and establish GitHub Releases as the primary distribution channel",
             "dependencies": [
               4
             ],
-            "details": "Configure Tauri build to generate Puffin-vX.X.X-windows-x64.exe portable executable, optionally create .zip packaging for easier hosting, document complete release process including GitHub Releases workflow, optionally set up GitHub Actions for automated builds",
+            "details": "Configure Tauri build to generate Puffin-vX.X.X-windows-x64.exe portable executable for GitHub Releases distribution. Optionally create .zip packaging for easier hosting. Document complete release process with GitHub Releases as the primary distribution channel. Set up GitHub Actions for automated builds and releases. Create release template with changelog format.",
             "status": "pending",
             "testStrategy": "Test build output generation with correct naming convention, verify executable works as portable app, validate release documentation completeness"
           }

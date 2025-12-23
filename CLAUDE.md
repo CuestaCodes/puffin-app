@@ -10,6 +10,7 @@
 - Multi-device access via optional Google Drive sync
 - Flexible categorisation with auto-categorisation rules
 - Standalone desktop application (no Node.js required for end users)
+- Distributed via GitHub Releases for easy updates and version management
 
 **Target User:** Privacy-conscious individuals who want detailed expense tracking with budget comparison, comfortable with self-hosted applications.
 
