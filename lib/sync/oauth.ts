@@ -13,8 +13,9 @@ const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/sync/oauth/callback';
 
 // Scopes required for Google Drive file access
+// Using drive.file with Google Picker grants access only to user-selected folders
 const SCOPES = [
-  'https://www.googleapis.com/auth/drive.file', // Access to files created/opened by the app
+  'https://www.googleapis.com/auth/drive.file', // Access to files opened/created by the app
   'https://www.googleapis.com/auth/userinfo.email', // Get user's email
 ];
 

@@ -16,9 +16,10 @@ import {
 import { 
   ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X, 
   Loader2, AlertTriangle, LogOut, RefreshCw, ExternalLink,
-  FolderSync, CheckCircle2, Info
+  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown
 } from 'lucide-react';
 import type { SyncConfig } from '@/types/sync';
+import { useGooglePicker } from '@/hooks/use-google-picker';
 
 interface SyncManagementProps {
   onBack: () => void;
@@ -29,16 +30,24 @@ interface ExtendedSyncConfig extends SyncConfig {
   oauthConfigured: boolean;
 }
 
+interface PickerCredentials {
+  clientId: string;
+  apiKey: string;
+  configured: boolean;
+}
+
 export function SyncManagement({ onBack }: SyncManagementProps) {
   // Configuration state
   const [config, setConfig] = useState<ExtendedSyncConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [credentials, setCredentials] = useState<PickerCredentials | null>(null);
   
   // Folder setup state
   const [folderUrl, setFolderUrl] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationSuccess, setValidationSuccess] = useState<string | null>(null);
+  const [showManualInput, setShowManualInput] = useState(false);
   
   // Sync operation state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -52,10 +61,19 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const response = await fetch('/api/sync/config');
-      if (response.ok) {
-        const data = await response.json();
+      const [configRes, credRes] = await Promise.all([
+        fetch('/api/sync/config'),
+        fetch('/api/sync/credentials'),
+      ]);
+      
+      if (configRes.ok) {
+        const data = await configRes.json();
         setConfig(data);
+      }
+      
+      if (credRes.ok) {
+        const cred = await credRes.json();
+        setCredentials(cred);
       }
     } catch (err) {
       console.error('Failed to fetch sync config:', err);
@@ -63,6 +81,42 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
       setIsLoading(false);
     }
   }, []);
+
+  // Handle folder selected via picker
+  const handlePickerSelect = useCallback(async (folder: { id: string; name: string }) => {
+    setIsValidating(true);
+    setValidationError(null);
+    setValidationSuccess(null);
+
+    try {
+      // Save the folder directly (picker already grants access)
+      const response = await fetch('/api/sync/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: folder.id, folderName: folder.name }),
+      });
+
+      if (response.ok) {
+        setValidationSuccess(`Connected to folder: ${folder.name}`);
+        fetchConfig();
+      } else {
+        setValidationError('Failed to save folder configuration');
+      }
+    } catch (err) {
+      console.error('Picker save error:', err);
+      setValidationError('Failed to save folder configuration');
+    } finally {
+      setIsValidating(false);
+    }
+  }, [fetchConfig]);
+
+  // Google Picker hook
+  const { openPicker, isLoading: isPickerLoading } = useGooglePicker({
+    clientId: credentials?.clientId || '',
+    apiKey: credentials?.apiKey || '',
+    onSelect: handlePickerSelect,
+    onError: (error) => setValidationError(error),
+  });
 
   useEffect(() => {
     fetchConfig();
@@ -87,6 +141,8 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   // Validate folder
   const handleValidateFolder = async () => {
+    console.log('[Validate] Button clicked, URL:', folderUrl);
+    
     if (!folderUrl.trim()) {
       setValidationError('Please enter a Google Drive folder URL');
       return;
@@ -97,13 +153,16 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     setValidationSuccess(null);
 
     try {
+      console.log('[Validate] Sending POST to /api/sync/validate...');
       const response = await fetch('/api/sync/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folderUrl: folderUrl.trim() }),
       });
 
+      console.log('[Validate] Response status:', response.status);
       const result = await response.json();
+      console.log('[Validate] Result:', result);
 
       if (result.success) {
         setValidationSuccess(`Connected to folder: ${result.folderName}`);
@@ -113,7 +172,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         setValidationError(result.error || 'Failed to validate folder');
       }
     } catch (err) {
-      console.error('Validation error:', err);
+      console.error('[Validate] Error:', err);
       setValidationError('Failed to validate folder');
     } finally {
       setIsValidating(false);
@@ -259,6 +318,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               <code className="text-sm text-cyan-400">
                 GOOGLE_CLIENT_ID=your_client_id<br />
                 GOOGLE_CLIENT_SECRET=your_client_secret<br />
+                GOOGLE_API_KEY=your_api_key<br />
                 GOOGLE_REDIRECT_URI=http://localhost:3000/api/sync/oauth/callback
               </code>
             </div>
@@ -361,7 +421,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                 <FolderSync className="w-6 h-6 text-emerald-400" />
               </div>
               <div>
-                <CardTitle className="text-lg text-slate-100">Configure Sync Folder</CardTitle>
+                <CardTitle className="text-lg text-slate-100">Select Sync Folder</CardTitle>
                 <CardDescription className="text-slate-400">
                   {config.userEmail && (
                     <span className="block text-emerald-400 mb-1">
@@ -369,50 +429,100 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                       Signed in as {config.userEmail}
                     </span>
                   )}
-                  Enter the URL of a Google Drive folder to use for backup
+                  Choose a Google Drive folder for your backups
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="folder-url" className="text-slate-300">Folder URL or ID</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="folder-url"
-                  value={folderUrl}
-                  onChange={(e) => setFolderUrl(e.target.value)}
-                  placeholder="https://drive.google.com/drive/folders/..."
-                  className="flex-1 bg-slate-800/50 border-slate-700 text-slate-100"
-                />
-                <Button
-                  onClick={handleValidateFolder}
-                  disabled={isValidating || !folderUrl.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-500"
-                >
-                  {isValidating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      Validate
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-slate-500">
-                Paste a Google Drive folder URL. The app will verify you have write access.
-              </p>
-            </div>
-
-            <div className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/50">
-              <div className="flex items-start gap-2">
-                <Info className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-slate-400">
-                  Create a new folder in Google Drive for Puffin backups. You can share this folder 
-                  with other users who need access to the same data.
+            {/* Primary: Google Picker */}
+            {credentials?.apiKey ? (
+              <Button
+                onClick={openPicker}
+                disabled={isPickerLoading || isValidating}
+                className="w-full bg-emerald-600 hover:bg-emerald-500"
+                size="lg"
+              >
+                {isPickerLoading || isValidating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                )}
+                Choose Folder from Google Drive
+              </Button>
+            ) : (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                <p className="text-sm text-amber-300">
+                  <AlertTriangle className="w-4 h-4 inline mr-2" />
+                  Google Picker requires an API Key. Add <code className="bg-slate-800 px-1 rounded">GOOGLE_API_KEY</code> to your environment.
                 </p>
               </div>
+            )}
+
+            {/* Security note */}
+            <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-slate-400">
+                  <strong className="text-emerald-400">Secure:</strong> The app only has access to the folder you select—not your entire Google Drive.
+                  You can share this folder with other users for multi-device sync.
+                </p>
+              </div>
+            </div>
+
+            {/* Manual input fallback */}
+            <div className="border-t border-slate-700/50 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowManualInput(!showManualInput)}
+                className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300"
+              >
+                <ChevronDown className={`w-4 h-4 transition-transform ${showManualInput ? 'rotate-180' : ''}`} />
+                Or enter folder URL manually
+              </button>
+              
+              {showManualInput && (
+                <div className="mt-3 space-y-2">
+                  <Label htmlFor="folder-url" className="text-slate-300">Folder URL or ID</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="folder-url"
+                      value={folderUrl}
+                      onChange={(e) => setFolderUrl(e.target.value)}
+                      placeholder="https://drive.google.com/drive/folders/..."
+                      className="flex-1 bg-slate-800/50 border-slate-700 text-slate-100"
+                    />
+                    <Button
+                      onClick={handleValidateFolder}
+                      disabled={isValidating || !folderUrl.trim()}
+                      variant="outline"
+                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                    >
+                      {isValidating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Note: Manual URL entry requires full Drive access scope.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Sign out option */}
+            <div className="border-t border-slate-700/50 pt-4">
+              <Button
+                onClick={() => setShowDisconnectDialog(true)}
+                variant="ghost"
+                size="sm"
+                className="text-slate-500 hover:text-red-400"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign out of Google
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -512,26 +622,42 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                value={folderUrl}
-                onChange={(e) => setFolderUrl(e.target.value)}
-                placeholder="Enter new folder URL..."
-                className="flex-1 bg-slate-800/50 border-slate-700 text-slate-100"
-              />
+            {credentials?.apiKey ? (
               <Button
-                onClick={handleValidateFolder}
-                disabled={isValidating || !folderUrl.trim()}
+                onClick={openPicker}
+                disabled={isPickerLoading || isValidating}
                 variant="outline"
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
-                {isValidating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                {isPickerLoading || isValidating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <RefreshCw className="w-4 h-4" />
+                  <FolderOpen className="w-4 h-4 mr-2" />
                 )}
+                Choose Different Folder
               </Button>
-            </div>
+            ) : (
+              <div className="flex gap-2">
+                <Input
+                  value={folderUrl}
+                  onChange={(e) => setFolderUrl(e.target.value)}
+                  placeholder="Enter new folder URL..."
+                  className="flex-1 bg-slate-800/50 border-slate-700 text-slate-100"
+                />
+                <Button
+                  onClick={handleValidateFolder}
+                  disabled={isValidating || !folderUrl.trim()}
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                >
+                  {isValidating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
