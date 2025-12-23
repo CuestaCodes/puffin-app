@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Menu, LogOut, Cloud, CloudOff } from 'lucide-react';
 
@@ -8,9 +9,39 @@ interface HeaderProps {
   onLogout: () => void;
 }
 
+interface SyncStatus {
+  configured: boolean;
+  lastSyncedAt: string | null;
+  folderName: string | null;
+}
+
 export function Header({ onToggleSidebar, onLogout }: HeaderProps) {
-  // TODO: Implement last synced state from sync feature
-  const lastSynced: Date | null = null;
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+
+  useEffect(() => {
+    // Fetch sync status on mount and every 60 seconds
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch('/api/sync/config');
+        if (response.ok) {
+          const data = await response.json();
+          setSyncStatus({
+            configured: data.isConfigured,
+            lastSyncedAt: data.lastSyncedAt,
+            folderName: data.folderName,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch sync status:', error);
+      }
+    };
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const lastSynced = syncStatus?.lastSyncedAt ? new Date(syncStatus.lastSyncedAt) : null;
   
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-slate-900 border-b border-slate-800">
@@ -28,20 +59,22 @@ export function Header({ onToggleSidebar, onLogout }: HeaderProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
-        {/* Sync status */}
-        <div className="flex items-center gap-2 text-sm text-slate-400">
-          {lastSynced ? (
-            <>
-              <Cloud className="w-4 h-4 text-emerald-400" />
-              <span>Synced {formatRelativeTime(lastSynced)}</span>
-            </>
-          ) : (
-            <>
-              <CloudOff className="w-4 h-4 text-slate-500" />
-              <span>Not synced</span>
-            </>
-          )}
-        </div>
+        {/* Sync status - only show if sync is configured */}
+        {syncStatus?.configured && (
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            {lastSynced ? (
+              <>
+                <Cloud className="w-4 h-4 text-emerald-400" />
+                <span>Synced {formatRelativeTime(lastSynced)}</span>
+              </>
+            ) : (
+              <>
+                <CloudOff className="w-4 h-4 text-amber-400" />
+                <span>Not synced yet</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Logout button */}
         <Button

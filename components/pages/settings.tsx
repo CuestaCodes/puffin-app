@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ListTree, Sparkles, CloudUpload, Database, Shield } from 'lucide-react';
-import { CategoryManagement, RulesManagement } from '@/components/settings';
+import { CategoryManagement, RulesManagement, SyncManagement } from '@/components/settings';
 
 type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
 
@@ -19,6 +19,11 @@ export function SettingsPage() {
   // Render the rules management page
   if (currentView === 'rules') {
     return <RulesManagement onBack={() => setCurrentView('main')} />;
+  }
+
+  // Render the sync management page
+  if (currentView === 'sync') {
+    return <SyncManagement onBack={() => setCurrentView('main')} />;
   }
 
   return (
@@ -80,7 +85,10 @@ export function SettingsPage() {
         </Card>
 
         {/* Google Drive Sync */}
-        <Card className="border-slate-800 bg-slate-900/50 hover:border-emerald-700 transition-colors cursor-pointer">
+        <Card 
+          className="border-slate-800 bg-slate-900/50 hover:border-emerald-700 transition-colors cursor-pointer"
+          onClick={() => setCurrentView('sync')}
+        >
           <CardHeader>
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-900/50">

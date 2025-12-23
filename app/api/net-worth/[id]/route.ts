@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const parseResult = updateNetWorthSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json(
-        { error: parseResult.error.errors[0]?.message || 'Invalid input' },
+        { error: parseResult.error.issues[0]?.message || 'Invalid input' },
         { status: 400 }
       );
     }

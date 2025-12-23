@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const parseResult = updateAutoRuleSchema.safeParse(body);
 
     if (!parseResult.success) {
-      const errors = parseResult.error.errors.map(e => e.message).join(', ');
+      const errors = parseResult.error.issues.map(e => e.message).join(', ');
       return NextResponse.json(
         { error: errors },
         { status: 400 }

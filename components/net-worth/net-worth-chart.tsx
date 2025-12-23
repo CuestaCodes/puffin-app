@@ -210,12 +210,13 @@ export function NetWorthChart({
               }}
               labelStyle={{ color: '#94a3b8' }}
               labelFormatter={(timestamp: number) => formatDateForTooltip(timestamp)}
-              formatter={(value: number, name: string) => {
+              formatter={(value, name) => {
+                const numValue = typeof value === 'number' ? value : 0;
                 const formatted = new Intl.NumberFormat('en-AU', {
                   style: 'currency',
                   currency: 'AUD',
                   minimumFractionDigits: 0,
-                }).format(value);
+                }).format(numValue);
 
                 const label = name === 'projectedNetWorth' ? 'Projected' : 
                               name === 'netWorth' ? 'Net Worth' :
