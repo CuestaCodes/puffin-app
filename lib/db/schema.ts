@@ -100,6 +100,20 @@ CREATE TABLE IF NOT EXISTS sync_log (
   completed_at TEXT
 );
 
+-- Net Worth entries for tracking financial position over time
+CREATE TABLE IF NOT EXISTS net_worth_entry (
+  id TEXT PRIMARY KEY,
+  recorded_at TEXT NOT NULL,
+  assets_data TEXT NOT NULL,
+  liabilities_data TEXT NOT NULL,
+  total_assets REAL NOT NULL,
+  total_liabilities REAL NOT NULL,
+  net_worth REAL NOT NULL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_transaction_date ON "transaction"(date);
 CREATE INDEX IF NOT EXISTS idx_transaction_sub_category ON "transaction"(sub_category_id);
@@ -110,6 +124,7 @@ CREATE INDEX IF NOT EXISTS idx_sub_category_upper ON sub_category(upper_category
 CREATE INDEX IF NOT EXISTS idx_budget_period ON budget(year, month);
 CREATE INDEX IF NOT EXISTS idx_auto_rule_priority ON auto_category_rule(priority);
 CREATE INDEX IF NOT EXISTS idx_sync_log_action ON sync_log(action, started_at);
+CREATE INDEX IF NOT EXISTS idx_net_worth_recorded_at ON net_worth_entry(recorded_at);
 `;
 
 // Default upper categories to seed

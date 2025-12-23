@@ -59,7 +59,7 @@ export const UPPER_CATEGORY_COLORS: Record<string, string> = {
   bill: '#f59e0b',    // amber-500
   debt: '#a855f7',    // purple-500
   saving: '#10b981',  // emerald-500
-  sinking: '#14b8a6', // teal-500
+  sinking: '#38bdf8', // sky-400
   transfer: '#78716c', // stone-500
 } as const;
 
@@ -73,6 +73,6 @@ export const UPPER_CATEGORY_TEXT_COLORS: Record<string, string> = {
   bill: 'text-amber-400',
   debt: 'text-purple-400',
   saving: 'text-emerald-400',
-  sinking: 'text-teal-400',
+  sinking: 'text-sky-400',
   transfer: 'text-stone-400',
 } as const;

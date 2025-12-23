@@ -7,9 +7,10 @@ import { Header } from './header';
 import { Dashboard } from '@/components/pages/dashboard';
 import { TransactionsPage } from '@/components/pages/transactions';
 import { MonthlyBudgetPage } from '@/components/pages/monthly-budget';
+import { NetWorthPage } from '@/components/pages/net-worth';
 import { SettingsPage } from '@/components/pages/settings';
 
-export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'settings';
+export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'net-worth' | 'settings';
 
 export function AppShell() {
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
@@ -24,6 +25,8 @@ export function AppShell() {
         return <TransactionsPage />;
       case 'monthly':
         return <MonthlyBudgetPage />;
+      case 'net-worth':
+        return <NetWorthPage />;
       case 'settings':
         return <SettingsPage />;
       default:

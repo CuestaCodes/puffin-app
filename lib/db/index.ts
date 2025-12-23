@@ -64,7 +64,7 @@ export function initializeDatabase(): void {
 }
 
 /** Current schema version - increment when adding new migrations */
-const _CURRENT_SCHEMA_VERSION = 2;
+const _CURRENT_SCHEMA_VERSION = 3;
 
 /**
  * Get the current schema version from the database
@@ -206,8 +206,31 @@ function runMigrations(database: Database.Database): void {
     setSchemaVersion(database, 2);
   }
 
+  // Migration 3: Add net_worth_entry table for Net Worth tracking
+  if (currentVersion < 3) {
+    // Create net_worth_entry table if it doesn't exist
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS net_worth_entry (
+        id TEXT PRIMARY KEY,
+        recorded_at TEXT NOT NULL,
+        assets_data TEXT NOT NULL,
+        liabilities_data TEXT NOT NULL,
+        total_assets REAL NOT NULL,
+        total_liabilities REAL NOT NULL,
+        net_worth REAL NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_net_worth_recorded_at ON net_worth_entry(recorded_at);
+    `);
+
+    setSchemaVersion(database, 3);
+  }
+
   // Future migrations go here:
-  // if (currentVersion < 3) { ... setSchemaVersion(database, 3); }
+  // if (currentVersion < 4) { ... setSchemaVersion(database, 4); }
 }
 
 /**

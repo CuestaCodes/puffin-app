@@ -98,7 +98,7 @@ export function CategorySelector({
     saving: 'text-emerald-400',
     bill: 'text-amber-400',
     debt: 'text-purple-400',
-    sinking: 'text-teal-400',
+    sinking: 'text-sky-400',
     transfer: 'text-stone-400',
   } as const satisfies Record<UpperCategoryType, string>;
 

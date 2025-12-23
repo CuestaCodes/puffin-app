@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   List,
   Calendar,
+  Wallet,
   Settings,
   ChevronLeft,
   ChevronRight
@@ -23,6 +24,7 @@ const navItems: { id: PageId; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'transactions', label: 'Transactions', icon: List },
   { id: 'monthly', label: 'Monthly Budget', icon: Calendar },
+  { id: 'net-worth', label: 'Net Worth', icon: Wallet },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

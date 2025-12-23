@@ -294,7 +294,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
       case 'saving': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'bill': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       case 'debt': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case 'sinking': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+      case 'sinking': return 'bg-sky-500/20 text-sky-400 border-sky-500/30';
       case 'transfer': return 'bg-stone-500/20 text-stone-400 border-stone-500/30';
       default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }

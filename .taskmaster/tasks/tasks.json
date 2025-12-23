@@ -1333,11 +1333,11 @@
         "id": 21,
         "title": "Net Worth Tracking Page",
         "description": "Add a standalone Net Worth page with a table of historical snapshots, a line chart with 5-year projection, and a form to record assets and liabilities at a point in time with customizable field labels",
-        "details": "1. Create net_worth_entry table in database schema with: id, recorded_at, assets_data (JSON), liabilities_data (JSON), total_assets, total_liabilities, net_worth, notes, created_at\n2. Assets fields: Home (at purchase), Car (current value), Stocks 1, Stocks 2, Superannuation 1, Superannuation 2, Cash, Offset, Asset 1-4\n3. Liabilities fields: Mortgage, Credit Card Debt, Car Loan, Debt 1-4\n4. Store customizable labels with values in JSON format\n5. Build RecordNetWorthDialog with editable labels and value inputs for each field\n6. Create EntriesTable with date, totals, net worth, and edit/delete actions\n7. Delete action must show confirmation dialog with warning\n8. Build NetWorthChart using Recharts LineChart with solid historical line\n9. Add dashed projection line using linear regression for 5 years ahead\n10. Add 'Net Worth' to sidebar navigation and app-shell PageId",
+        "details": "1. Create net_worth_entry table in database schema with: id, recorded_at, assets_data (JSON), liabilities_data (JSON), total_assets, total_liabilities, net_worth, notes, created_at\n2. Assets fields: Home (at purchase), Car (current value), Stocks 1, Stocks 2, Superannuation 1, Superannuation 2, Cash, Offset, Asset 1-4\n3. Liabilities fields: Mortgage, Credit Card Debt, Car Loan, Debt 1-4\n4. Store customizable labels with values in JSON format\n5. Build RecordNetWorthDialog with editable labels and value inputs for each field\n6. Create EntriesTable with date, totals, net worth, and edit/delete actions\n7. Delete action must show confirmation dialog with warning\n8. Build NetWorthChart using Recharts LineChart with solid historical line\n9. Add dashed projection line using linear regression for 5 years ahead (only when 2+ data points)\n10. Add 'Net Worth' to sidebar navigation and app-shell PageId",
         "testStrategy": "Test database CRUD operations for net worth entries. Verify JSON storage and retrieval of custom labels. Test linear regression calculation for projection. Test delete confirmation dialog shows appropriate warning. Verify chart renders correctly with projection line.",
         "priority": "medium",
         "dependencies": [1],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -1345,7 +1345,7 @@
             "description": "Add net_worth_entry table to database schema and create TypeScript types",
             "dependencies": [],
             "details": "Add net_worth_entry table to lib/db/schema.ts with columns: id, recorded_at, assets_data (JSON text), liabilities_data (JSON text), total_assets, total_liabilities, net_worth, notes, created_at. Create types/net-worth.ts with NetWorthEntry interface and asset/liability field structures.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify table creation works. Test TypeScript types compile correctly."
           },
           {
@@ -1354,7 +1354,7 @@
             "description": "Create lib/db/net-worth.ts with CRUD operations",
             "dependencies": [1],
             "details": "Implement functions: createNetWorthEntry, getAllNetWorthEntries, getNetWorthEntryById, updateNetWorthEntry, deleteNetWorthEntry. Handle JSON serialization/deserialization for assets_data and liabilities_data fields.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Unit tests for all CRUD operations. Test JSON serialization works correctly."
           },
           {
@@ -1363,7 +1363,7 @@
             "description": "Create API routes for net worth operations",
             "dependencies": [2],
             "details": "Create app/api/net-worth/route.ts with GET (list all) and POST (create). Create app/api/net-worth/[id]/route.ts with GET (single), PUT (update), DELETE. Add Zod validation for request bodies.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test all API endpoints with valid and invalid payloads."
           },
           {
@@ -1372,7 +1372,7 @@
             "description": "Build dialog form for recording net worth snapshots with customizable labels",
             "dependencies": [3],
             "details": "Create components/net-worth/record-dialog.tsx with date picker, assets section (12 fields with editable labels), liabilities section (7 fields with editable labels). Each field has label input and value input. Calculate totals on save. Support both create and edit modes.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test form validation. Test label customization persists. Test totals calculate correctly."
           },
           {
@@ -1381,7 +1381,7 @@
             "description": "Build table component displaying net worth entries with edit and delete actions",
             "dependencies": [3],
             "details": "Create components/net-worth/entries-table.tsx with columns: Date, Total Assets, Total Liabilities, Net Worth, Actions. Edit button opens pre-filled dialog. Delete button shows confirmation dialog with prominent warning about permanent deletion.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test table renders entries correctly. Test edit opens dialog with correct data. Test delete shows warning and requires confirmation."
           },
           {
@@ -1389,8 +1389,8 @@
             "title": "Net Worth Chart with Projection",
             "description": "Build line chart with historical data and 5-year dashed projection line",
             "dependencies": [3],
-            "details": "Create components/net-worth/net-worth-chart.tsx using Recharts LineChart. Solid line for historical net worth values. Implement linear regression calculation. Add dashed line projecting 5 years into future. Style to match existing dashboard charts.",
-            "status": "pending",
+            "details": "Create components/net-worth/net-worth-chart.tsx using Recharts LineChart. Solid line for historical net worth values. Implement linear regression calculation. Add dashed line projecting 5 years into future (only when 2+ data points). Style to match existing dashboard charts.",
+            "status": "done",
             "testStrategy": "Test chart renders with sample data. Test projection calculation is reasonable. Test styling matches app theme."
           },
           {
@@ -1399,7 +1399,7 @@
             "description": "Create main page combining chart, table, and record button",
             "dependencies": [4, 5, 6],
             "details": "Create components/pages/net-worth.tsx with header (title + 'Record Net Worth' button), NetWorthChart, and EntriesTable. Fetch data from API on mount. Handle loading and empty states.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test page loads and displays all components. Test record button opens dialog. Test data refresh after create/edit/delete."
           },
           {
@@ -1407,8 +1407,8 @@
             "title": "Navigation Integration",
             "description": "Add Net Worth page to sidebar and app-shell routing",
             "dependencies": [7],
-            "details": "Add 'networth' to PageId type in app-shell.tsx. Add nav item to sidebar.tsx with Wallet icon from lucide-react. Import and render NetWorthPage in app-shell switch statement.",
-            "status": "pending",
+            "details": "Add 'net-worth' to PageId type in app-shell.tsx. Add nav item to sidebar.tsx with Wallet icon from lucide-react. Import and render NetWorthPage in app-shell switch statement.",
+            "status": "done",
             "testStrategy": "Test navigation to Net Worth page works. Test sidebar highlights correctly when on page."
           }
         ]

@@ -301,9 +301,9 @@ export function Dashboard() {
                     type="monotone"
                     dataKey="sinking"
                     name="Sinking Funds"
-                    stroke="#14b8a6"
+                    stroke="#38bdf8"
                     strokeWidth={2}
-                    dot={{ fill: '#14b8a6', strokeWidth: 2 }}
+                    dot={{ fill: '#38bdf8', strokeWidth: 2 }}
                   />
                   <Legend />
                 </LineChart>
@@ -597,7 +597,7 @@ export function Dashboard() {
                       bill: 'text-amber-400',
                       saving: 'text-emerald-400',
                       debt: 'text-purple-400',
-                      sinking: 'text-teal-400',
+                      sinking: 'text-sky-400',
                       transfer: 'text-stone-400',
                     };
 
