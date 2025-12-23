@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Plus, Minus } from 'lucide-react';
+import { formatCurrencyAUD } from '@/lib/utils';
 import {
   DEFAULT_ASSET_FIELDS,
   DEFAULT_LIABILITY_FIELDS,
@@ -43,6 +44,9 @@ export function RecordNetWorthDialog({
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Track invalid number inputs for visual feedback
+  const [invalidAssetInputs, setInvalidAssetInputs] = useState<Set<number>>(new Set());
+  const [invalidLiabilityInputs, setInvalidLiabilityInputs] = useState<Set<number>>(new Set());
 
   // Initialize fields when dialog opens
   useEffect(() => {
@@ -71,6 +75,8 @@ export function RecordNetWorthDialog({
         setNotes('');
       }
       setError(null);
+      setInvalidAssetInputs(new Set());
+      setInvalidLiabilityInputs(new Set());
     }
   }, [open, editEntry, latestEntry]);
 
@@ -86,18 +92,50 @@ export function RecordNetWorthDialog({
     );
   };
 
+  // Parse number with validation - returns value and whether it's valid
+  const parseNumberValue = (value: string): { parsed: number; isValid: boolean } => {
+    if (value === '' || value === '-') {
+      return { parsed: 0, isValid: true };
+    }
+    const parsed = parseFloat(value);
+    return { parsed: isNaN(parsed) ? 0 : parsed, isValid: !isNaN(parsed) };
+  };
+
+  const handleAssetValueChange = (index: number, value: string) => {
+    const { parsed, isValid } = parseNumberValue(value);
+    updateAssetField(index, { value: parsed });
+    
+    setInvalidAssetInputs(prev => {
+      const next = new Set(prev);
+      if (isValid) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const handleLiabilityValueChange = (index: number, value: string) => {
+    const { parsed, isValid } = parseNumberValue(value);
+    updateLiabilityField(index, { value: parsed });
+    
+    setInvalidLiabilityInputs(prev => {
+      const next = new Set(prev);
+      if (isValid) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   const totalAssets = assetFields.reduce((sum, f) => sum + (f.value || 0), 0);
   const totalLiabilities = liabilityFields.reduce((sum, f) => sum + (f.value || 0), 0);
   const netWorth = totalAssets - totalLiabilities;
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatCurrencyAUD(amount);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -193,13 +231,24 @@ export function RecordNetWorthDialog({
                     className="bg-slate-800 border-slate-700 text-white flex-1"
                     placeholder="Label"
                   />
-                  <Input
-                    type="number"
-                    value={field.value || ''}
-                    onChange={e => updateAssetField(index, { value: parseFloat(e.target.value) || 0 })}
-                    className="bg-slate-800 border-slate-700 text-white w-32 text-right"
-                    placeholder="0"
-                  />
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={field.value || ''}
+                      onChange={e => handleAssetValueChange(index, e.target.value)}
+                      className={`bg-slate-800 text-white w-32 text-right ${
+                        invalidAssetInputs.has(index)
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                          : 'border-slate-700'
+                      }`}
+                      placeholder="0"
+                    />
+                    {invalidAssetInputs.has(index) && (
+                      <span className="absolute -bottom-4 right-0 text-xs text-red-400">
+                        Invalid number
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -220,13 +269,24 @@ export function RecordNetWorthDialog({
                     className="bg-slate-800 border-slate-700 text-white flex-1"
                     placeholder="Label"
                   />
-                  <Input
-                    type="number"
-                    value={field.value || ''}
-                    onChange={e => updateLiabilityField(index, { value: parseFloat(e.target.value) || 0 })}
-                    className="bg-slate-800 border-slate-700 text-white w-32 text-right"
-                    placeholder="0"
-                  />
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={field.value || ''}
+                      onChange={e => handleLiabilityValueChange(index, e.target.value)}
+                      className={`bg-slate-800 text-white w-32 text-right ${
+                        invalidLiabilityInputs.has(index)
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                          : 'border-slate-700'
+                      }`}
+                      placeholder="0"
+                    />
+                    {invalidLiabilityInputs.has(index) && (
+                      <span className="absolute -bottom-4 right-0 text-xs text-red-400">
+                        Invalid number
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

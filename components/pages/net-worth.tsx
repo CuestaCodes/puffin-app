@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, TrendingUp, Wallet, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { formatCurrencyAUD } from '@/lib/utils';
 import { RecordNetWorthDialog } from '@/components/net-worth/record-dialog';
 import { EntriesTable } from '@/components/net-worth/entries-table';
 import { NetWorthChart } from '@/components/net-worth/net-worth-chart';
@@ -23,14 +24,7 @@ export function NetWorthPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<NetWorthEntryParsed | null>(null);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatCurrencyAUD(amount);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);

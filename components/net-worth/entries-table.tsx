@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Edit2, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { formatCurrencyAUD } from '@/lib/utils';
 import type { NetWorthEntryParsed } from '@/types/net-worth';
 
 interface EntriesTableProps {
@@ -23,15 +24,9 @@ interface EntriesTableProps {
 export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTableProps) {
   const [deleteEntry, setDeleteEntry] = useState<NetWorthEntryParsed | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatCurrencyAUD(amount);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -46,6 +41,7 @@ export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTa
     if (!deleteEntry) return;
 
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       const response = await fetch(`/api/net-worth/${deleteEntry.id}`, {
         method: 'DELETE',
@@ -54,12 +50,21 @@ export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTa
       if (response.ok) {
         onDelete();
         setDeleteEntry(null);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setDeleteError(data.error || 'Failed to delete entry. Please try again.');
       }
     } catch (error) {
       console.error('Failed to delete entry:', error);
+      setDeleteError('Failed to delete entry. Please try again.');
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const openDeleteDialog = (entry: NetWorthEntryParsed) => {
+    setDeleteError(null);
+    setDeleteEntry(entry);
   };
 
   if (isLoading) {
@@ -140,7 +145,7 @@ export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTa
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setDeleteEntry(entry)}
+                        onClick={() => openDeleteDialog(entry)}
                         className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-900/20"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -191,6 +196,12 @@ export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTa
               </span>
             </p>
           </div>
+
+          {deleteError && (
+            <div className="bg-red-900/20 border border-red-800/50 rounded-lg p-3 mt-2">
+              <p className="text-red-400 text-sm">{deleteError}</p>
+            </div>
+          )}
 
           <DialogFooter>
             <Button

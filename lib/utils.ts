@@ -34,3 +34,30 @@ export function calculateTotalSpend(breakdown: {
     (breakdown.savings || 0)
   );
 }
+
+/**
+ * Format a number as Australian currency (AUD).
+ * Supports compact format for large numbers (K, M).
+ */
+export function formatCurrencyAUD(
+  amount: number,
+  options?: { compact?: boolean; decimals?: number }
+): string {
+  const { compact = false, decimals = 0 } = options || {};
+
+  if (compact) {
+    if (Math.abs(amount) >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`;
+    }
+    if (Math.abs(amount) >= 1000) {
+      return `$${(amount / 1000).toFixed(0)}K`;
+    }
+  }
+
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(amount);
+}

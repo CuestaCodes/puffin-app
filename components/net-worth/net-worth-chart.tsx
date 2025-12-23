@@ -12,6 +12,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { formatCurrencyAUD } from '@/lib/utils';
 import type { NetWorthEntryParsed } from '@/types/net-worth';
 
 interface NetWorthChartProps {
@@ -27,15 +28,7 @@ export function NetWorthChart({
   projection,
   isLoading,
 }: NetWorthChartProps) {
-  const formatCurrency = (value: number) => {
-    if (Math.abs(value) >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    }
-    if (Math.abs(value) >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
-    }
-    return `$${value.toFixed(0)}`;
-  };
+  const formatCurrency = (value: number) => formatCurrencyAUD(value, { compact: true });
 
   // Format timestamp for tooltip
   const formatDateForTooltip = (timestamp: number) => {

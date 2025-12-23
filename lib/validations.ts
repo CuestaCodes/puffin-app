@@ -108,6 +108,35 @@ export const importOptionsSchema = z.object({
   selectedRows: z.array(z.number().int().min(0)).optional(),
 });
 
+// Net Worth schemas
+const netWorthFieldSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().max(100),
+  value: z.number(),
+});
+
+const assetsDataSchema = z.object({
+  fields: z.array(netWorthFieldSchema),
+});
+
+const liabilitiesDataSchema = z.object({
+  fields: z.array(netWorthFieldSchema),
+});
+
+export const createNetWorthSchema = z.object({
+  recorded_at: z.string().regex(datePattern, 'Date must be in YYYY-MM-DD format'),
+  assets: assetsDataSchema,
+  liabilities: liabilitiesDataSchema,
+  notes: z.string().max(500, 'Notes too long').nullable().optional(),
+});
+
+export const updateNetWorthSchema = z.object({
+  recorded_at: z.string().regex(datePattern, 'Date must be in YYYY-MM-DD format').optional(),
+  assets: assetsDataSchema.optional(),
+  liabilities: liabilitiesDataSchema.optional(),
+  notes: z.string().max(500, 'Notes too long').nullable().optional(),
+});
+
 // Query filter schemas
 export const transactionFilterSchema = z.object({
   startDate: z.string().regex(datePattern).optional(),
@@ -143,4 +172,6 @@ export type SetupPasswordInput = z.infer<typeof setupPasswordSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
 export type PaginationParams = z.infer<typeof paginationSchema>;
+export type CreateNetWorthInput = z.infer<typeof createNetWorthSchema>;
+export type UpdateNetWorthInput = z.infer<typeof updateNetWorthSchema>;
 

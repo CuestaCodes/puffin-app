@@ -21,18 +21,23 @@ function calculateTotal(data: AssetsData | LiabilitiesData): number {
  * Parse a raw database entry into a parsed entry with deserialized JSON
  */
 function parseEntry(entry: NetWorthEntry): NetWorthEntryParsed {
-  return {
-    id: entry.id,
-    recorded_at: entry.recorded_at,
-    assets: JSON.parse(entry.assets_data) as AssetsData,
-    liabilities: JSON.parse(entry.liabilities_data) as LiabilitiesData,
-    total_assets: entry.total_assets,
-    total_liabilities: entry.total_liabilities,
-    net_worth: entry.net_worth,
-    notes: entry.notes,
-    created_at: entry.created_at,
-    updated_at: entry.updated_at,
-  };
+  try {
+    return {
+      id: entry.id,
+      recorded_at: entry.recorded_at,
+      assets: JSON.parse(entry.assets_data) as AssetsData,
+      liabilities: JSON.parse(entry.liabilities_data) as LiabilitiesData,
+      total_assets: entry.total_assets,
+      total_liabilities: entry.total_liabilities,
+      net_worth: entry.net_worth,
+      notes: entry.notes,
+      created_at: entry.created_at,
+      updated_at: entry.updated_at,
+    };
+  } catch (e) {
+    console.error(`Failed to parse net worth entry ${entry.id}:`, e);
+    throw new Error(`Corrupted net worth entry data: ${entry.id}`);
+  }
 }
 
 /**
@@ -109,7 +114,12 @@ export function createNetWorthEntry(input: CreateNetWorthInput): NetWorthEntryPa
     now
   );
 
-  return getNetWorthEntryById(id)!;
+  // Entry was just inserted, so it must exist (unless concurrent delete which is unlikely)
+  const created = getNetWorthEntryById(id);
+  if (!created) {
+    throw new Error(`Failed to retrieve newly created net worth entry: ${id}`);
+  }
+  return created;
 }
 
 /**

@@ -108,24 +108,3 @@ export interface UpdateNetWorthInput {
   notes?: string | null;
 }
 
-/**
- * Data point for net worth chart
- */
-export interface NetWorthChartPoint {
-  date: string;
-  dateLabel: string;
-  netWorth: number;
-  totalAssets: number;
-  totalLiabilities: number;
-  isProjection?: boolean;
-}
-
-/**
- * Linear regression result for projection
- */
-export interface LinearRegression {
-  slope: number;
-  intercept: number;
-  rSquared: number;
-}
-

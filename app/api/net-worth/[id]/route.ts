@@ -7,7 +7,7 @@ import {
   updateNetWorthEntry,
   deleteNetWorthEntry,
 } from '@/lib/db/net-worth';
-import type { UpdateNetWorthInput } from '@/types/net-worth';
+import { updateNetWorthSchema } from '@/lib/validations';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -50,9 +50,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     initializeDatabase();
 
     const { id } = await params;
-    const body = await request.json() as UpdateNetWorthInput;
+    const body = await request.json();
 
-    const entry = updateNetWorthEntry(id, body);
+    // Validate with Zod
+    const parseResult = updateNetWorthSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: parseResult.error.errors[0]?.message || 'Invalid input' },
+        { status: 400 }
+      );
+    }
+
+    const entry = updateNetWorthEntry(id, parseResult.data);
 
     if (!entry) {
       return NextResponse.json(
@@ -98,4 +107,3 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     );
   }
 }
-

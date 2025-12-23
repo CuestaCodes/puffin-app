@@ -9,7 +9,7 @@ import {
   generateProjectionPoints,
   calculateNetWorthProjection,
 } from '@/lib/db/net-worth';
-import type { CreateNetWorthInput } from '@/types/net-worth';
+import { createNetWorthSchema } from '@/lib/validations';
 
 // GET /api/net-worth - Get all entries or chart data
 export async function GET(request: NextRequest) {
@@ -54,31 +54,18 @@ export async function POST(request: NextRequest) {
   try {
     initializeDatabase();
 
-    const body = await request.json() as CreateNetWorthInput;
+    const body = await request.json();
 
-    // Validate required fields
-    if (!body.recorded_at) {
+    // Validate with Zod
+    const parseResult = createNetWorthSchema.safeParse(body);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: 'recorded_at is required' },
+        { error: parseResult.error.errors[0]?.message || 'Invalid input' },
         { status: 400 }
       );
     }
 
-    if (!body.assets || !body.assets.fields) {
-      return NextResponse.json(
-        { error: 'assets data is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!body.liabilities || !body.liabilities.fields) {
-      return NextResponse.json(
-        { error: 'liabilities data is required' },
-        { status: 400 }
-      );
-    }
-
-    const entry = createNetWorthEntry(body);
+    const entry = createNetWorthEntry(parseResult.data);
     return NextResponse.json(entry, { status: 201 });
   } catch (error) {
     console.error('Error creating net worth entry:', error);
@@ -88,4 +75,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
