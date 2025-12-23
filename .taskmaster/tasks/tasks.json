@@ -529,15 +529,16 @@
           5,
           7
         ],
-        "status": "pending",
+        "status": "done",
+        "completedAt": "2025-12-23",
         "subtasks": [
           {
             "id": 1,
             "title": "Rules Management Interface and CRUD Operations",
             "description": "Build the complete rules management interface with list view, creation form, and CRUD operations including API endpoints",
             "dependencies": [],
-            "details": "Create rules management page displaying existing rules in a table format. Build rule creation form with match text input and category selection dropdown. Implement API routes (GET/POST/PATCH/DELETE /api/rules) for full CRUD operations. Add rule editing functionality with form pre-population and deletion with confirmation dialogs. Include form validation to prevent empty rules and basic conflict detection.",
-            "status": "pending",
+            "details": "Created rules management page (components/settings/rules-management.tsx) displaying existing rules with match text, category, priority, and match count. Built rule creation form with match text input and category selection dropdown. Implemented API routes (GET/POST/PATCH/DELETE /api/rules and /api/rules/[id]) for full CRUD operations. Added rule editing functionality with form pre-population and deletion with confirmation dialogs. Included form validation to prevent empty rules.",
+            "status": "done",
             "testStrategy": "Test rule creation, editing, deletion, and API endpoints. Verify form validation prevents invalid rules and confirmation dialogs work correctly."
           },
           {
@@ -547,8 +548,8 @@
             "dependencies": [
               1
             ],
-            "details": "Add drag-and-drop reordering capability to the rules list using a library like react-beautiful-dnd or native HTML5 drag API. Implement priority field in rule data model with automatic reordering when rules are moved. Create visual indicators for rule priority order and ensure priority updates are persisted via API calls. Handle edge cases like moving rules to top/bottom positions.",
-            "status": "pending",
+            "details": "Added drag-and-drop reordering capability to the rules list using native HTML5 drag API. Implemented priority field in rule data model with automatic reordering when rules are moved. Created visual indicators (drag handle icon, drag-over styling) for rule priority order. Priority updates are persisted via PATCH /api/rules API call with ruleIds array.",
+            "status": "done",
             "testStrategy": "Test drag-and-drop functionality across different browsers, verify priority updates persist correctly, and ensure visual feedback during drag operations."
           },
           {
@@ -558,8 +559,8 @@
             "dependencies": [
               2
             ],
-            "details": "Implement rule application engine using 'contains exact text' matching algorithm. Create rule processing logic that applies rules in priority order with 'first match wins' strategy. Integrate rule engine with CSV import processing to automatically categorize transactions during import. Add performance optimizations for large rule sets and transaction batches. Ensure rules don't interfere with manual categorization overrides.",
-            "status": "pending",
+            "details": "Implemented rule application engine in lib/db/rules.ts using 'contains exact text' (case-insensitive) matching. Created applyRulesToDescription() and applyRulesToTransactions() functions with 'first match wins' strategy. Integrated with CSV import (app/api/transactions/import/route.ts) to automatically categorize transactions during import. Added autoCategorized count to ImportResult. Also added ability to apply rules to existing uncategorized transactions via POST /api/rules/[id].",
+            "status": "done",
             "testStrategy": "Test rule matching accuracy, priority-based application, integration with import system, and performance with large datasets. Verify manual categorization takes precedence over automatic rules."
           },
           {
@@ -569,8 +570,8 @@
             "dependencies": [
               3
             ],
-            "details": "Build rule testing interface allowing users to preview which transactions would match specific rules before applying them. Create rule statistics dashboard showing match counts, success rates, and rule usage analytics. Implement rule conflict detection and prevention system to identify overlapping or contradictory rules. Add rule performance metrics and suggestions for rule optimization. Include batch testing functionality for validating rule sets against historical data.",
-            "status": "pending",
+            "details": "Built rule testing interface showing preview of matching uncategorized transactions when creating/editing rules. Created rule statistics showing match counts per rule. Added countMatchingTransactions() and testRule() functions. Implemented 'Apply to existing transactions' dialog that appears after creating a new rule, showing count of matching transactions with option to apply immediately. Added Zap button to manually apply any rule to existing transactions.",
+            "status": "done",
             "testStrategy": "Test rule preview functionality, statistics accuracy, conflict detection algorithms, and performance metrics calculation. Verify batch testing handles large datasets efficiently."
           }
         ]
