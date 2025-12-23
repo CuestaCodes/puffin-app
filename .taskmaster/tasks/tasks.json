@@ -661,7 +661,7 @@
             "description": "Build backend API endpoints to aggregate and serve analytics data for dashboard visualization",
             "dependencies": [],
             "details": "Install Recharts package and create API routes for income percentage breakdown by sub-category, monthly spending trends, and upper category trends over time. Implement data aggregation logic with proper date filtering and percentage calculations.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test API endpoints with various date ranges and verify calculation accuracy for percentages and trend data"
           },
           {
@@ -672,7 +672,7 @@
               1
             ],
             "details": "Build dashboard page layout with summary cards showing total income, expenses, and net balance. Implement responsive grid layout and ensure proper data binding from analytics APIs with loading states and error handling.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test layout responsiveness across devices and verify summary card data updates correctly"
           },
           {
@@ -684,7 +684,7 @@
               2
             ],
             "details": "Create line charts for monthly trends and pie charts for income allocation breakdown. Add period selectors for 3, 6, and 12-month views. Implement chart interactivity, tooltips, and responsive design with proper data formatting.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test chart rendering with various data sets, period selector functionality, and chart responsiveness"
           }
         ]

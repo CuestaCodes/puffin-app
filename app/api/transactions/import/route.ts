@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth';
 import { getDatabase, initializeDatabase } from '@/lib/db';
 import { generateId } from '@/lib/uuid';
 import { getExistingFingerprints, generateFingerprint } from '@/lib/csv/duplicate-detector';
+import { applyRulesToDescription } from '@/lib/db/rules';
 import type { ImportResult } from '@/types/import';
 
 // Validation schema for import transactions
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
       imported: 0,
       skipped: 0,
       duplicates: 0,
+      autoCategorized: 0,
       errors: [],
     };
     
@@ -97,6 +99,19 @@ export async function POST(request: Request) {
             }
           }
           
+          // Determine sub_category_id - apply rules if not already set
+          let finalSubCategoryId = tx.sub_category_id || null;
+          let wasAutoCategorized = false;
+
+          if (!finalSubCategoryId) {
+            // Apply auto-categorization rules
+            const matchedCategoryId = applyRulesToDescription(tx.description);
+            if (matchedCategoryId) {
+              finalSubCategoryId = matchedCategoryId;
+              wasAutoCategorized = true;
+            }
+          }
+
           // Insert transaction
           const id = generateId();
           insertStmt.run(
@@ -105,12 +120,15 @@ export async function POST(request: Request) {
             tx.description,
             tx.amount,
             tx.notes || null,
-            tx.sub_category_id || null,
+            finalSubCategoryId,
             tx.source_id || null
           );
-          
+
           importedFingerprints.add(fingerprint);
           result.imported++;
+          if (wasAutoCategorized) {
+            result.autoCategorized++;
+          }
         } catch (error) {
           result.errors.push({
             rowIndex: i,
@@ -131,12 +149,13 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error importing transactions:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
         error: 'Failed to import transactions',
         imported: 0,
         skipped: 0,
         duplicates: 0,
+        autoCategorized: 0,
         errors: [{ rowIndex: -1, message: 'Server error during import' }]
       },
       { status: 500 }

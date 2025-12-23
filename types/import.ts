@@ -75,6 +75,7 @@ export interface ImportResult {
   imported: number;
   skipped: number;
   duplicates: number;
+  autoCategorized: number;
   errors: ImportError[];
 }
 

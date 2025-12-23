@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ListTree, Sparkles, CloudUpload, Database, Shield } from 'lucide-react';
-import { CategoryManagement } from '@/components/settings';
+import { CategoryManagement, RulesManagement } from '@/components/settings';
 
 type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
 
@@ -14,6 +14,11 @@ export function SettingsPage() {
   // Render the category management page
   if (currentView === 'categories') {
     return <CategoryManagement onBack={() => setCurrentView('main')} />;
+  }
+
+  // Render the rules management page
+  if (currentView === 'rules') {
+    return <RulesManagement onBack={() => setCurrentView('main')} />;
   }
 
   return (
@@ -52,7 +57,10 @@ export function SettingsPage() {
         </Card>
 
         {/* Auto-categorization Rules */}
-        <Card className="border-slate-800 bg-slate-900/50 hover:border-violet-700 transition-colors cursor-pointer">
+        <Card
+          className="border-slate-800 bg-slate-900/50 hover:border-violet-700 transition-colors cursor-pointer"
+          onClick={() => setCurrentView('rules')}
+        >
           <CardHeader>
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-violet-950/30 border border-violet-900/50">

@@ -439,10 +439,14 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               </p>
             </div>
             
-            <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
+            <div className="grid grid-cols-4 gap-3 max-w-md mx-auto">
               <div className="p-3 bg-emerald-500/10 rounded-lg">
                 <p className="text-2xl font-semibold text-emerald-400">{importResult.imported}</p>
                 <p className="text-xs text-slate-400">Imported</p>
+              </div>
+              <div className="p-3 bg-violet-500/10 rounded-lg">
+                <p className="text-2xl font-semibold text-violet-400">{importResult.autoCategorized}</p>
+                <p className="text-xs text-slate-400">Auto-Tagged</p>
               </div>
               <div className="p-3 bg-amber-500/10 rounded-lg">
                 <p className="text-2xl font-semibold text-amber-400">{importResult.duplicates}</p>
