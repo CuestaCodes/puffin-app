@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { initializeDatabase } from '@/lib/db';
-import { getRuleById, updateRule, deleteRule } from '@/lib/db/rules';
+import { getRuleById, updateRule, deleteRule, applyRuleToExistingTransactions } from '@/lib/db/rules';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -75,6 +75,40 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     console.error('Error updating rule:', error);
     return NextResponse.json(
       { error: 'Failed to update rule' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/rules/[id] - Apply rule to existing uncategorized transactions
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
+
+  try {
+    initializeDatabase();
+
+    const { id } = await params;
+    const rule = getRuleById(id);
+
+    if (!rule) {
+      return NextResponse.json(
+        { error: 'Rule not found' },
+        { status: 404 }
+      );
+    }
+
+    const updatedCount = applyRuleToExistingTransactions(id);
+
+    return NextResponse.json({
+      success: true,
+      updatedCount,
+      message: `Applied rule to ${updatedCount} transaction${updatedCount !== 1 ? 's' : ''}`,
+    });
+  } catch (error) {
+    console.error('Error applying rule:', error);
+    return NextResponse.json(
+      { error: 'Failed to apply rule' },
       { status: 500 }
     );
   }

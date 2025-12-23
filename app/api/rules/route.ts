@@ -8,6 +8,7 @@ import {
   updateRulePriorities,
   getRuleStats,
   testRule,
+  countMatchingTransactions,
 } from '@/lib/db/rules';
 
 // GET /api/rules - Get all rules
@@ -39,6 +40,19 @@ export async function GET(request: NextRequest) {
       const limit = parseInt(searchParams.get('limit') || '10');
       const matches = testRule(matchText, limit);
       return NextResponse.json({ matches });
+    }
+
+    // Count matching uncategorized transactions for a match text
+    if (action === 'count') {
+      const matchText = searchParams.get('matchText');
+      if (!matchText) {
+        return NextResponse.json(
+          { error: 'matchText is required for counting' },
+          { status: 400 }
+        );
+      }
+      const count = countMatchingTransactions(matchText);
+      return NextResponse.json({ count });
     }
 
     const rules = getAllRules();

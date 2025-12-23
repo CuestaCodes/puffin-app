@@ -31,6 +31,8 @@ import {
   Sparkles,
   Search,
   AlertTriangle,
+  CheckCircle,
+  Zap,
 } from 'lucide-react';
 import type { SubCategoryWithUpper } from '@/types/database';
 import { cn } from '@/lib/utils';
@@ -71,6 +73,13 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
   // Delete state
   const [deletingRule, setDeletingRule] = useState<AutoCategoryRuleWithCategory | null>(null);
+
+  // Apply to existing state
+  const [showApplyDialog, setShowApplyDialog] = useState(false);
+  const [applyingRuleId, setApplyingRuleId] = useState<string | null>(null);
+  const [matchingCount, setMatchingCount] = useState(0);
+  const [isApplying, setIsApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<{ success: boolean; count: number } | null>(null);
 
   // Drag state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -147,19 +156,36 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
     try {
       const url = editingRule ? `/api/rules/${editingRule.id}` : '/api/rules';
       const method = editingRule ? 'PATCH' : 'POST';
+      const isNewRule = !editingRule;
+      const matchText = ruleMatchText;
 
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          match_text: ruleMatchText,
+          match_text: matchText,
           sub_category_id: ruleCategoryId,
         }),
       });
 
       if (response.ok) {
+        const savedRule = await response.json();
         await fetchRules();
         closeRuleDialog();
+
+        // For new rules, check if there are existing transactions to apply to
+        if (isNewRule) {
+          const countResponse = await fetch(`/api/rules?action=count&matchText=${encodeURIComponent(matchText)}`);
+          if (countResponse.ok) {
+            const { count } = await countResponse.json();
+            if (count > 0) {
+              setApplyingRuleId(savedRule.id);
+              setMatchingCount(count);
+              setApplyResult(null);
+              setShowApplyDialog(true);
+            }
+          }
+        }
       } else {
         const data = await response.json();
         setError(data.error || 'Failed to save rule');
@@ -169,6 +195,54 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
       setError('Failed to save rule');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Apply rule to existing transactions
+  const handleApplyToExisting = async () => {
+    if (!applyingRuleId) return;
+
+    setIsApplying(true);
+    try {
+      const response = await fetch(`/api/rules/${applyingRuleId}`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setApplyResult({ success: true, count: data.updatedCount });
+        await fetchRules(); // Refresh to get updated match counts
+      } else {
+        setApplyResult({ success: false, count: 0 });
+      }
+    } catch (err) {
+      console.error('Failed to apply rule:', err);
+      setApplyResult({ success: false, count: 0 });
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const closeApplyDialog = () => {
+    setShowApplyDialog(false);
+    setApplyingRuleId(null);
+    setMatchingCount(0);
+    setApplyResult(null);
+  };
+
+  // Open apply dialog for an existing rule
+  const openApplyDialog = async (rule: AutoCategoryRuleWithCategory) => {
+    try {
+      const response = await fetch(`/api/rules?action=count&matchText=${encodeURIComponent(rule.match_text)}`);
+      if (response.ok) {
+        const { count } = await response.json();
+        setApplyingRuleId(rule.id);
+        setMatchingCount(count);
+        setApplyResult(null);
+        setShowApplyDialog(true);
+      }
+    } catch (err) {
+      console.error('Failed to get matching count:', err);
     }
   };
 
@@ -406,6 +480,15 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => openApplyDialog(rule)}
+                    className="text-slate-400 hover:text-violet-400"
+                    title="Apply to existing transactions"
+                  >
+                    <Zap className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => openEditRuleDialog(rule)}
                     className="text-slate-400 hover:text-white"
                   >
@@ -585,6 +668,69 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
               ) : null}
               Delete Rule
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply to Existing Transactions Dialog */}
+      <Dialog open={showApplyDialog} onOpenChange={closeApplyDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Zap className="w-5 h-5 text-violet-400" />
+              Apply to Existing Transactions
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {applyResult ? (
+                applyResult.success ? (
+                  <span className="flex items-center gap-2 text-emerald-400">
+                    <CheckCircle className="w-4 h-4" />
+                    Successfully categorized {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
+                  </span>
+                ) : (
+                  <span className="text-red-400">Failed to apply rule. Please try again.</span>
+                )
+              ) : (
+                <>
+                  Found <span className="text-violet-400 font-semibold">{matchingCount}</span> uncategorized
+                  transaction{matchingCount !== 1 ? 's' : ''} that match{matchingCount === 1 ? 'es' : ''} this rule.
+                  Would you like to categorize them now?
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            {applyResult ? (
+              <Button
+                onClick={closeApplyDialog}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Done
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={closeApplyDialog}
+                  className="border-slate-700 text-slate-300"
+                >
+                  Skip
+                </Button>
+                <Button
+                  onClick={handleApplyToExisting}
+                  disabled={isApplying}
+                  className="bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  {isApplying ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 mr-2" />
+                  )}
+                  Apply Now
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

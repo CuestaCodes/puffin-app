@@ -338,3 +338,60 @@ export function getRuleStats(): {
     totalMatches: result.total_matches || 0,
   };
 }
+
+/**
+ * Count how many existing uncategorized transactions would match a rule
+ */
+export function countMatchingTransactions(matchText: string): number {
+  const db = getDatabase();
+
+  const result = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+  `).get(matchText.trim()) as { count: number };
+
+  return result.count;
+}
+
+/**
+ * Apply a rule to existing uncategorized transactions
+ * Returns the number of transactions updated
+ */
+export function applyRuleToExistingTransactions(ruleId: string): number {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  // Get the rule
+  const rule = db.prepare(`
+    SELECT match_text, sub_category_id
+    FROM auto_category_rule
+    WHERE id = ?
+  `).get(ruleId) as { match_text: string; sub_category_id: string } | undefined;
+
+  if (!rule) return 0;
+
+  // Update matching uncategorized transactions
+  const result = db.prepare(`
+    UPDATE "transaction"
+    SET sub_category_id = ?, updated_at = ?
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+  `).run(rule.sub_category_id, now, rule.match_text);
+
+  // Update the rule's match count
+  if (result.changes > 0) {
+    db.prepare(`
+      UPDATE auto_category_rule
+      SET match_count = match_count + ?, updated_at = ?
+      WHERE id = ?
+    `).run(result.changes, now, ruleId);
+  }
+
+  return result.changes;
+}
