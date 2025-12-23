@@ -191,10 +191,14 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
 }
 
 /**
- * Get spending breakdown by upper category type for a period
+ * Get spending breakdown by upper category type for a year
+ * Note: Uses strftime for year matching to handle various date formats
  */
-export function getUpperCategoryBreakdown(startDate: string, endDate: string): UpperCategoryBreakdown[] {
+export function getUpperCategoryBreakdown(startDate: string, _endDate: string): UpperCategoryBreakdown[] {
   const db = getDatabase();
+
+  // Extract year from startDate (format: YYYY-MM-DD)
+  const year = startDate.substring(0, 4);
 
   const query = `
     SELECT
@@ -203,16 +207,16 @@ export function getUpperCategoryBreakdown(startDate: string, endDate: string): U
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
-    WHERE t.date >= ? AND t.date <= ?
+    WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type IN ('expense', 'bill', 'debt', 'saving')
     GROUP BY uc.type
-    HAVING amount > 0
+    HAVING SUM(ABS(t.amount)) > 0
     ORDER BY amount DESC
   `;
 
-  const results = db.prepare(query).all(startDate, endDate) as Array<{
+  const results = db.prepare(query).all(year) as Array<{
     type: string;
     amount: number;
   }>;
@@ -235,10 +239,14 @@ export function getUpperCategoryBreakdown(startDate: string, endDate: string): U
 }
 
 /**
- * Get expense breakdown by sub-category for a period
+ * Get expense breakdown by sub-category for a year
+ * Note: Uses strftime for year matching to handle various date formats
  */
-export function getExpenseBreakdown(startDate: string, endDate: string): CategoryBreakdown[] {
+export function getExpenseBreakdown(startDate: string, _endDate: string): CategoryBreakdown[] {
   const db = getDatabase();
+
+  // Extract year from startDate (format: YYYY-MM-DD)
+  const year = startDate.substring(0, 4);
 
   const query = `
     SELECT
@@ -250,16 +258,16 @@ export function getExpenseBreakdown(startDate: string, endDate: string): Categor
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
-    WHERE t.date >= ? AND t.date <= ?
+    WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type IN ('expense', 'bill', 'debt', 'saving')
     GROUP BY sc.id
-    HAVING amount > 0
+    HAVING SUM(ABS(t.amount)) > 0
     ORDER BY amount DESC
   `;
 
-  const results = db.prepare(query).all(startDate, endDate) as Array<{
+  const results = db.prepare(query).all(year) as Array<{
     category_id: string;
     category_name: string;
     upper_category_name: string;
