@@ -12,8 +12,8 @@ interface TransactionToCheck {
 }
 
 export async function POST(request: Request) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
   
   try {
     initializeDatabase();

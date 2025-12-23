@@ -50,6 +50,20 @@ export interface UpperCategoryTrend {
   debt: number;
 }
 
+export interface MonthlyIncomeBySubcategory {
+  month: string;
+  monthLabel: string;
+  subcategories: Record<string, number>; // subcategory name -> amount
+}
+
+export interface MonthlyCategoryTotal {
+  upperCategory: string;
+  upperCategoryType: string;
+  subCategory: string;
+  monthlyTotals: number[]; // 12 months, index 0 = Jan
+  yearTotal: number;
+}
+
 /**
  * Get dashboard summary for a date range
  */
@@ -331,6 +345,141 @@ export function getIncomeBreakdown(startDate: string, endDate: string): Category
     upperCategoryType: row.upper_category_type,
     amount: row.amount,
     percentage: total > 0 ? Math.round((row.amount / total) * 1000) / 10 : 0,
+  }));
+}
+
+/**
+ * Get monthly totals by category and subcategory for a specific year
+ * Used for the dashboard monthly breakdown table
+ */
+export function getMonthlyCategoryTotals(year: number): MonthlyCategoryTotal[] {
+  const db = getDatabase();
+
+  const query = `
+    SELECT
+      uc.name as upper_category,
+      uc.type as upper_category_type,
+      sc.name as sub_category,
+      CAST(strftime('%m', t.date) AS INTEGER) as month_num,
+      COALESCE(SUM(ABS(t.amount)), 0) as amount
+    FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE strftime('%Y', t.date) = ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+      AND uc.type != 'transfer'
+    GROUP BY uc.name, uc.type, sc.name, month_num
+    ORDER BY
+      CASE uc.type
+        WHEN 'income' THEN 1
+        WHEN 'expense' THEN 2
+        WHEN 'bill' THEN 3
+        WHEN 'saving' THEN 4
+        WHEN 'debt' THEN 5
+        ELSE 6
+      END,
+      uc.name,
+      sc.name,
+      month_num
+  `;
+
+  const yearStr = year.toString();
+  const results = db.prepare(query).all(yearStr) as Array<{
+    upper_category: string;
+    upper_category_type: string;
+    sub_category: string;
+    month_num: number;
+    amount: number;
+  }>;
+
+  // Group by upper category + sub category
+  const categoryMap = new Map<string, MonthlyCategoryTotal>();
+
+  for (const row of results) {
+    const key = `${row.upper_category}|${row.sub_category}`;
+
+    if (!categoryMap.has(key)) {
+      categoryMap.set(key, {
+        upperCategory: row.upper_category,
+        upperCategoryType: row.upper_category_type,
+        subCategory: row.sub_category,
+        monthlyTotals: new Array(12).fill(0),
+        yearTotal: 0,
+      });
+    }
+
+    const entry = categoryMap.get(key)!;
+    entry.monthlyTotals[row.month_num - 1] = row.amount;
+    entry.yearTotal += row.amount;
+  }
+
+  return Array.from(categoryMap.values());
+}
+
+/**
+ * Get monthly income trends by subcategory for a specific year
+ * Returns cumulative income data per subcategory per month
+ */
+export function getMonthlyIncomeTrendsBySubcategory(year: number): MonthlyIncomeBySubcategory[] {
+  const db = getDatabase();
+
+  const query = `
+    WITH RECURSIVE months AS (
+      SELECT 1 as month_num
+      UNION ALL
+      SELECT month_num + 1
+      FROM months
+      WHERE month_num < 12
+    )
+    SELECT
+      ? || '-' || printf('%02d', m.month_num) as month,
+      sc.name as subcategory_name,
+      COALESCE(SUM(t.amount), 0) as amount
+    FROM months m
+    LEFT JOIN "transaction" t ON strftime('%Y', t.date) = ?
+      AND CAST(strftime('%m', t.date) AS INTEGER) = m.month_num
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+    LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
+    LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE (uc.type = 'income' AND sc.name IS NOT NULL) OR t.id IS NULL
+    GROUP BY m.month_num, sc.name
+    ORDER BY m.month_num ASC, amount DESC
+  `;
+
+  const yearStr = year.toString();
+  const results = db.prepare(query).all(yearStr, yearStr) as Array<{
+    month: string;
+    subcategory_name: string | null;
+    amount: number;
+  }>;
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Group by month
+  const monthlyData: Map<string, Record<string, number>> = new Map();
+
+  // Initialize all 12 months
+  for (let i = 1; i <= 12; i++) {
+    const monthKey = `${year}-${String(i).padStart(2, '0')}`;
+    monthlyData.set(monthKey, {});
+  }
+
+  // Populate with income data
+  for (const row of results) {
+    if (row.subcategory_name && row.amount > 0) {
+      const subcats = monthlyData.get(row.month) || {};
+      subcats[row.subcategory_name] = row.amount;
+      monthlyData.set(row.month, subcats);
+    }
+  }
+
+  // Convert to array
+  return Array.from(monthlyData.entries()).map(([month, subcategories], index) => ({
+    month,
+    monthLabel: monthNames[index],
+    subcategories,
   }));
 }
 

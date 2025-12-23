@@ -416,6 +416,7 @@ export function splitTransaction(
         amount,
         notes: parent.notes,
         sub_category_id: split.sub_category_id || null,
+        source_id: parent.source_id,
         is_split: false,
         parent_transaction_id: parentId,
         is_deleted: false,

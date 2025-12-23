@@ -32,8 +32,8 @@ function safeParseInt(
 
 // GET /api/budgets - Get budgets for a month
 export async function GET(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -90,8 +90,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/budgets - Create or update a budget
 export async function POST(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();

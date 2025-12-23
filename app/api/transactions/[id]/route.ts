@@ -15,8 +15,8 @@ interface RouteParams {
 
 // GET /api/transactions/[id] - Get a single transaction
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -43,8 +43,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/transactions/[id] - Update a transaction
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -83,8 +83,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/transactions/[id] - Soft delete a transaction
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();

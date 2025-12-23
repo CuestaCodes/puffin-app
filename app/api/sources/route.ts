@@ -15,8 +15,8 @@ const createSourceSchema = z.object({
 
 // GET /api/sources - List all sources
 export async function GET() {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -35,8 +35,8 @@ export async function GET() {
 
 // POST /api/sources - Create a new source
 export async function POST(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();

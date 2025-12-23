@@ -15,8 +15,8 @@ import {
 
 // GET /api/transactions - List transactions with filtering and pagination
 export async function GET(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -70,8 +70,8 @@ export async function GET(request: NextRequest) {
 
 // POST /api/transactions - Create a new transaction
 export async function POST(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();

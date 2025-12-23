@@ -19,8 +19,8 @@ interface RouteParams {
 
 // GET /api/categories/[id] - Get a single category
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -52,8 +52,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // PATCH /api/categories/[id] - Update a category
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -107,8 +107,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/categories/[id] - Delete a sub-category
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();

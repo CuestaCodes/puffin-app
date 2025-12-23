@@ -7,17 +7,18 @@ import {
   getMonthlyTrendsByYear,
   getUpperCategoryBreakdown,
   getExpenseBreakdown,
-  getRecentTransactions,
+  getMonthlyIncomeTrendsBySubcategory,
+  getMonthlyCategoryTotals,
 } from '@/lib/db/analytics';
 
 // GET /api/analytics/dashboard - Get all dashboard data
 export async function GET(request: NextRequest) {
   console.log('=== Dashboard API called ===');
 
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) {
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) {
     console.log('Dashboard API - Not authenticated');
-    return response;
+    return auth.response;
   }
 
   try {
@@ -59,7 +60,9 @@ export async function GET(request: NextRequest) {
       yearEndStr
     );
 
-    const recentTransactions = getRecentTransactions(10);
+    const incomeTrends = getMonthlyIncomeTrendsBySubcategory(year);
+
+    const monthlyCategoryTotals = getMonthlyCategoryTotals(year);
 
     // Debug: log breakdown data
     console.log('Dashboard API - Year:', year);
@@ -77,7 +80,8 @@ export async function GET(request: NextRequest) {
       trends,
       upperCategoryBreakdown,
       expenseBreakdown,
-      recentTransactions,
+      incomeTrends,
+      monthlyCategoryTotals,
       period: {
         year,
         start: yearStartStr,

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Wallet, PiggyBank, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, PiggyBank, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -19,7 +19,6 @@ import {
   ComposedChart,
   Area,
 } from 'recharts';
-import type { TransactionWithCategory } from '@/types/database';
 
 interface DashboardSummary {
   totalIncome: number;
@@ -49,6 +48,7 @@ interface UpperCategoryBreakdown {
   label: string;
   amount: number;
   percentage: number;
+  [key: string]: string | number;
 }
 
 interface CategoryBreakdown {
@@ -58,6 +58,21 @@ interface CategoryBreakdown {
   upperCategoryType: string;
   amount: number;
   percentage: number;
+  [key: string]: string | number;
+}
+
+interface MonthlyIncomeBySubcategory {
+  month: string;
+  monthLabel: string;
+  subcategories: Record<string, number>;
+}
+
+interface MonthlyCategoryTotal {
+  upperCategory: string;
+  upperCategoryType: string;
+  subCategory: string;
+  monthlyTotals: number[];
+  yearTotal: number;
 }
 
 interface DashboardData {
@@ -65,7 +80,8 @@ interface DashboardData {
   trends: MonthlyTrend[];
   upperCategoryBreakdown: UpperCategoryBreakdown[];
   expenseBreakdown: CategoryBreakdown[];
-  recentTransactions: TransactionWithCategory[];
+  incomeTrends: MonthlyIncomeBySubcategory[];
+  monthlyCategoryTotals: MonthlyCategoryTotal[];
 }
 
 // Extended color palette for category breakdown (20 distinct colors)
@@ -214,7 +230,7 @@ export function Dashboard() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard
           title="Total Income"
           value={formatCurrency(summary.totalIncome)}
@@ -232,15 +248,6 @@ export function Dashboard() {
           icon={TrendingDown}
           iconColor="text-red-400"
           bgColor="bg-red-950/30 border border-red-900/50"
-        />
-        <SummaryCard
-          title="Net Balance"
-          value={formatCurrency(summary.netBalance)}
-          change={formatChange(summary.netChange)}
-          trend={summary.netChange >= 0 ? 'up' : 'down'}
-          icon={Wallet}
-          iconColor="text-cyan-400"
-          bgColor="bg-cyan-950/30 border border-cyan-900/50"
         />
         <SummaryCard
           title="Savings"
@@ -279,13 +286,25 @@ export function Dashboard() {
                     tickFormatter={formatYAxis}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '8px',
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const total = payload.reduce((sum, entry) => sum + (entry.value as number || 0), 0);
+                        return (
+                          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+                            <p className="text-slate-100 font-medium mb-2">{label}</p>
+                            {payload.map((entry, index) => (
+                              <p key={index} style={{ color: entry.color }} className="text-sm">
+                                {entry.name}: {formatCurrency(entry.value as number)}
+                              </p>
+                            ))}
+                            <p className="text-slate-100 font-semibold mt-2 pt-2 border-t border-slate-600">
+                              Total: {formatCurrency(total)}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
                     }}
-                    labelStyle={{ color: '#f1f5f9' }}
-                    formatter={(value: number) => [formatCurrency(value), '']}
                   />
                   <Line
                     type="monotone"
@@ -330,67 +349,105 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Income & Spend Chart */}
+        {/* Income by Subcategory Chart */}
         <Card className="border-slate-800 bg-slate-900/50">
           <CardHeader>
-            <CardTitle className="text-lg text-slate-100">Income & Spend</CardTitle>
+            <CardTitle className="text-lg text-slate-100">Income Sources</CardTitle>
           </CardHeader>
           <CardContent>
-            {data?.trends && data.trends.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <ComposedChart data={data.trends.map(t => ({
-                  ...t,
-                  // Total Spend includes expenses, bills, debt, AND savings
-                  totalSpend: t.expenses + t.bills + t.debt + t.savings
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis
-                    dataKey="monthLabel"
-                    stroke="#64748b"
-                    fontSize={12}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    stroke="#64748b"
-                    fontSize={12}
-                    tickLine={false}
-                    tickFormatter={formatYAxis}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '8px',
-                    }}
-                    labelStyle={{ color: '#f1f5f9' }}
-                    formatter={(value: number) => [formatCurrency(value), '']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="totalSpend"
-                    name="Total Spend"
-                    fill="#ef4444"
-                    fillOpacity={0.2}
-                    stroke="#ef4444"
-                    strokeWidth={1}
-                    strokeDasharray="3 3"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="income"
-                    name="Income"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ fill: '#10b981', strokeWidth: 2 }}
-                  />
-                  <Legend />
-                </ComposedChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                <p>Import transactions to see income trends</p>
-              </div>
-            )}
+            {(() => {
+              // Get all unique income subcategories across all months
+              const allSubcategories = new Set<string>();
+              data?.incomeTrends?.forEach(month => {
+                Object.keys(month.subcategories).forEach(sub => allSubcategories.add(sub));
+              });
+              const subcategoryList = Array.from(allSubcategories);
+
+              // Transform data for stacked area chart with cumulative values
+              const chartData = data?.incomeTrends?.map(month => {
+                const row: Record<string, string | number> = { monthLabel: month.monthLabel };
+                subcategoryList.forEach(sub => {
+                  row[sub] = month.subcategories[sub] || 0;
+                });
+                return row;
+              }) || [];
+
+              // Calculate cumulative totals
+              const cumulativeData = chartData.map((row, idx) => {
+                const cumRow: Record<string, string | number> = { monthLabel: row.monthLabel };
+                subcategoryList.forEach(sub => {
+                  let cumSum = 0;
+                  for (let i = 0; i <= idx; i++) {
+                    cumSum += (chartData[i][sub] as number) || 0;
+                  }
+                  cumRow[sub] = cumSum;
+                });
+                return cumRow;
+              });
+
+              if (subcategoryList.length === 0) {
+                return (
+                  <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                    <p>Import income transactions to see trends</p>
+                  </div>
+                );
+              }
+
+              return (
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={cumulativeData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      stroke="#64748b"
+                      fontSize={12}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      stroke="#64748b"
+                      fontSize={12}
+                      tickLine={false}
+                      tickFormatter={formatYAxis}
+                    />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const total = payload.reduce((sum, entry) => sum + (entry.value as number || 0), 0);
+                          return (
+                            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+                              <p className="text-slate-100 font-medium mb-2">{label}</p>
+                              {payload.map((entry, index) => (
+                                <p key={index} style={{ color: entry.color }} className="text-sm">
+                                  {entry.name}: {formatCurrency(entry.value as number)}
+                                </p>
+                              ))}
+                              <p className="text-slate-100 font-semibold mt-2 pt-2 border-t border-slate-600">
+                                Total: {formatCurrency(total)}
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    {subcategoryList.map((sub, index) => (
+                      <Area
+                        key={sub}
+                        type="monotone"
+                        dataKey={sub}
+                        name={sub}
+                        stackId="1"
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        fillOpacity={0.6}
+                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                        strokeWidth={2}
+                      />
+                    ))}
+                    <Legend />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
@@ -415,7 +472,7 @@ export function Dashboard() {
                     outerRadius={80}
                     innerRadius={40}
                     paddingAngle={2}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
                   >
                     {data.upperCategoryBreakdown.map((item) => (
@@ -431,7 +488,21 @@ export function Dashboard() {
                       border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
-                    formatter={(value: number) => [formatCurrency(value), 'Amount']}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0];
+                        const color = data.payload.fill || UPPER_CATEGORY_COLORS[data.payload.type] || '#64748b';
+                        return (
+                          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2">
+                            <p className="text-slate-100 font-medium">{data.name}</p>
+                            <p style={{ color }} className="font-semibold">
+                              {formatCurrency(data.value as number)}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                   <Legend
                     verticalAlign="bottom"
@@ -466,7 +537,7 @@ export function Dashboard() {
                     outerRadius={80}
                     innerRadius={40}
                     paddingAngle={1}
-                    label={({ name, percent }) => percent > 0.05 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
+                    label={({ name, percent }) => (percent ?? 0) > 0.05 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
                     labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
                   >
                     {data.expenseBreakdown.slice(0, 12).map((item, index) => (
@@ -482,10 +553,21 @@ export function Dashboard() {
                       border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
-                    formatter={(value: number, _name: string, props: { payload: CategoryBreakdown }) => [
-                      formatCurrency(value),
-                      props.payload.categoryName
-                    ]}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const item = payload[0];
+                        const color = item.payload.fill || '#64748b';
+                        return (
+                          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2">
+                            <p className="text-slate-100 font-medium">{item.name}</p>
+                            <p style={{ color }} className="font-semibold">
+                              {formatCurrency(item.value as number)}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                   <Legend
                     verticalAlign="bottom"
@@ -503,54 +585,95 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent transactions */}
+      {/* Monthly Category Totals Table */}
       <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader>
-          <CardTitle className="text-lg text-slate-100">Recent Transactions</CardTitle>
+          <CardTitle className="text-lg text-slate-100">Monthly Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
-          {data?.recentTransactions && data.recentTransactions.length > 0 ? (
+          {data?.monthlyCategoryTotals && data.monthlyCategoryTotals.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-400">Date</th>
-                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-400">Description</th>
-                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-400">Category</th>
-                    <th className="text-right py-2 px-3 text-xs font-medium text-slate-400">Amount</th>
+                    <th className="text-left py-2 px-2 text-xs font-medium text-slate-400 sticky left-0 bg-slate-900">Category</th>
+                    {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(month => (
+                      <th key={month} className="text-right py-2 px-2 text-xs font-medium text-slate-400 min-w-[70px]">{month}</th>
+                    ))}
+                    <th className="text-right py-2 px-2 text-xs font-medium text-slate-400 min-w-[80px]">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {data.recentTransactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-800/50">
-                      <td className="py-2 px-3 text-sm text-slate-300">
-                        {new Date(tx.date).toLocaleDateString('en-AU', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </td>
-                      <td className="py-2 px-3 text-sm text-slate-200 max-w-[200px] truncate">
-                        {tx.description}
-                      </td>
-                      <td className="py-2 px-3 text-sm text-slate-400">
-                        {tx.sub_category_name || 'Uncategorized'}
-                      </td>
-                      <td
-                        className={`py-2 px-3 text-sm font-mono text-right ${
-                          tx.amount < 0 ? 'text-red-400' : 'text-emerald-400'
-                        }`}
-                      >
-                        {formatCurrency(tx.amount)}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody>
+                  {(() => {
+                    // Group by upper category
+                    const grouped = data.monthlyCategoryTotals.reduce((acc, item) => {
+                      const key = item.upperCategory;
+                      if (!acc[key]) {
+                        acc[key] = {
+                          type: item.upperCategoryType,
+                          items: [],
+                          monthlyTotals: new Array(12).fill(0),
+                          yearTotal: 0,
+                        };
+                      }
+                      acc[key].items.push(item);
+                      item.monthlyTotals.forEach((val, idx) => {
+                        acc[key].monthlyTotals[idx] += val;
+                      });
+                      acc[key].yearTotal += item.yearTotal;
+                      return acc;
+                    }, {} as Record<string, { type: string; items: MonthlyCategoryTotal[]; monthlyTotals: number[]; yearTotal: number }>);
+
+                    const typeColors: Record<string, string> = {
+                      income: 'text-emerald-400',
+                      expense: 'text-red-400',
+                      bill: 'text-amber-400',
+                      saving: 'text-cyan-400',
+                      debt: 'text-purple-400',
+                    };
+
+                    return Object.entries(grouped).map(([upperCat, group]) => (
+                      <Fragment key={upperCat}>
+                        {/* Upper category header row */}
+                        <tr className="bg-slate-800/50 border-t border-slate-700">
+                          <td className={`py-2 px-2 font-semibold sticky left-0 bg-slate-800/50 ${typeColors[group.type] || 'text-slate-200'}`}>
+                            {upperCat}
+                          </td>
+                          {group.monthlyTotals.map((total, idx) => (
+                            <td key={idx} className={`py-2 px-2 text-right font-medium ${typeColors[group.type] || 'text-slate-200'}`}>
+                              {total > 0 ? formatCurrency(total) : '-'}
+                            </td>
+                          ))}
+                          <td className={`py-2 px-2 text-right font-bold ${typeColors[group.type] || 'text-slate-200'}`}>
+                            {formatCurrency(group.yearTotal)}
+                          </td>
+                        </tr>
+                        {/* Subcategory rows */}
+                        {group.items.map((item) => (
+                          <tr key={`${upperCat}-${item.subCategory}`} className="hover:bg-slate-800/30">
+                            <td className="py-1.5 px-2 pl-6 text-slate-400 sticky left-0 bg-slate-900">
+                              {item.subCategory}
+                            </td>
+                            {item.monthlyTotals.map((total, idx) => (
+                              <td key={idx} className="py-1.5 px-2 text-right text-slate-300 font-mono text-xs">
+                                {total > 0 ? formatCurrency(total) : '-'}
+                              </td>
+                            ))}
+                            <td className="py-1.5 px-2 text-right text-slate-200 font-mono text-xs font-medium">
+                              {formatCurrency(item.yearTotal)}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
           ) : (
             <div className="text-center py-12 text-slate-500">
-              <p>No transactions yet</p>
-              <p className="text-sm mt-1">Import a CSV file or add transactions manually</p>
+              <p>No categorized transactions yet</p>
+              <p className="text-sm mt-1">Categorize transactions to see monthly breakdown</p>
             </div>
           )}
         </CardContent>

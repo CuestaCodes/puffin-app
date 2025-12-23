@@ -11,8 +11,8 @@ import {
 
 // GET /api/budgets/templates - Get all templates
 export async function GET(_request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -29,8 +29,8 @@ export async function GET(_request: NextRequest) {
 
 // POST /api/budgets/templates - Create or apply a template
 export async function POST(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -78,8 +78,8 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/budgets/templates - Delete a template
 export async function DELETE(request: NextRequest) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();

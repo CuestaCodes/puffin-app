@@ -26,8 +26,8 @@ const splitRequestSchema = z.object({
 
 // GET /api/transactions/[id]/split - Get child transactions for a split parent
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -65,8 +65,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 // POST /api/transactions/[id]/split - Split a transaction
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
@@ -101,8 +101,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 // DELETE /api/transactions/[id]/split - Unsplit a transaction
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const { isAuthenticated, response } = await requireAuth();
-  if (!isAuthenticated) return response;
+  const auth = await requireAuth();
+  if (!auth.isAuthenticated) return auth.response;
 
   try {
     initializeDatabase();
