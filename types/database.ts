@@ -10,6 +10,7 @@ export const UPPER_CATEGORY_TYPES = [
   'saving',
   'bill',
   'debt',
+  'sinking',
   'transfer',
 ] as const;
 

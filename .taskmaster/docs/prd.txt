@@ -39,7 +39,7 @@ The application is designed for individuals or households who want full control 
 **Why it's important:** Categorisation transforms raw transaction data into meaningful spending insights.
 
 **How it works:**
-- Two-tier category system: upper categories (renameable, default: Expense, Saving, Bill, Debt, Income, Transfer) and user-defined sub-categories
+- Two-tier category system: upper categories (renameable, default: Expense, Saving, Bill, Debt, Sinking Funds, Income, Transfer) and user-defined sub-categories
 - Uncategorised inbox showing all unassigned transactions sorted by date (newest first)
 - Auto-categorisation rules using "contains exact text" matching with drag-to-reorder priority
 - Rules applied silently on import; categories always editable
@@ -399,7 +399,7 @@ created_at: Timestamp
 
 ### 1.4 Database Models
 - Implement all data models (LocalUser, Transaction, UpperCategory, SubCategory, Budget, AutoCategoryRule, SyncLog)
-- Seed default upper categories (Expense, Saving, Bill, Debt, Income, Transfer)
+- Seed default upper categories (Expense, Saving, Bill, Debt, Sinking Funds, Income, Transfer)
 - Create database utility functions (connection, backup, restore)
 
 ### 1.5 Basic API Routes
@@ -991,6 +991,7 @@ Each numbered item above is designed to be:
 | Saving | Transfers to savings | Yes |
 | Bill | Recurring fixed costs | Yes |
 | Debt | Loan repayments | Yes |
+| Sinking Funds | Earmarked savings for future expenses | Yes |
 | Transfer | Inter-account transfers | No (excluded) |
 
 ## CSV Import Column Options

@@ -289,12 +289,13 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   const getCategoryTypeBadgeColor = (type: string) => {
     switch (type) {
-      case 'income': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+      case 'income': return 'bg-pink-500/20 text-pink-400 border-pink-500/30';
       case 'expense': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'saving': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'saving': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       case 'bill': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       case 'debt': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-      case 'transfer': return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
+      case 'sinking': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+      case 'transfer': return 'bg-stone-500/20 text-stone-400 border-stone-500/30';
       default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };

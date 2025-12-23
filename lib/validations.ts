@@ -36,7 +36,7 @@ export const splitTransactionSchema = z.object({
 
 // Category schemas
 export const createSubCategorySchema = z.object({
-  upper_category_id: z.enum(['income', 'expense', 'saving', 'bill', 'debt', 'transfer']),
+  upper_category_id: z.enum(['income', 'expense', 'saving', 'bill', 'debt', 'sinking', 'transfer']),
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
 });
 
@@ -113,7 +113,7 @@ export const transactionFilterSchema = z.object({
   startDate: z.string().regex(datePattern).optional(),
   endDate: z.string().regex(datePattern).optional(),
   categoryId: z.string().regex(uuidPattern).optional(),
-  upperCategoryId: z.enum(['income', 'expense', 'saving', 'bill', 'debt', 'transfer']).optional(),
+  upperCategoryId: z.enum(['income', 'expense', 'saving', 'bill', 'debt', 'sinking', 'transfer']).optional(),
   sourceId: z.string().regex(uuidPattern).optional(),
   search: z.string().max(200).optional(),
   minAmount: z.number().optional(),

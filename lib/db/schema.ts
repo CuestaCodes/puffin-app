@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS local_user (
 CREATE TABLE IF NOT EXISTS upper_category (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'saving', 'bill', 'debt', 'transfer')),
+  type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'saving', 'bill', 'debt', 'sinking', 'transfer')),
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -119,7 +119,8 @@ export const DEFAULT_UPPER_CATEGORIES = [
   { id: 'saving', name: 'Saving', type: 'saving', sort_order: 3 },
   { id: 'bill', name: 'Bill', type: 'bill', sort_order: 4 },
   { id: 'debt', name: 'Debt', type: 'debt', sort_order: 5 },
-  { id: 'transfer', name: 'Transfer', type: 'transfer', sort_order: 6 },
+  { id: 'sinking', name: 'Sinking Funds', type: 'sinking', sort_order: 6 },
+  { id: 'transfer', name: 'Transfer', type: 'transfer', sort_order: 7 },
 ] as const;
 
 export const SEED_SQL = `
@@ -130,7 +131,8 @@ INSERT OR IGNORE INTO upper_category (id, name, type, sort_order) VALUES
   ('saving', 'Saving', 'saving', 3),
   ('bill', 'Bill', 'bill', 4),
   ('debt', 'Debt', 'debt', 5),
-  ('transfer', 'Transfer', 'transfer', 6);
+  ('sinking', 'Sinking Funds', 'sinking', 6),
+  ('transfer', 'Transfer', 'transfer', 7);
 `;
 
 

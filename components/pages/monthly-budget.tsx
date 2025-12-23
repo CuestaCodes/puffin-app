@@ -661,12 +661,12 @@ function MonthlyBudgetContent() {
         <Card className="border-slate-800 bg-slate-900/50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <div className="p-2 rounded-lg bg-pink-500/10">
+                <TrendingUp className="w-4 h-4 text-pink-400" />
               </div>
               <p className="text-sm text-slate-400">Income</p>
             </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-emerald-400">
+            <p className="text-2xl font-bold mt-1 tabular-nums text-pink-400">
               {isLoading ? '—' : formatCurrency(budgetData?.totalIncome || 0)}
             </p>
           </CardContent>
@@ -703,7 +703,7 @@ function MonthlyBudgetContent() {
                     className={cn(
                       'h-full rounded-full transition-all duration-500',
                       spentPercentage > 100 ? 'bg-red-500' :
-                      spentPercentage > 80 ? 'bg-amber-500' : 'bg-cyan-500'
+                      spentPercentage > 80 ? 'bg-amber-500' : 'bg-emerald-500'
                     )}
                     style={{ width: `${Math.min(100, spentPercentage)}%` }}
                   />
@@ -776,11 +776,11 @@ function MonthlyBudgetContent() {
               {/* Income categories (read-only) */}
               {incomeCategories.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-emerald-500/30">
-                    <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-pink-500/30">
+                    <h3 className="text-sm font-semibold text-pink-400 uppercase tracking-wider">
                       Income
                     </h3>
-                    <span className="text-sm text-emerald-400 font-mono">
+                    <span className="text-sm text-pink-400 font-mono">
                       {formatCurrency(budgetData?.totalIncome || incomeCategories.reduce((sum, c) => sum + c.actual_amount, 0))}
                     </span>
                   </div>
@@ -794,20 +794,20 @@ function MonthlyBudgetContent() {
                           onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           className={cn(
                             'w-full p-3 rounded-lg transition-all text-left',
-                            'bg-emerald-500/5 border',
+                            'bg-pink-500/5 border',
                             isSelected 
-                              ? 'bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/20' 
-                              : 'border-emerald-500/10 hover:border-emerald-500/20'
+                              ? 'bg-pink-500/10 border-pink-500/30 ring-1 ring-pink-500/20' 
+                              : 'border-pink-500/10 hover:border-pink-500/20'
                           )}
                         >
                           <div className="flex items-center justify-between">
                             <span className={cn(
                               'font-medium',
-                              isSelected ? 'text-emerald-300' : 'text-slate-200'
+                              isSelected ? 'text-pink-300' : 'text-slate-200'
                             )}>
                               {category.sub_category_name}
                             </span>
-                            <span className="font-mono text-emerald-400">
+                            <span className="font-mono text-pink-400">
                               {formatCurrency(category.actual_amount)}
                             </span>
                           </div>
@@ -821,11 +821,11 @@ function MonthlyBudgetContent() {
               {/* Transfer categories (read-only, not contributing to budget) */}
               {transferCategories.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-blue-500/30">
-                    <h3 className="text-sm font-semibold text-blue-400 uppercase tracking-wider">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-stone-500/30">
+                    <h3 className="text-sm font-semibold text-stone-400 uppercase tracking-wider">
                       Transfers
                     </h3>
-                    <span className="text-sm text-blue-400 font-mono">
+                    <span className="text-sm text-stone-400 font-mono">
                       {formatCurrency(totalTransfers)}
                     </span>
                   </div>
@@ -839,20 +839,20 @@ function MonthlyBudgetContent() {
                           onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           className={cn(
                             'w-full p-3 rounded-lg transition-all text-left',
-                            'bg-blue-500/5 border',
+                            'bg-stone-500/5 border',
                             isSelected 
-                              ? 'bg-blue-500/10 border-blue-500/30 ring-1 ring-blue-500/20' 
-                              : 'border-blue-500/10 hover:border-blue-500/20'
+                              ? 'bg-stone-500/10 border-stone-500/30 ring-1 ring-stone-500/20' 
+                              : 'border-stone-500/10 hover:border-stone-500/20'
                           )}
                         >
                           <div className="flex items-center justify-between">
                             <span className={cn(
                               'font-medium',
-                              isSelected ? 'text-blue-300' : 'text-slate-200'
+                              isSelected ? 'text-stone-300' : 'text-slate-200'
                             )}>
                               {category.sub_category_name}
                             </span>
-                            <span className="font-mono text-blue-400">
+                            <span className="font-mono text-stone-400">
                               {formatCurrency(category.actual_amount)}
                             </span>
                           </div>

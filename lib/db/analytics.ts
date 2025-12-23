@@ -4,7 +4,7 @@ import type { TransactionWithCategory } from '@/types/database';
 
 export interface DashboardSummary {
   totalIncome: number;
-  totalSpend: number; // Includes expenses, bills, debt, AND savings
+  totalSpend: number; // Includes expenses, bills, debt, sinking funds, AND savings
   netBalance: number;
   totalSavings: number;
   savingsRate: number; // Savings / Income * 100
@@ -22,6 +22,7 @@ export interface MonthlyTrend {
   savings: number;
   bills: number;
   debt: number;
+  sinking: number;
   net: number;
 }
 
@@ -48,6 +49,7 @@ export interface UpperCategoryTrend {
   saving: number;
   bill: number;
   debt: number;
+  sinking: number;
 }
 
 export interface MonthlyIncomeBySubcategory {
@@ -83,7 +85,8 @@ export function getDashboardSummary(
       COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
       COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
       COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -99,6 +102,7 @@ export function getDashboardSummary(
     savings: number;
     bills: number;
     debt: number;
+    sinking: number;
   };
 
   // Previous period totals (for comparison)
@@ -108,18 +112,19 @@ export function getDashboardSummary(
     savings: number;
     bills: number;
     debt: number;
+    sinking: number;
   };
 
   // Calculate totals and changes
-  // Total Spend includes expenses, bills, debt, AND savings
+  // Total Spend includes expenses, bills, debt, sinking funds, AND savings
   const totalIncome = current.income || 0;
   const totalSavings = current.savings || 0;
-  const totalSpend = (current.expenses || 0) + (current.bills || 0) + (current.debt || 0) + totalSavings;
+  const totalSpend = (current.expenses || 0) + (current.bills || 0) + (current.debt || 0) + (current.sinking || 0) + totalSavings;
   const netBalance = totalIncome - totalSpend;
 
   const prevIncome = previous.income || 0;
   const prevSavings = previous.savings || 0;
-  const prevSpend = (previous.expenses || 0) + (previous.bills || 0) + (previous.debt || 0) + prevSavings;
+  const prevSpend = (previous.expenses || 0) + (previous.bills || 0) + (previous.debt || 0) + (previous.sinking || 0) + prevSavings;
   const prevNet = prevIncome - prevSpend;
 
   // Calculate percentage changes
@@ -164,7 +169,8 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
       COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
       COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
       COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
     FROM months m
     LEFT JOIN "transaction" t ON strftime('%Y', t.date) = ?
       AND CAST(strftime('%m', t.date) AS INTEGER) = m.month_num
@@ -185,12 +191,13 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
     savings: number;
     bills: number;
     debt: number;
+    sinking: number;
   }>;
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   return results.map((row, index) => {
-    const totalSpending = (row.expenses || 0) + (row.bills || 0) + (row.debt || 0) + (row.savings || 0);
+    const totalSpending = (row.expenses || 0) + (row.bills || 0) + (row.debt || 0) + (row.sinking || 0) + (row.savings || 0);
     return {
       month: row.month,
       monthLabel: monthNames[index],
@@ -199,6 +206,7 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
       savings: row.savings || 0,
       bills: row.bills || 0,
       debt: row.debt || 0,
+      sinking: row.sinking || 0,
       net: (row.income || 0) - totalSpending,
     };
   });
@@ -224,7 +232,7 @@ export function getUpperCategoryBreakdown(startDate: string, _endDate: string): 
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+      AND uc.type IN ('expense', 'bill', 'debt', 'sinking', 'saving')
     GROUP BY uc.type
     HAVING SUM(ABS(t.amount)) > 0
     ORDER BY amount DESC
@@ -241,6 +249,7 @@ export function getUpperCategoryBreakdown(startDate: string, _endDate: string): 
     expense: 'Expenses',
     bill: 'Bills',
     debt: 'Debt',
+    sinking: 'Sinking Funds',
     saving: 'Savings',
   };
 
@@ -275,7 +284,7 @@ export function getExpenseBreakdown(startDate: string, _endDate: string): Catego
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+      AND uc.type IN ('expense', 'bill', 'debt', 'sinking', 'saving')
     GROUP BY sc.id
     HAVING SUM(ABS(t.amount)) > 0
     ORDER BY amount DESC
@@ -377,7 +386,8 @@ export function getMonthlyCategoryTotals(year: number): MonthlyCategoryTotal[] {
         WHEN 'bill' THEN 3
         WHEN 'saving' THEN 4
         WHEN 'debt' THEN 5
-        ELSE 6
+        WHEN 'sinking' THEN 6
+        ELSE 7
       END,
       uc.name,
       sc.name,
@@ -502,7 +512,8 @@ export function getUpperCategoryTrends(months: number = 6): UpperCategoryTrend[]
       COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expense,
       COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as saving,
       COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bill,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
     FROM months m
     LEFT JOIN "transaction" t ON strftime('%Y-%m', t.date) = strftime('%Y-%m', m.month_start)
       AND t.is_deleted = 0
@@ -519,6 +530,7 @@ export function getUpperCategoryTrends(months: number = 6): UpperCategoryTrend[]
     saving: number;
     bill: number;
     debt: number;
+    sinking: number;
   }>;
 
   return results.map(row => {
@@ -533,6 +545,7 @@ export function getUpperCategoryTrends(months: number = 6): UpperCategoryTrend[]
       saving: row.saving || 0,
       bill: row.bill || 0,
       debt: row.debt || 0,
+      sinking: row.sinking || 0,
     };
   });
 }

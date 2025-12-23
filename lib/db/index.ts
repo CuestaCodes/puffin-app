@@ -64,7 +64,7 @@ export function initializeDatabase(): void {
 }
 
 /** Current schema version - increment when adding new migrations */
-const _CURRENT_SCHEMA_VERSION = 1;
+const _CURRENT_SCHEMA_VERSION = 2;
 
 /**
  * Get the current schema version from the database
@@ -142,8 +142,72 @@ function runMigrations(database: Database.Database): void {
     setSchemaVersion(database, 1);
   }
 
+  // Migration 2: Add Sinking Funds upper category
+  // Note: SQLite CHECK constraints cannot be altered, so we must recreate the table
+  // We need to disable foreign keys temporarily to allow dropping the table
+  if (currentVersion < 2) {
+    // Check if sinking category already exists (handles if migration was partially applied)
+    const sinkingExists = database.prepare(
+      "SELECT id FROM upper_category WHERE id = 'sinking'"
+    ).get();
+
+    if (!sinkingExists) {
+      // Check if upper_category_new exists from a failed previous attempt
+      const tempTableExists = database.prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='upper_category_new'"
+      ).get();
+
+      // Disable foreign keys temporarily for table recreation
+      database.pragma('foreign_keys = OFF');
+
+      try {
+        if (tempTableExists) {
+          // Clean up from failed previous attempt
+          database.exec(`DROP TABLE IF EXISTS upper_category_new`);
+        }
+
+        // Recreate upper_category table with updated CHECK constraint
+        database.exec(`
+          -- Create new table with updated CHECK constraint
+          CREATE TABLE upper_category_new (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'saving', 'bill', 'debt', 'sinking', 'transfer')),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          );
+
+          -- Copy existing data
+          INSERT INTO upper_category_new SELECT * FROM upper_category;
+
+          -- Update Transfer's sort_order to make room for Sinking Funds
+          UPDATE upper_category_new SET sort_order = 7 WHERE id = 'transfer';
+
+          -- Drop old table
+          DROP TABLE upper_category;
+
+          -- Rename new table
+          ALTER TABLE upper_category_new RENAME TO upper_category;
+        `);
+
+        // Insert Sinking Funds category
+        const now = new Date().toISOString();
+        database.prepare(`
+          INSERT INTO upper_category (id, name, type, sort_order, created_at, updated_at)
+          VALUES ('sinking', 'Sinking Funds', 'sinking', 6, ?, ?)
+        `).run(now, now);
+      } finally {
+        // Re-enable foreign keys
+        database.pragma('foreign_keys = ON');
+      }
+    }
+
+    setSchemaVersion(database, 2);
+  }
+
   // Future migrations go here:
-  // if (currentVersion < 2) { ... setSchemaVersion(database, 2); }
+  // if (currentVersion < 3) { ... setSchemaVersion(database, 3); }
 }
 
 /**

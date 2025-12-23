@@ -93,12 +93,13 @@ export function CategorySelector({
 
   // Type-safe color mapping - exhaustive by construction
   const CATEGORY_TYPE_COLORS = {
-    income: 'text-emerald-400',
+    income: 'text-pink-400',
     expense: 'text-red-400',
-    saving: 'text-cyan-400',
-    bill: 'text-orange-400',
+    saving: 'text-emerald-400',
+    bill: 'text-amber-400',
     debt: 'text-purple-400',
-    transfer: 'text-slate-400',
+    sinking: 'text-teal-400',
+    transfer: 'text-stone-400',
   } as const satisfies Record<UpperCategoryType, string>;
 
   const getCategoryTypeColor = (type: UpperCategoryType): string => {

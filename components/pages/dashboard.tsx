@@ -108,12 +108,15 @@ const CHART_COLORS = [
   '#4ade80', // green-400
 ];
 
-// Colors for upper category types - ensure distinct colors
+// Colors for upper category types - consistent across app
 const UPPER_CATEGORY_COLORS: Record<string, string> = {
-  expense: '#ef4444', // red
-  bill: '#f59e0b',    // amber/orange
-  debt: '#a855f7',    // purple (distinct from red)
-  saving: '#06b6d4',  // cyan
+  income: '#ec4899',  // pink-500
+  expense: '#ef4444', // red-500
+  bill: '#f59e0b',    // amber-500
+  debt: '#a855f7',    // purple-500
+  saving: '#10b981',  // emerald-500
+  sinking: '#14b8a6', // teal-500
+  transfer: '#78716c', // stone-500
 };
 
 // Format Y axis with decimal values for smaller scales
@@ -237,8 +240,8 @@ export function Dashboard() {
           change={formatChange(summary.incomeChange)}
           trend={summary.incomeChange >= 0 ? 'up' : 'down'}
           icon={TrendingUp}
-          iconColor="text-emerald-400"
-          bgColor="bg-emerald-950/30 border border-emerald-900/50"
+          iconColor="text-pink-400"
+          bgColor="bg-pink-950/30 border border-pink-900/50"
         />
         <SummaryCard
           title="Total Spent"
@@ -255,8 +258,8 @@ export function Dashboard() {
           change={formatChange(summary.savingsChange)}
           trend={summary.savingsChange >= 0 ? 'up' : 'down'}
           icon={PiggyBank}
-          iconColor="text-violet-400"
-          bgColor="bg-violet-950/30 border border-violet-900/50"
+          iconColor="text-emerald-400"
+          bgColor="bg-emerald-950/30 border border-emerald-900/50"
           badge={`${summary.savingsRate}% of income`}
         />
       </div>
@@ -334,9 +337,17 @@ export function Dashboard() {
                     type="monotone"
                     dataKey="savings"
                     name="Savings"
-                    stroke="#06b6d4"
+                    stroke="#10b981"
                     strokeWidth={2}
-                    dot={{ fill: '#06b6d4', strokeWidth: 2 }}
+                    dot={{ fill: '#10b981', strokeWidth: 2 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="sinking"
+                    name="Sinking Funds"
+                    stroke="#14b8a6"
+                    strokeWidth={2}
+                    dot={{ fill: '#14b8a6', strokeWidth: 2 }}
                   />
                   <Legend />
                 </LineChart>
@@ -625,11 +636,13 @@ export function Dashboard() {
                     }, {} as Record<string, { type: string; items: MonthlyCategoryTotal[]; monthlyTotals: number[]; yearTotal: number }>);
 
                     const typeColors: Record<string, string> = {
-                      income: 'text-emerald-400',
+                      income: 'text-pink-400',
                       expense: 'text-red-400',
                       bill: 'text-amber-400',
-                      saving: 'text-cyan-400',
+                      saving: 'text-emerald-400',
                       debt: 'text-purple-400',
+                      sinking: 'text-teal-400',
+                      transfer: 'text-stone-400',
                     };
 
                     return Object.entries(grouped).map(([upperCat, group]) => (
