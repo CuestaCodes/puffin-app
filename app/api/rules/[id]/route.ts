@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { initializeDatabase } from '@/lib/db';
+import { updateAutoRuleSchema } from '@/lib/validations';
 import { getRuleById, updateRule, deleteRule, applyRuleToExistingTransactions } from '@/lib/db/rules';
 
 interface RouteParams {
@@ -46,16 +47,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
     const body = await request.json();
-    const { match_text, sub_category_id, is_active } = body;
+    const parseResult = updateAutoRuleSchema.safeParse(body);
 
-    // Validate match_text if provided
-    if (match_text !== undefined && (typeof match_text !== 'string' || match_text.trim().length === 0)) {
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map(e => e.message).join(', ');
       return NextResponse.json(
-        { error: 'match_text must be a non-empty string' },
+        { error: errors },
         { status: 400 }
       );
     }
 
+    const { match_text, sub_category_id, is_active } = parseResult.data;
     const updates: { match_text?: string; sub_category_id?: string; is_active?: boolean } = {};
     if (match_text !== undefined) updates.match_text = match_text;
     if (sub_category_id !== undefined) updates.sub_category_id = sub_category_id;

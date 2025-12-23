@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import type { SubCategoryWithUpper } from '@/types/database';
 import { cn } from '@/lib/utils';
+import { UPPER_CATEGORY_TEXT_COLORS } from '@/lib/constants';
 
 interface AutoCategoryRuleWithCategory {
   id: string;
@@ -359,17 +360,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
     }).format(amount);
   };
 
-  // Get category type color
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'income': return 'text-emerald-400';
-      case 'expense': return 'text-red-400';
-      case 'bill': return 'text-amber-400';
-      case 'saving': return 'text-cyan-400';
-      case 'debt': return 'text-purple-400';
-      case 'sinking': return 'text-pink-400';
-      default: return 'text-slate-400';
-    }
+  // Get category type color from shared constants
+  const getTypeColor = (type: string): string => {
+    return UPPER_CATEGORY_TEXT_COLORS[type] || 'text-slate-400';
   };
 
   if (isLoading) {

@@ -62,3 +62,17 @@ export const UPPER_CATEGORY_COLORS: Record<string, string> = {
   sinking: '#14b8a6', // teal-500
   transfer: '#78716c', // stone-500
 } as const;
+
+/**
+ * Tailwind text color classes for upper category types.
+ * Used in UI components for consistent category text styling.
+ */
+export const UPPER_CATEGORY_TEXT_COLORS: Record<string, string> = {
+  income: 'text-pink-400',
+  expense: 'text-red-400',
+  bill: 'text-amber-400',
+  debt: 'text-purple-400',
+  saving: 'text-emerald-400',
+  sinking: 'text-teal-400',
+  transfer: 'text-stone-400',
+} as const;

@@ -195,11 +195,16 @@ export function updateRulePriorities(ruleIds: string[]): void {
 }
 
 /**
- * Apply rules to a transaction description
- * Returns the matching sub_category_id or null if no match
- * Uses "contains exact text" matching (case-insensitive)
+ * Match a transaction description against active rules and track the match.
+ *
+ * Returns the matching sub_category_id or null if no match.
+ * Uses "contains exact text" matching (case-insensitive).
+ *
+ * **Side effect**: Increments the match_count for the matched rule.
+ * Use this during import or when tracking rule usage is desired.
+ * For pure matching without side effects, use `findMatchingRule()` instead.
  */
-export function applyRulesToDescription(description: string): string | null {
+export function matchDescriptionAndTrack(description: string): string | null {
   const db = getDatabase();
 
   // Get all active rules in priority order
@@ -214,7 +219,7 @@ export function applyRulesToDescription(description: string): string | null {
 
   for (const rule of rules) {
     if (descLower.includes(rule.match_text.toLowerCase())) {
-      // Increment match count
+      // Increment match count (side effect)
       db.prepare(`
         UPDATE auto_category_rule
         SET match_count = match_count + 1, updated_at = ?
@@ -227,6 +232,36 @@ export function applyRulesToDescription(description: string): string | null {
 
   return null;
 }
+
+/**
+ * Match a transaction description against active rules (pure function, no side effects).
+ *
+ * Returns the matching sub_category_id or null if no match.
+ * Uses "contains exact text" matching (case-insensitive).
+ */
+export function findMatchingRule(description: string): string | null {
+  const db = getDatabase();
+
+  const rules = db.prepare(`
+    SELECT match_text, sub_category_id
+    FROM auto_category_rule
+    WHERE is_active = 1
+    ORDER BY priority ASC
+  `).all() as Array<{ match_text: string; sub_category_id: string }>;
+
+  const descLower = description.toLowerCase();
+
+  for (const rule of rules) {
+    if (descLower.includes(rule.match_text.toLowerCase())) {
+      return rule.sub_category_id;
+    }
+  }
+
+  return null;
+}
+
+// Alias for backward compatibility
+export const applyRulesToDescription = matchDescriptionAndTrack;
 
 /**
  * Apply rules to multiple transactions (batch processing)

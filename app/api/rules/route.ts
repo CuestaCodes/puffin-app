@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { initializeDatabase } from '@/lib/db';
+import { createAutoRuleSchema, reorderRulesSchema } from '@/lib/validations';
 import {
   getAllRules,
   createRule,
@@ -75,23 +76,17 @@ export async function POST(request: NextRequest) {
     initializeDatabase();
 
     const body = await request.json();
-    const { match_text, sub_category_id } = body;
+    const parseResult = createAutoRuleSchema.safeParse(body);
 
-    // Validation
-    if (!match_text || typeof match_text !== 'string' || match_text.trim().length === 0) {
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map(e => e.message).join(', ');
       return NextResponse.json(
-        { error: 'match_text is required and must be a non-empty string' },
+        { error: errors },
         { status: 400 }
       );
     }
 
-    if (!sub_category_id || typeof sub_category_id !== 'string') {
-      return NextResponse.json(
-        { error: 'sub_category_id is required' },
-        { status: 400 }
-      );
-    }
-
+    const { match_text, sub_category_id } = parseResult.data;
     const rule = createRule({ match_text, sub_category_id });
     return NextResponse.json(rule, { status: 201 });
   } catch (error) {
@@ -112,16 +107,17 @@ export async function PATCH(request: NextRequest) {
     initializeDatabase();
 
     const body = await request.json();
-    const { ruleIds } = body;
+    const parseResult = reorderRulesSchema.safeParse(body);
 
-    if (!Array.isArray(ruleIds)) {
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map(e => e.message).join(', ');
       return NextResponse.json(
-        { error: 'ruleIds must be an array' },
+        { error: errors },
         { status: 400 }
       );
     }
 
-    updateRulePriorities(ruleIds);
+    updateRulePriorities(parseResult.data.ruleIds);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating rule priorities:', error);

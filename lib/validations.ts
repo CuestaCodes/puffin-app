@@ -75,7 +75,7 @@ export const updateAutoRuleSchema = z.object({
 });
 
 export const reorderRulesSchema = z.object({
-  rule_ids: z.array(z.string().regex(uuidPattern, 'Invalid rule ID')),
+  ruleIds: z.array(z.string().regex(uuidPattern, 'Invalid rule ID')),
 });
 
 // Auth schemas
