@@ -130,6 +130,31 @@ The application is designed for individuals or households who want full control 
 - Auto-update notifications prompt user to download new versions from GitHub Releases
 - All data stored in standard Windows user data location (%APPDATA%)
 
+## 9. Net Worth Tracking
+
+**What it does:** Enables users to record periodic snapshots of their total assets and liabilities to track net worth over time with visual projections.
+
+**Why it's important:** Provides a holistic view of financial health beyond monthly budgeting, helping users track wealth accumulation and progress toward financial goals.
+
+**How it works:**
+- Standalone page separate from transaction-based budgeting
+- "Record Net Worth" button opens a form with predefined asset and liability fields
+- **Asset fields (customizable labels):**
+  - Home (at purchase price), Car (current value)
+  - Stocks 1, Stocks 2, Superannuation 1, Superannuation 2
+  - Cash, Offset account
+  - Asset 1, Asset 2, Asset 3, Asset 4 (generic slots)
+- **Liability fields (customizable labels):**
+  - Mortgage, Credit Card Debt, Car Loan
+  - Debt 1, Debt 2, Debt 3, Debt 4 (generic slots)
+- Each field has an editable label (persisted per entry) and value input
+- Calculates: Total Assets, Total Liabilities, Net Worth (assets - liabilities)
+- Entries displayed in a table with date, totals, and edit/delete actions
+- Delete requires confirmation dialog with prominent warning
+- Line chart showing net worth over time (Y-axis: net worth, X-axis: date)
+- Dashed projection line extending 5 years into future using linear regression
+- Data stored in SQLite database and included in Google Drive sync
+
 # User Experience
 
 ## User Persona
@@ -166,7 +191,7 @@ The application is designed for individuals or households who want full control 
 ## UI/UX Considerations
 
 - Clean, minimal interface prioritising data clarity
-- Consistent navigation: Dashboard, Monthly View, Inbox, Settings
+- Consistent navigation: Dashboard, Monthly View, Inbox, Net Worth, Settings
 - Import wizard: step-by-step with preview table
 - Red highlighting for over-budget items (clear visual alert)
 - Watermarks for budget history (subtle, non-intrusive)
@@ -284,6 +309,38 @@ status: Enum (success, failed)
 backup_path: String (nullable)
 ```
 
+### NetWorthEntry
+```
+id: UUID
+recorded_at: Date (snapshot date)
+assets_data: JSON (field labels and values)
+liabilities_data: JSON (field labels and values)
+total_assets: Decimal (calculated sum)
+total_liabilities: Decimal (calculated sum)
+net_worth: Decimal (total_assets - total_liabilities)
+notes: String (nullable)
+created_at: Timestamp
+```
+
+**JSON structure for assets_data/liabilities_data:**
+```json
+{
+  "home": { "label": "Home (Purchase)", "value": 650000 },
+  "car": { "label": "Tesla Model 3", "value": 45000 },
+  "stocks_1": { "label": "Vanguard ETF", "value": 30000 },
+  "stocks_2": { "label": "Stocks 2", "value": 0 },
+  "super_1": { "label": "AustralianSuper", "value": 120000 },
+  "super_2": { "label": "Superannuation 2", "value": 0 },
+  "cash": { "label": "Savings Account", "value": 15000 },
+  "offset": { "label": "Offset Account", "value": 25000 },
+  "asset_1": { "label": "Asset 1", "value": 0 },
+  "asset_2": { "label": "Asset 2", "value": 0 },
+  "asset_3": { "label": "Asset 3", "value": 0 },
+  "asset_4": { "label": "Asset 4", "value": 0 }
+}
+```
+*Liabilities follow same structure with keys: mortgage, credit_card, car_loan, debt_1-4*
+
 ## APIs and Integrations
 
 ### Internal API Routes (Next.js)
@@ -294,6 +351,8 @@ backup_path: String (nullable)
 - `GET/POST/PATCH/DELETE /api/categories` - Category management
 - `GET/POST/PATCH/DELETE /api/rules` - Auto-categorisation rules
 - `GET/POST /api/budgets` - Budget management
+- `GET/POST /api/net-worth` - List and create net worth entries
+- `GET/PUT/DELETE /api/net-worth/:id` - Read, update, delete net worth entry
 - `POST /api/sync/push` - Push to Google Drive
 - `POST /api/sync/pull` - Pull from Google Drive
 - `GET /api/analytics/*` - Dashboard data endpoints
@@ -680,6 +739,65 @@ export async function getTransactions() {
 - Changelog tracking through release descriptions
 - Community engagement via release discussions
 
+## Phase 10: Net Worth Tracking
+
+**Scope:** Standalone net worth tracking page with periodic snapshots, visualization, and projection.
+
+### 10.1 Database Schema and Types
+- Add `net_worth_entry` table to SQLite schema
+- Columns: id, recorded_at, assets_data (JSON), liabilities_data (JSON), total_assets, total_liabilities, net_worth, notes, created_at
+- Create TypeScript types for NetWorthEntry and field structures
+- JSON storage for customizable field labels and values
+
+### 10.2 Database Operations Layer
+- Create `lib/db/net-worth.ts` with CRUD functions
+- Implement: createNetWorthEntry, getAllNetWorthEntries, getNetWorthEntryById, updateNetWorthEntry, deleteNetWorthEntry
+- Handle JSON serialization/deserialization for assets_data and liabilities_data
+
+### 10.3 API Routes
+- `GET /api/net-worth` - List all entries (sorted by date descending)
+- `POST /api/net-worth` - Create new entry with Zod validation
+- `GET /api/net-worth/:id` - Get single entry
+- `PUT /api/net-worth/:id` - Update entry
+- `DELETE /api/net-worth/:id` - Hard delete entry
+
+### 10.4 Record Net Worth Dialog
+- Date picker for snapshot date
+- Assets section with 12 fields (customizable labels):
+  - Home, Car, Stocks 1-2, Superannuation 1-2, Cash, Offset, Asset 1-4
+- Liabilities section with 7 fields (customizable labels):
+  - Mortgage, Credit Card, Car Loan, Debt 1-4
+- Each field: editable label input + currency value input
+- Auto-calculate totals on save
+- Support both create and edit modes (pre-fill for editing)
+
+### 10.5 Entries Table
+- Columns: Date, Total Assets, Total Liabilities, Net Worth, Actions
+- Edit button opens pre-filled dialog
+- Delete button shows confirmation dialog with prominent warning:
+  - "This will permanently delete this net worth snapshot. This action cannot be undone."
+- Sortable by date
+
+### 10.6 Net Worth Chart with Projection
+- Recharts LineChart matching dashboard styling
+- Solid line for historical net worth values
+- Linear regression calculation for trend projection
+- Dashed line extending 5 years into future
+- Responsive container, dark theme styling
+- Empty state when no entries exist
+
+### 10.7 Net Worth Page
+- Header with title and "Record Net Worth" button
+- Net Worth Chart component
+- Entries Table component
+- Loading and empty states
+- Data refresh after create/edit/delete operations
+
+### 10.8 Navigation Integration
+- Add 'networth' to PageId type union
+- Add "Net Worth" nav item to sidebar with Wallet icon
+- Import and render NetWorthPage in app-shell switch
+
 ## Future Enhancements (Post-MVP)
 
 - QIF file format support
@@ -749,6 +867,15 @@ export async function getTransactions() {
 35. **Auto-update notification system** — Version checking and prompts
 36. **Build pipeline and release process** — Distributable artifacts
 
+## Layer 10: Net Worth Tracking (Standalone Feature)
+37. **Net worth database schema and types** — Table and TypeScript definitions
+38. **Net worth CRUD operations** — Database layer with JSON handling
+39. **Net worth API routes** — REST endpoints for entries
+40. **Record net worth dialog** — Form with customizable asset/liability fields
+41. **Entries table with delete warning** — List view with edit/delete actions
+42. **Net worth chart with projection** — Line chart with 5-year linear regression
+43. **Net worth page and navigation** — Combine components, add to sidebar
+
 ## Atomic Feature Builds
 
 Each numbered item above is designed to be:
@@ -763,6 +890,8 @@ Each numbered item above is designed to be:
 **Full MVP:** After Layer 8 (items 1-30), complete application running in development mode.
 
 **Distributable Product:** After Layer 9 (items 1-36), standalone .exe ready for end users.
+
+**Net Worth Tracking:** After Layer 10 (items 37-43), users can track net worth snapshots with visualization and 5-year projections.
 
 # Risks and Mitigations
 
