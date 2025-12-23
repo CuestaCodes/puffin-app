@@ -1,5 +1,6 @@
 // Analytics database operations for dashboard
 import { getDatabase } from './index';
+import { calculateTotalSpend } from '@/lib/utils';
 import type { TransactionWithCategory } from '@/types/database';
 
 export interface DashboardSummary {
@@ -119,12 +120,12 @@ export function getDashboardSummary(
   // Total Spend includes expenses, bills, debt, sinking funds, AND savings
   const totalIncome = current.income || 0;
   const totalSavings = current.savings || 0;
-  const totalSpend = (current.expenses || 0) + (current.bills || 0) + (current.debt || 0) + (current.sinking || 0) + totalSavings;
+  const totalSpend = calculateTotalSpend(current);
   const netBalance = totalIncome - totalSpend;
 
   const prevIncome = previous.income || 0;
   const prevSavings = previous.savings || 0;
-  const prevSpend = (previous.expenses || 0) + (previous.bills || 0) + (previous.debt || 0) + (previous.sinking || 0) + prevSavings;
+  const prevSpend = calculateTotalSpend(previous);
   const prevNet = prevIncome - prevSpend;
 
   // Calculate percentage changes
@@ -197,7 +198,7 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   return results.map((row, index) => {
-    const totalSpending = (row.expenses || 0) + (row.bills || 0) + (row.debt || 0) + (row.sinking || 0) + (row.savings || 0);
+    const totalSpending = calculateTotalSpend(row);
     return {
       month: row.month,
       monthLabel: monthNames[index],

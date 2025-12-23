@@ -19,6 +19,8 @@ import {
   ComposedChart,
   Area,
 } from 'recharts';
+import { CHART_COLORS, UPPER_CATEGORY_COLORS, DONUT_CHART } from '@/lib/constants';
+import { calculateTotalSpend } from '@/lib/utils';
 
 interface DashboardSummary {
   totalIncome: number;
@@ -84,41 +86,6 @@ interface DashboardData {
   monthlyCategoryTotals: MonthlyCategoryTotal[];
 }
 
-// Extended color palette for category breakdown (20 distinct colors)
-const CHART_COLORS = [
-  '#06b6d4', // cyan-500
-  '#8b5cf6', // violet-500
-  '#f59e0b', // amber-500
-  '#10b981', // emerald-500
-  '#ef4444', // red-500
-  '#ec4899', // pink-500
-  '#6366f1', // indigo-500
-  '#14b8a6', // teal-500
-  '#f97316', // orange-500
-  '#84cc16', // lime-500
-  '#a855f7', // purple-500
-  '#22d3ee', // cyan-400
-  '#fbbf24', // amber-400
-  '#34d399', // emerald-400
-  '#fb7185', // rose-400
-  '#818cf8', // indigo-400
-  '#2dd4bf', // teal-400
-  '#facc15', // yellow-400
-  '#a78bfa', // violet-400
-  '#4ade80', // green-400
-];
-
-// Colors for upper category types - consistent across app
-const UPPER_CATEGORY_COLORS: Record<string, string> = {
-  income: '#ec4899',  // pink-500
-  expense: '#ef4444', // red-500
-  bill: '#f59e0b',    // amber-500
-  debt: '#a855f7',    // purple-500
-  saving: '#10b981',  // emerald-500
-  sinking: '#14b8a6', // teal-500
-  transfer: '#78716c', // stone-500
-};
-
 // Format Y axis with decimal values for smaller scales
 const formatYAxis = (value: number): string => {
   if (value === 0) return '$0';
@@ -137,21 +104,10 @@ export function Dashboard() {
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-      console.log('Dashboard: Fetching data for year', year);
       const response = await fetch(`/api/analytics/dashboard?year=${year}`);
       if (response.ok) {
         const result = await response.json();
-        console.log('Dashboard: Received data:', {
-          hasSummary: !!result.summary,
-          trendsCount: result.trends?.length,
-          upperBreakdownCount: result.upperCategoryBreakdown?.length,
-          expenseBreakdownCount: result.expenseBreakdown?.length,
-          upperBreakdown: result.upperCategoryBreakdown,
-          expenseBreakdown: result.expenseBreakdown?.slice(0, 3),
-        });
         setData(result);
-      } else {
-        console.error('Dashboard: API error', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -480,9 +436,9 @@ export function Dashboard() {
                     nameKey="label"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
-                    innerRadius={40}
-                    paddingAngle={2}
+                    outerRadius={DONUT_CHART.OUTER_RADIUS}
+                    innerRadius={DONUT_CHART.INNER_RADIUS}
+                    paddingAngle={DONUT_CHART.PADDING_ANGLE}
                     label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
                   >
@@ -545,8 +501,8 @@ export function Dashboard() {
                     nameKey="categoryName"
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
-                    innerRadius={40}
+                    outerRadius={DONUT_CHART.OUTER_RADIUS}
+                    innerRadius={DONUT_CHART.INNER_RADIUS}
                     paddingAngle={1}
                     label={({ name, percent }) => (percent ?? 0) > 0.05 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
                     labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
