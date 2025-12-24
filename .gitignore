@@ -69,3 +69,7 @@ data/*.db-wal
 
 # Test database artifacts
 data/test/
+
+# Simulated multi-computer data directories
+data-computer-a/
+data-computer-b/

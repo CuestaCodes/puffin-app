@@ -210,16 +210,32 @@ export class GoogleDriveService {
         fs.mkdirSync(destDir, { recursive: true });
       }
 
-      // Write to destination
+      // Write to destination with timeout
       return new Promise((resolve) => {
         const dest = fs.createWriteStream(localDestPath);
-        (response.data as NodeJS.ReadableStream)
+        const stream = response.data as NodeJS.ReadableStream;
+        
+        // Timeout after 2 minutes
+        const timeout = setTimeout(() => {
+          stream.destroy();
+          dest.close();
+          resolve({ success: false, error: 'Download timed out' });
+        }, 120000);
+
+        stream
+          .on('error', (err) => {
+            clearTimeout(timeout);
+            dest.close();
+            resolve({ success: false, error: err.message });
+          })
           .pipe(dest)
           .on('finish', () => {
+            clearTimeout(timeout);
             SyncConfigManager.updateLastSynced();
             resolve({ success: true });
           })
           .on('error', (err) => {
+            clearTimeout(timeout);
             resolve({ success: false, error: err.message });
           });
       });

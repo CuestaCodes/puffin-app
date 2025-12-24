@@ -6,10 +6,7 @@
 import { google } from 'googleapis';
 import { SyncConfigManager } from './config';
 
-// OAuth2 configuration
-// These should be set in environment variables
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+// Redirect URI - can be overridden via environment
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/sync/oauth/callback';
 
 // Scopes required for Google Drive file access
@@ -20,10 +17,20 @@ const SCOPES = [
 ];
 
 /**
+ * Get the current credentials (from stored config or environment)
+ */
+function getCredentials() {
+  return SyncConfigManager.getCredentials();
+}
+
+/**
  * Create an OAuth2 client
  */
 export function getOAuth2Client() {
-  return new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+  const creds = getCredentials();
+  const clientId = creds?.clientId || '';
+  const clientSecret = creds?.clientSecret || '';
+  return new google.auth.OAuth2(clientId, clientSecret, REDIRECT_URI);
 }
 
 /**
@@ -86,7 +93,7 @@ export async function handleOAuthCallback(code: string): Promise<{ success: bool
       return { success: false, error: 'Failed to get tokens from Google' };
     }
 
-    // Save tokens
+    // Save tokens immediately
     SyncConfigManager.saveTokens({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
@@ -95,18 +102,13 @@ export async function handleOAuthCallback(code: string): Promise<{ success: bool
       scope: tokens.scope || SCOPES.join(' '),
     });
 
-    // Set credentials and get user info
+    // Fetch user info in background (don't block the redirect)
     client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: client });
-    const userInfo = await oauth2.userinfo.get();
-    const email = userInfo.data.email || undefined;
+    fetchAndSaveUserEmail(client).catch(err => {
+      console.error('Failed to fetch user email:', err);
+    });
 
-    // Save email to config
-    if (email) {
-      SyncConfigManager.saveConfig({ userEmail: email });
-    }
-
-    return { success: true, email };
+    return { success: true };
   } catch (error) {
     console.error('OAuth callback error:', error);
     return { 
@@ -117,10 +119,27 @@ export async function handleOAuthCallback(code: string): Promise<{ success: bool
 }
 
 /**
+ * Fetch user email in background (non-blocking)
+ */
+async function fetchAndSaveUserEmail(client: ReturnType<typeof getOAuth2Client>): Promise<void> {
+  try {
+    const oauth2 = google.oauth2({ version: 'v2', auth: client });
+    const userInfo = await oauth2.userinfo.get();
+    const email = userInfo.data.email;
+    if (email) {
+      SyncConfigManager.saveConfig({ userEmail: email });
+    }
+  } catch (error) {
+    console.error('Error fetching user email:', error);
+  }
+}
+
+/**
  * Check if OAuth is configured (client ID and secret are set)
  */
 export function isOAuthConfigured(): boolean {
-  return !!(CLIENT_ID && CLIENT_SECRET);
+  const creds = getCredentials();
+  return !!(creds?.clientId && creds?.clientSecret);
 }
 
 /**

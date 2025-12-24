@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
@@ -13,6 +14,22 @@ import { SyncConfigManager } from '@/lib/sync/config';
 const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'puffin.db');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+
+/**
+ * Checkpoint the WAL file to ensure all data is in the main database file
+ * This is critical for sync - otherwise we'd upload an empty/partial database
+ */
+function checkpointDatabase(): void {
+  try {
+    // Open the database and run checkpoint
+    const db = new Database(DB_PATH);
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.close();
+  } catch (error) {
+    console.error('WAL checkpoint error:', error);
+    // Continue anyway - the database might not be in WAL mode
+  }
+}
 
 /**
  * Create a local backup before sync
@@ -58,6 +75,9 @@ export async function POST() {
         { status: 404 }
       );
     }
+
+    // Checkpoint WAL to ensure all data is in the main database file
+    checkpointDatabase();
 
     // Create local backup before push
     createLocalBackup();

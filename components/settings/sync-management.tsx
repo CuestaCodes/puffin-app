@@ -15,11 +15,12 @@ import {
 } from '@/components/ui/dialog';
 import { 
   ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X, 
-  Loader2, AlertTriangle, LogOut, RefreshCw, ExternalLink,
-  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown
+  Loader2, AlertTriangle, LogOut, RefreshCw,
+  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Key, Settings2
 } from 'lucide-react';
 import type { SyncConfig } from '@/types/sync';
 import { useGooglePicker } from '@/hooks/use-google-picker';
+import { CredentialsSetup } from './credentials-setup';
 
 interface SyncManagementProps {
   onBack: () => void;
@@ -58,6 +59,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [showPullWarningDialog, setShowPullWarningDialog] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [showCredentialsSetup, setShowCredentialsSetup] = useState(false);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -293,12 +295,12 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     );
   }
 
-  // OAuth not configured state
+  // OAuth not configured state - show setup wizard
   if (!config?.oauthConfigured) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack}>
+          <Button variant="ghost" size="icon" onClick={onBack} className="text-slate-400 hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -307,35 +309,12 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
           </div>
         </div>
 
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="py-12 text-center">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-amber-400" />
-            <h3 className="text-lg font-semibold text-slate-100 mb-2">OAuth Not Configured</h3>
-            <p className="text-slate-400 max-w-md mx-auto">
-              Google Drive sync requires OAuth credentials. Please set the following environment variables:
-            </p>
-            <div className="mt-4 p-4 bg-slate-800/50 rounded-lg text-left max-w-md mx-auto">
-              <code className="text-sm text-cyan-400">
-                GOOGLE_CLIENT_ID=your_client_id<br />
-                GOOGLE_CLIENT_SECRET=your_client_secret<br />
-                GOOGLE_API_KEY=your_api_key<br />
-                GOOGLE_REDIRECT_URI=http://localhost:3000/api/sync/oauth/callback
-              </code>
-            </div>
-            <p className="text-slate-500 text-sm mt-4">
-              Get credentials from the{' '}
-              <a 
-                href="https://console.cloud.google.com/apis/credentials" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-cyan-400 hover:underline"
-              >
-                Google Cloud Console
-                <ExternalLink className="w-3 h-3 inline ml-1" />
-              </a>
-            </p>
-          </CardContent>
-        </Card>
+        <CredentialsSetup 
+          onComplete={() => {
+            // Refetch config after credentials are saved
+            fetchConfig();
+          }}
+        />
       </div>
     );
   }
@@ -660,6 +639,40 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Reconfigure credentials section (when configured) */}
+      {config?.oauthConfigured && (
+        <Card className="border-slate-800 bg-slate-900/50">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-100">Google Cloud Credentials</CardTitle>
+            <CardDescription className="text-slate-400">
+              Update your OAuth credentials if needed
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => setShowCredentialsSetup(true)}
+              variant="outline"
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Settings2 className="w-4 h-4 mr-2" />
+              Reconfigure Credentials
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Credentials Setup Dialog */}
+      {showCredentialsSetup && (
+        <CredentialsSetup
+          isDialog
+          onComplete={() => {
+            setShowCredentialsSetup(false);
+            fetchConfig();
+          }}
+          onCancel={() => setShowCredentialsSetup(false)}
+        />
       )}
 
       {/* Pull Warning Dialog */}

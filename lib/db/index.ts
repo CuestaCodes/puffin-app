@@ -5,7 +5,8 @@ import fs from 'fs';
 import { SCHEMA_SQL, SEED_SQL } from './schema';
 
 // Database file path - stored in user data directory
-const DB_DIR = process.env.PUFFIN_DB_DIR || path.join(process.cwd(), 'data');
+// Support both PUFFIN_DATA_DIR (preferred) and PUFFIN_DB_DIR (legacy) for consistency
+const DB_DIR = process.env.PUFFIN_DATA_DIR || process.env.PUFFIN_DB_DIR || path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'puffin.db');
 const BACKUP_DIR = path.join(DB_DIR, 'backups');
 
