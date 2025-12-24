@@ -16,7 +16,7 @@ import {
 import {
   ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X,
   Loader2, AlertTriangle, LogOut, RefreshCw,
-  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Key, Settings2, FileIcon, Users
+  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Key, Settings2, FileIcon, Users, Shield
 } from 'lucide-react';
 import type { SyncConfig } from '@/types/sync';
 import { useGooglePicker } from '@/hooks/use-google-picker';
@@ -29,6 +29,7 @@ interface SyncManagementProps {
 interface ExtendedSyncConfig extends SyncConfig {
   isAuthenticated: boolean;
   oauthConfigured: boolean;
+  hasExtendedScope: boolean;
 }
 
 interface PickerCredentials {
@@ -58,6 +59,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   // Dialogs
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [showPullWarningDialog, setShowPullWarningDialog] = useState(false);
+  const [showMultiAccountWarning, setShowMultiAccountWarning] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showCredentialsSetup, setShowCredentialsSetup] = useState(false);
 
@@ -166,10 +168,39 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     fetchConfig();
   }, [fetchConfig]);
 
-  // Handle OAuth authentication
+  // Handle OAuth authentication (standard scope for single-account)
   const handleAuthenticate = async () => {
     try {
       const response = await fetch('/api/sync/oauth/url');
+      if (response.ok) {
+        const data = await response.json();
+        window.location.href = data.url;
+      } else {
+        const error = await response.json();
+        setValidationError(error.error || 'Failed to start authentication');
+      }
+    } catch (err) {
+      console.error('Auth error:', err);
+      setValidationError('Failed to start authentication');
+    }
+  };
+
+  // Handle multi-account sync button click - show warning if extended scope needed
+  const handleMultiAccountClick = () => {
+    if (config?.hasExtendedScope) {
+      // Already have extended scope, open file picker directly
+      openFilePicker();
+    } else {
+      // Need to show warning and get extended scope
+      setShowMultiAccountWarning(true);
+    }
+  };
+
+  // Handle extended scope authentication (for multi-account sync)
+  const handleExtendedAuth = async () => {
+    setShowMultiAccountWarning(false);
+    try {
+      const response = await fetch('/api/sync/oauth/url?scopeLevel=extended');
       if (response.ok) {
         const data = await response.json();
         window.location.href = data.url;
@@ -293,6 +324,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
           isFileBasedSync: false,
           isAuthenticated: false,
           oauthConfigured: config?.oauthConfigured ?? false,
+          hasExtendedScope: false,
         });
       }
     } catch (err) {
@@ -508,7 +540,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                         Already have a Puffin backup shared with you? Select the existing backup file to sync with another computer.
                       </p>
                       <Button
-                        onClick={openFilePicker}
+                        onClick={handleMultiAccountClick}
                         disabled={isFilePickerLoading || isValidating}
                         variant="outline"
                         size="sm"
@@ -713,7 +745,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                   Choose Folder
                 </Button>
                 <Button
-                  onClick={openFilePicker}
+                  onClick={handleMultiAccountClick}
                   disabled={isFilePickerLoading || isValidating}
                   variant="outline"
                   className="border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
@@ -829,7 +861,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               Disconnect Sync?
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              This will remove the connection to Google Drive. Your local data and cloud backup 
+              This will remove the connection to Google Drive. Your local data and cloud backup
               will not be deleted.
             </DialogDescription>
           </DialogHeader>
@@ -849,6 +881,59 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
             >
               {isDisconnecting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Multi-Account Sync Warning Dialog */}
+      <Dialog open={showMultiAccountWarning} onOpenChange={setShowMultiAccountWarning}>
+        <DialogContent className="sm:max-w-[500px] bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-slate-100 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-amber-400" />
+              Extended Permissions Required
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="text-slate-400 space-y-3">
+                <p>
+                  Multi-account sync requires <strong className="text-slate-200">full Google Drive access</strong> to
+                  read and write files shared from other accounts.
+                </p>
+
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                  <p className="text-sm text-amber-300 font-medium mb-2">Security Implications:</p>
+                  <ul className="text-xs text-amber-200/80 space-y-1 list-disc list-inside">
+                    <li>The app will have read/write access to your entire Google Drive</li>
+                    <li>If your local tokens are compromised, an attacker could access all your Drive files</li>
+                    <li>Tokens are stored locally and encrypted, but this is still a broader permission</li>
+                  </ul>
+                </div>
+
+                <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+                  <p className="text-sm text-slate-300 font-medium mb-2">Alternative: Single-Account Sync</p>
+                  <p className="text-xs text-slate-400">
+                    If you use the same Google account on all computers, you can use &quot;Choose Folder&quot;
+                    instead, which only requires access to the specific folder you select.
+                  </p>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowMultiAccountWarning(false)}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExtendedAuth}
+              className="bg-amber-600 hover:bg-amber-500"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Grant Extended Access
             </Button>
           </DialogFooter>
         </DialogContent>

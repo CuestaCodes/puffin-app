@@ -6,18 +6,20 @@
 
 import { NextResponse } from 'next/server';
 import { SyncConfigManager } from '@/lib/sync/config';
-import { isOAuthConfigured } from '@/lib/sync/oauth';
+import { isOAuthConfigured, hasExtendedScope } from '@/lib/sync/oauth';
 
 export async function GET() {
   try {
     const config = SyncConfigManager.getConfig();
     const hasTokens = SyncConfigManager.hasTokens();
     const oauthConfigured = isOAuthConfigured();
+    const hasExtended = hasTokens ? hasExtendedScope() : false;
 
     return NextResponse.json({
       ...config,
       isAuthenticated: hasTokens,
       oauthConfigured,
+      hasExtendedScope: hasExtended,
     });
   } catch (error) {
     console.error('Failed to get sync config:', error);

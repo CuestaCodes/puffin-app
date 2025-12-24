@@ -245,6 +245,23 @@ export function closeDatabase(): void {
 }
 
 /**
+ * Reset the database connection and initialization state.
+ * Call this after the database file has been replaced (e.g., after sync pull).
+ * This forces the next getDatabase() call to open a fresh connection.
+ */
+export function resetDatabaseConnection(): void {
+  if (db) {
+    try {
+      db.close();
+    } catch {
+      // Ignore close errors - file may have been replaced
+    }
+  }
+  db = null;
+  isInitialized = false;
+}
+
+/**
  * Create a backup of the database
  * @returns The backup file path
  */

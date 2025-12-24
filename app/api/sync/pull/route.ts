@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 import { SyncConfigManager } from '@/lib/sync/config';
+import { resetDatabaseConnection } from '@/lib/db';
 
 // Database paths
 const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
@@ -97,6 +98,9 @@ export async function POST() {
 
     // Replace local database with downloaded one
     try {
+      // Close existing database connection before replacing the file
+      resetDatabaseConnection();
+
       // Remove existing database
       if (fs.existsSync(DB_PATH)) {
         fs.unlinkSync(DB_PATH);

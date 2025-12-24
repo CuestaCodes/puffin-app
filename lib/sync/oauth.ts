@@ -9,12 +9,38 @@ import { SyncConfigManager } from './config';
 // Redirect URI - can be overridden via environment
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/sync/oauth/callback';
 
-// Scopes required for Google Drive file access
-// Using drive.file with Google Picker grants access only to user-selected folders
-const SCOPES = [
+// Scope levels for different sync modes
+export type ScopeLevel = 'standard' | 'extended';
+
+// Standard scopes: For single-account sync (picker-selected folders only)
+const STANDARD_SCOPES = [
   'https://www.googleapis.com/auth/drive.file', // Access to files opened/created by the app
   'https://www.googleapis.com/auth/userinfo.email', // Get user's email
 ];
+
+// Extended scopes: For multi-account sync (shared files from other accounts)
+// WARNING: This grants full read/write access to the user's entire Google Drive
+const EXTENDED_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file', // Access to files opened/created by the app
+  'https://www.googleapis.com/auth/drive', // Full access for shared files
+  'https://www.googleapis.com/auth/userinfo.email', // Get user's email
+];
+
+/**
+ * Get scopes for the specified level
+ */
+export function getScopes(level: ScopeLevel = 'standard'): string[] {
+  return level === 'extended' ? EXTENDED_SCOPES : STANDARD_SCOPES;
+}
+
+/**
+ * Check if current tokens have extended scope
+ */
+export function hasExtendedScope(): boolean {
+  const tokens = SyncConfigManager.getTokens();
+  if (!tokens?.scope) return false;
+  return tokens.scope.includes('https://www.googleapis.com/auth/drive');
+}
 
 /**
  * Get the current credentials (from stored config or environment)
@@ -55,7 +81,7 @@ export async function getAuthenticatedClient() {
         refresh_token: credentials.refresh_token || tokens.refresh_token,
         expiry_date: credentials.expiry_date!,
         token_type: credentials.token_type || 'Bearer',
-        scope: SCOPES.join(' '),
+        scope: tokens.scope, // Preserve original scope
       });
       client.setCredentials(credentials);
     } catch (error) {
@@ -69,13 +95,16 @@ export async function getAuthenticatedClient() {
 
 /**
  * Generate the OAuth2 authorization URL
+ * @param scopeLevel - 'standard' for single-account, 'extended' for multi-account sync
+ * @param state - Optional state parameter for OAuth flow
  */
-export function getAuthUrl(state?: string): string {
+export function getAuthUrl(scopeLevel: ScopeLevel = 'standard', state?: string): string {
   const client = getOAuth2Client();
-  
+  const scopes = getScopes(scopeLevel);
+
   return client.generateAuthUrl({
     access_type: 'offline', // Get refresh token
-    scope: SCOPES,
+    scope: scopes,
     prompt: 'consent', // Always show consent screen to get refresh token
     state: state || undefined,
   });
@@ -99,7 +128,7 @@ export async function handleOAuthCallback(code: string): Promise<{ success: bool
       refresh_token: tokens.refresh_token,
       expiry_date: tokens.expiry_date || Date.now() + 3600 * 1000,
       token_type: tokens.token_type || 'Bearer',
-      scope: tokens.scope || SCOPES.join(' '),
+      scope: tokens.scope || getScopes('standard').join(' '),
     });
 
     // Fetch user info in background (don't block the redirect)

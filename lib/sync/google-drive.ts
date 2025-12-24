@@ -381,8 +381,9 @@ export class GoogleDriveService {
     }
 
     try {
+      // supportsAllDrives is required to access files shared from other accounts
       const response = await this.drive!.files.get(
-        { fileId, alt: 'media' },
+        { fileId, alt: 'media', supportsAllDrives: true },
         { responseType: 'stream' }
       );
 

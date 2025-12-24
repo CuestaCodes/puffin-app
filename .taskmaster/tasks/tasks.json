@@ -1056,10 +1056,10 @@
       {
         "id": 15,
         "title": "Secure Token Storage and File System Handling",
-        "description": "Implement secure OAuth token storage and configure proper file system locations for packaged app",
-        "details": "1. Install tauri-plugin-store for secure key-value storage\n2. Implement secure OAuth refresh token storage:\n   - Use Windows Credential Manager via Tauri plugin in packaged mode\n   - Use encrypted local file for development mode\n   - Encrypt tokens at rest\n3. Configure file system locations for packaged app:\n   - Database: %APPDATA%/Puffin/puffin.db\n   - Backups: %APPDATA%/Puffin/backups/\n   - Config: %APPDATA%/Puffin/config.json\n4. Implement path resolution based on runtime environment\n5. Create directory structure on first run if not exists\n6. Update all file operations to use resolved paths\n7. Ensure database path works in both dev and packaged modes\n8. Test file operations in sandboxed Tauri environment\n9. Verify backup creation works with new paths\n10. Document file locations for users",
-        "testStrategy": "Test secure token storage and retrieval. Verify encryption of stored tokens. Test path resolution in both development and packaged modes. Verify directory creation on first run. Test backup functionality with new paths.",
-        "priority": "low",
+        "description": "Implement secure OAuth token storage, eliminate hardcoded secrets, protect token endpoints, and configure proper file system locations for packaged app",
+        "details": "1. Install tauri-plugin-store for secure key-value storage\n2. Implement secure OAuth refresh token storage:\n   - Use Windows Credential Manager via Tauri plugin in packaged mode\n   - Use encrypted local file for development mode\n   - Encrypt tokens at rest\n3. Remove hardcoded encryption key fallback ('puffin-dev-key-change-in-prod' in lib/sync/config.ts:22)\n4. Implement machine-derived encryption key:\n   - Generate unique key on first run using machine-specific data\n   - Store key derivation seed securely (not in source)\n   - Never commit keys to repository\n5. Protect token API endpoint (/api/sync/token):\n   - Add CSRF token validation\n   - Restrict to same-origin requests\n   - Consider short-lived token exchange\n6. Set restrictive file permissions on sensitive files:\n   - .sync-tokens.enc should be 600 (owner read/write only)\n   - sync-config.json should be 600\n7. Configure file system locations for packaged app:\n   - Database: %APPDATA%/Puffin/puffin.db\n   - Backups: %APPDATA%/Puffin/backups/\n   - Config: %APPDATA%/Puffin/config.json\n8. Implement path resolution based on runtime environment\n9. Create directory structure on first run if not exists\n10. Update all file operations to use resolved paths\n11. Clean credentials from repository:\n    - Remove .env.local from git history if committed\n    - Ensure Google OAuth credentials only loaded from environment at runtime\n12. Test file operations in sandboxed Tauri environment\n13. Verify backup creation works with new paths\n14. Document file locations and security practices for users",
+        "testStrategy": "Test secure token storage and retrieval. Verify encryption of stored tokens. Verify hardcoded fallback key is removed. Test machine-derived key generation. Test token endpoint CSRF protection. Verify file permissions are restrictive. Test path resolution in both development and packaged modes. Verify directory creation on first run. Test backup functionality with new paths. Verify no secrets in git history.",
+        "priority": "medium",
         "dependencies": [
           12,
           13,
@@ -1118,6 +1118,70 @@
             "details": "Refactor all database operations, backup creation, and config file handling to use resolved paths, test file operations in sandboxed Tauri environment, verify backup creation works with new paths, and document file locations for users",
             "status": "pending",
             "testStrategy": "Test all file operations with new paths, verify database works in both dev and packaged modes, test backup functionality, and validate sandboxed environment compatibility"
+          },
+          {
+            "id": 6,
+            "title": "Remove Hardcoded Encryption Key Fallback",
+            "description": "Remove the insecure hardcoded fallback encryption key from lib/sync/config.ts",
+            "dependencies": [],
+            "details": "Remove the 'puffin-dev-key-change-in-prod' fallback at lib/sync/config.ts:22. Implement proper error handling when no encryption key is available. Add clear error message guiding user to configure encryption key. Ensure application fails safely rather than using weak default key.",
+            "status": "pending",
+            "testStrategy": "Verify application refuses to store tokens without proper key. Test error messages are clear and actionable. Verify no hardcoded secrets remain in codebase."
+          },
+          {
+            "id": 7,
+            "title": "Implement Machine-Derived Encryption Key",
+            "description": "Generate unique encryption key per installation using machine-specific data",
+            "dependencies": [
+              6
+            ],
+            "details": "Generate unique encryption key on first run using combination of: machine ID, random salt stored in app data, and optional user-provided passphrase. Use PBKDF2 or Argon2 for key derivation. Store derivation seed (not the key) in secure location. For Tauri, use tauri-plugin-os to get machine identifiers. Ensure key derivation is deterministic for same machine.",
+            "status": "pending",
+            "testStrategy": "Test key is unique per installation. Verify key derivation is deterministic. Test tokens encrypted with derived key can be decrypted. Verify seed storage is secure."
+          },
+          {
+            "id": 8,
+            "title": "Protect Token API Endpoint",
+            "description": "Add security protections to /api/sync/token endpoint to prevent token theft via XSS",
+            "dependencies": [],
+            "details": "Add CSRF token validation to /api/sync/token endpoint. Verify Origin/Referer headers match application origin. Consider implementing short-lived token exchange where frontend receives time-limited token. Add rate limiting to prevent brute force. Log token access for security auditing.",
+            "status": "pending",
+            "testStrategy": "Test CSRF protection blocks cross-origin requests. Verify same-origin requests succeed. Test rate limiting works. Verify audit logs capture token access."
+          },
+          {
+            "id": 9,
+            "title": "Set Restrictive File Permissions",
+            "description": "Configure restrictive file permissions on sensitive files to prevent unauthorized access",
+            "dependencies": [
+              2
+            ],
+            "details": "Set file permissions to 600 (owner read/write only) for: .sync-tokens.enc, sync-config.json, .sync-credentials.enc. Implement permission setting in saveTokens(), saveConfig(), and saveCredentials() functions. For Windows, use appropriate ACL settings. Verify permissions on file read and warn if too permissive.",
+            "status": "pending",
+            "testStrategy": "Verify files are created with correct permissions. Test other users cannot read sensitive files. Test warning appears if permissions are too permissive."
+          },
+          {
+            "id": 10,
+            "title": "Clean Credentials from Repository",
+            "description": "Remove any committed credentials from git history and establish secure credential handling",
+            "dependencies": [],
+            "details": "Audit git history for committed secrets (.env.local, .env with real values). Use git filter-branch or BFG Repo-Cleaner to remove secrets from history if found. Update .gitignore to ensure .env* files are excluded. Create .env.example with placeholder values only. Document that credentials must be set via environment variables at runtime, not in files.",
+            "status": "pending",
+            "testStrategy": "Verify no secrets in git history using git log searches. Verify .env files are gitignored. Test application works with environment variables only."
+          },
+          {
+            "id": 11,
+            "title": "Document Security Practices",
+            "description": "Create documentation for secure deployment and credential management",
+            "dependencies": [
+              6,
+              7,
+              8,
+              9,
+              10
+            ],
+            "details": "Document: 1) How encryption keys are derived and stored, 2) Required environment variables for Google OAuth, 3) File permission requirements, 4) Security considerations for multi-user systems, 5) How to rotate/revoke compromised tokens, 6) Backup security considerations. Add security section to README or create SECURITY.md.",
+            "status": "pending",
+            "testStrategy": "Review documentation for completeness. Verify all security features are documented. Test that following docs results in secure setup."
           }
         ]
       },
