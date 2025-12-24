@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { SyncProvider, useSyncContext } from '@/hooks/use-sync-context';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { Dashboard } from '@/components/pages/dashboard';
@@ -9,13 +10,30 @@ import { TransactionsPage } from '@/components/pages/transactions';
 import { MonthlyBudgetPage } from '@/components/pages/monthly-budget';
 import { NetWorthPage } from '@/components/pages/net-worth';
 import { SettingsPage } from '@/components/pages/settings';
+import { SyncConflictDialog } from '@/components/sync-conflict-dialog';
 
 export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'net-worth' | 'settings';
 
-export function AppShell() {
+function AppShellContent() {
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { logout } = useAuth();
+  const { syncStatus, needsResolution, isLoading, refetch } = useSyncContext();
+
+  // Check for URL params from OAuth callback to auto-navigate to settings
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const syncAuth = params.get('sync_auth');
+      const page = params.get('page');
+      
+      if (syncAuth === 'success' || page === 'settings') {
+        setCurrentPage('settings');
+        // Clean up the URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -36,6 +54,13 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen bg-slate-950">
+      {/* Sync Conflict Dialog - shows when resolution needed */}
+      <SyncConflictDialog 
+        isOpen={needsResolution && !isLoading} 
+        syncStatus={syncStatus}
+        onResolved={refetch}
+      />
+      
       {/* Sidebar */}
       <Sidebar 
         currentPage={currentPage} 
@@ -56,5 +81,13 @@ export function AppShell() {
         </main>
       </div>
     </div>
+  );
+}
+
+export function AppShell() {
+  return (
+    <SyncProvider>
+      <AppShellContent />
+    </SyncProvider>
   );
 }

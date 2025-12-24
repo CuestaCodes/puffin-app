@@ -1,80 +1,141 @@
 /**
  * Sync Check API
- * GET - Check if sync is required before editing
+ * GET - Check sync status and detect conflicts
+ * 
+ * Returns one of these scenarios:
+ * 1. not_configured - Sync not set up, allow editing
+ * 2. no_cloud_backup - Cloud empty, user should upload first
+ * 3. never_synced - First time, user should download from cloud
+ * 4. in_sync - All good, no changes anywhere
+ * 5. local_only - Only local changes, safe to upload
+ * 6. cloud_only - Only cloud changes, safe to download
+ * 7. conflict - Both local and cloud have changes, user must decide
  */
 
 import { NextResponse } from 'next/server';
 import { SyncConfigManager } from '@/lib/sync/config';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 
+export interface SyncCheckResponse {
+  syncRequired: boolean;
+  reason: 'not_configured' | 'no_cloud_backup' | 'never_synced' | 'in_sync' | 'local_only' | 'cloud_only' | 'conflict' | 'check_failed';
+  message?: string;
+  canEdit: boolean;
+  hasLocalChanges?: boolean;
+  hasCloudChanges?: boolean;
+  cloudModifiedAt?: string;
+  lastSyncedAt?: string;
+  warning?: string;
+}
+
 export async function GET() {
   try {
     const config = SyncConfigManager.getConfig();
 
-    // If not configured, no sync required
+    // If not configured, no sync required - allow editing
     if (!config.isConfigured || !config.folderId) {
-      return NextResponse.json({
+      return NextResponse.json<SyncCheckResponse>({
         syncRequired: false,
         reason: 'not_configured',
+        canEdit: true,
       });
     }
 
-    // Get current local database hash
-    const localHash = SyncConfigManager.computeDbHash();
+    // Detect local changes by comparing current hash vs synced hash
+    const hasLocalChanges = SyncConfigManager.hasLocalChanges();
 
     // Get cloud backup info
     const driveService = new GoogleDriveService();
     const cloudInfo = await driveService.getRemoteBackupInfo(config.folderId);
 
-    // If no cloud backup exists, sync is required (first sync)
+    // If no cloud backup exists
     if (!cloudInfo.exists) {
-      return NextResponse.json({
+      return NextResponse.json<SyncCheckResponse>({
         syncRequired: true,
         reason: 'no_cloud_backup',
-        message: 'No backup found in cloud. Please upload your data first.',
-        canEdit: true, // Allow editing if no cloud backup - they need to upload first
+        message: 'No backup found in cloud. Upload your data to start syncing.',
+        canEdit: true, // Allow editing - they need to upload first
+        hasLocalChanges,
       });
     }
 
-    // If we have never synced, sync is required
+    // If we have never synced
     if (!config.lastSyncedAt) {
-      return NextResponse.json({
+      return NextResponse.json<SyncCheckResponse>({
         syncRequired: true,
         reason: 'never_synced',
-        message: 'Please sync with the cloud before making changes.',
-        canEdit: false,
+        message: 'A backup exists in the cloud. Download it to start, or upload to replace it.',
+        canEdit: false, // Block editing until they sync
+        hasLocalChanges,
+        cloudModifiedAt: cloudInfo.modifiedTime?.toISOString(),
       });
     }
 
-    // If cloud backup is newer than our last sync, sync is required
+    // Detect cloud changes by comparing cloud modified time vs last sync time
+    let hasCloudChanges = false;
     if (cloudInfo.modifiedTime) {
       const lastSyncTime = new Date(config.lastSyncedAt).getTime();
       const cloudModifiedTime = cloudInfo.modifiedTime.getTime();
-
-      if (cloudModifiedTime > lastSyncTime + 60000) { // 1 minute buffer for clock differences
-        return NextResponse.json({
-          syncRequired: true,
-          reason: 'cloud_newer',
-          message: 'A newer version exists in the cloud. Please download before editing.',
-          canEdit: false,
-          cloudModifiedAt: cloudInfo.modifiedTime.toISOString(),
-          lastSyncedAt: config.lastSyncedAt,
-        });
-      }
+      // 1 minute buffer for clock differences
+      hasCloudChanges = cloudModifiedTime > lastSyncTime + 60000;
     }
 
-    // All good - no sync required
-    return NextResponse.json({
-      syncRequired: false,
-      reason: 'in_sync',
-      localHash,
+    // Determine scenario based on local and cloud changes
+    if (!hasLocalChanges && !hasCloudChanges) {
+      // Scenario: Everything in sync
+      return NextResponse.json<SyncCheckResponse>({
+        syncRequired: false,
+        reason: 'in_sync',
+        canEdit: true,
+        hasLocalChanges: false,
+        hasCloudChanges: false,
+        lastSyncedAt: config.lastSyncedAt,
+      });
+    }
+
+    if (hasLocalChanges && !hasCloudChanges) {
+      // Scenario: Local changes only (worked offline) - safe to upload
+      return NextResponse.json<SyncCheckResponse>({
+        syncRequired: true,
+        reason: 'local_only',
+        message: 'You have local changes that haven\'t been uploaded yet.',
+        canEdit: true, // Allow editing - they can keep working
+        hasLocalChanges: true,
+        hasCloudChanges: false,
+        lastSyncedAt: config.lastSyncedAt,
+      });
+    }
+
+    if (!hasLocalChanges && hasCloudChanges) {
+      // Scenario: Cloud changes only - safe to download
+      return NextResponse.json<SyncCheckResponse>({
+        syncRequired: true,
+        reason: 'cloud_only',
+        message: 'A newer version is available in the cloud.',
+        canEdit: false, // Block editing until they download
+        hasLocalChanges: false,
+        hasCloudChanges: true,
+        cloudModifiedAt: cloudInfo.modifiedTime?.toISOString(),
+        lastSyncedAt: config.lastSyncedAt,
+      });
+    }
+
+    // Scenario: Both have changes - CONFLICT
+    return NextResponse.json<SyncCheckResponse>({
+      syncRequired: true,
+      reason: 'conflict',
+      message: 'Both local and cloud have changes. Choose which version to keep.',
+      canEdit: false, // Block editing until conflict resolved
+      hasLocalChanges: true,
+      hasCloudChanges: true,
+      cloudModifiedAt: cloudInfo.modifiedTime?.toISOString(),
       lastSyncedAt: config.lastSyncedAt,
-      canEdit: true,
     });
+
   } catch (error) {
     console.error('Sync check error:', error);
     // On error, allow editing but warn the user
-    return NextResponse.json({
+    return NextResponse.json<SyncCheckResponse>({
       syncRequired: false,
       reason: 'check_failed',
       canEdit: true,

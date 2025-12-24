@@ -27,9 +27,8 @@ interface StoredConfig {
   folderName: string | null;
   lastSyncedAt: string | null;
   userEmail: string | null;
-  localDbHash: string | null;
-  cloudDbHash: string | null;
-  hasLocalChanges: boolean;
+  /** Hash of local DB at the time of last sync - used to detect local changes */
+  syncedDbHash: string | null;
   backupFileId: string | null;
 }
 
@@ -65,10 +64,7 @@ export class SyncConfigManager {
       isConfigured: false,
       lastSyncedAt: null,
       userEmail: null,
-      localDbHash: null,
-      cloudDbHash: null,
-      hasLocalChanges: false,
-      syncRequired: false,
+      syncedDbHash: null,
       backupFileId: null,
     };
 
@@ -80,23 +76,13 @@ export class SyncConfigManager {
       const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
       const stored: StoredConfig = JSON.parse(data);
 
-      // Sync is required if:
-      // 1. We have a cloud hash but local hash doesn't match, OR
-      // 2. We've never synced but sync is configured
-      const syncRequired = stored.folderId 
-        ? (stored.cloudDbHash && stored.localDbHash !== stored.cloudDbHash) || !stored.lastSyncedAt
-        : false;
-
       return {
         folderId: stored.folderId,
         folderName: stored.folderName,
         isConfigured: !!stored.folderId,
         lastSyncedAt: stored.lastSyncedAt,
         userEmail: stored.userEmail,
-        localDbHash: stored.localDbHash || null,
-        cloudDbHash: stored.cloudDbHash || null,
-        hasLocalChanges: stored.hasLocalChanges || false,
-        syncRequired,
+        syncedDbHash: stored.syncedDbHash || null,
         backupFileId: stored.backupFileId || null,
       };
     } catch (error) {
@@ -117,9 +103,7 @@ export class SyncConfigManager {
       folderName: config.folderName ?? existing.folderName,
       lastSyncedAt: config.lastSyncedAt ?? existing.lastSyncedAt,
       userEmail: config.userEmail ?? existing.userEmail,
-      localDbHash: config.localDbHash ?? existing.localDbHash,
-      cloudDbHash: config.cloudDbHash ?? existing.cloudDbHash,
-      hasLocalChanges: config.hasLocalChanges ?? existing.hasLocalChanges,
+      syncedDbHash: config.syncedDbHash ?? existing.syncedDbHash,
       backupFileId: config.backupFileId ?? existing.backupFileId,
     };
 
@@ -295,36 +279,26 @@ export class SyncConfigManager {
   }
 
   /**
-   * Mark that local changes have been made (call after any write operation)
+   * Update after successful sync (upload or download)
+   * Stores the current local DB hash as the synced hash
    */
-  static markLocalChanges(): void {
-    this.saveConfig({ hasLocalChanges: true });
-  }
-
-  /**
-   * Update sync hashes after successful sync
-   */
-  static updateSyncHashes(localHash: string, cloudHash: string): void {
+  static markSynced(): void {
+    const currentHash = this.computeDbHash();
     this.saveConfig({
-      localDbHash: localHash,
-      cloudDbHash: cloudHash,
-      hasLocalChanges: false,
+      syncedDbHash: currentHash,
       lastSyncedAt: new Date().toISOString(),
     });
   }
 
   /**
-   * Check if sync is required before editing
+   * Check if local database has changed since last sync
    */
-  static isSyncRequired(): boolean {
+  static hasLocalChanges(): boolean {
     const config = this.getConfig();
-    if (!config.isConfigured) return false;
+    if (!config.syncedDbHash) return false; // Never synced, can't detect changes
     
-    // Sync required if we haven't synced yet or hashes don't match
-    if (!config.lastSyncedAt) return true;
-    if (config.cloudDbHash && config.localDbHash !== config.cloudDbHash) return true;
-    
-    return false;
+    const currentHash = this.computeDbHash();
+    return currentHash !== config.syncedDbHash;
   }
 
   /**

@@ -97,6 +97,9 @@ export async function POST() {
       // Move downloaded file to database location
       fs.renameSync(TEMP_DOWNLOAD_PATH, DB_PATH);
 
+      // Mark as synced - stores current local hash (the downloaded file) and timestamp
+      SyncConfigManager.markSynced();
+
       return NextResponse.json({ 
         success: true, 
         lastSyncedAt: new Date().toISOString(),

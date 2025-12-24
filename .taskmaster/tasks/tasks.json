@@ -861,28 +861,50 @@
           },
           {
             "id": 9,
-            "title": "Integrate Sync Check Modal into App Layout",
-            "description": "Show SyncRequiredModal when sync is required to enforce sync before editing",
+            "title": "Smart Conflict Detection with Local Change Tracking",
+            "description": "Detect local changes by comparing current DB hash vs stored hash from last sync, enabling proper offline workflow support",
             "dependencies": [
               6
             ],
-            "details": "Created SyncRequiredModal component in components/sync-required-modal.tsx and useSyncStatus hook in hooks/use-sync-status.ts. Need to integrate into main app layout to check sync status on load and show modal when cloud is newer.",
-            "status": "in-progress",
-            "testStrategy": "Test modal appears when cloud_newer is detected, modal prevents editing until synced, and modal provides download action"
+            "details": "Updated sync check API in app/api/sync/check/route.ts to detect six scenarios: not_configured, no_cloud_backup, never_synced, in_sync, local_only, cloud_only, conflict. Added syncedDbHash field to config to track hash at sync time. Added hasLocalChanges() and markSynced() methods to SyncConfigManager.",
+            "status": "done",
+            "testStrategy": "Test offline work detection, verify local changes are detected by hash comparison, test cloud-only changes detection"
           },
           {
             "id": 10,
-            "title": "Lock Editing When Not Synced",
-            "description": "Disable write operations (add/edit transactions) when sync is required",
+            "title": "Conflict Resolution Dialog",
+            "description": "Create dialog that shows cloud vs local timestamps and lets user choose which version to keep",
             "dependencies": [
               9
             ],
-            "details": "Implement edit locking by checking canEdit flag from sync check API. Disable transaction forms, category management, and other data-modifying operations when syncRequired is true and canEdit is false.",
-            "status": "pending",
-            "testStrategy": "Test that add/edit buttons are disabled when not synced, verify API write operations are blocked, and test that editing is re-enabled after successful sync"
+            "details": "Created SyncConflictDialog component in components/sync-conflict-dialog.tsx. Shows different UI based on scenario: cloud_only shows download button, local_only shows upload button, conflict/never_synced shows both options with clear warnings. Displays timestamps and change status.",
+            "status": "done",
+            "testStrategy": "Test dialog shows correct timestamps, verify download overwrites local, verify upload overwrites cloud, test user can make informed decision"
           },
           {
             "id": 11,
+            "title": "Integrate Conflict Dialog into App Layout",
+            "description": "Show conflict resolution dialog on app load when sync discrepancy is detected",
+            "dependencies": [
+              10
+            ],
+            "details": "Created SyncProvider context in hooks/use-sync-context.tsx. Integrated into AppShell component. Checks sync status on app load and shows SyncConflictDialog when needsResolution is true. Handles URL params from OAuth callback to auto-navigate to settings.",
+            "status": "done",
+            "testStrategy": "Test dialog appears on app load when conflict exists, test OAuth callback navigation works, test app proceeds normally after resolution"
+          },
+          {
+            "id": 12,
+            "title": "Lock Editing When Conflict Unresolved",
+            "description": "Disable write operations when sync conflict exists and hasn't been resolved",
+            "dependencies": [
+              11
+            ],
+            "details": "Added canEdit flag from SyncContext to TransactionsPage. Disabled Import CSV, Add Transaction, Edit, Delete, Split buttons when canEdit is false. Added warning banner at top of transactions page when editing is locked.",
+            "status": "done",
+            "testStrategy": "Test add/edit buttons disabled during conflict, verify editing re-enabled after resolution, test API write operations blocked"
+          },
+          {
+            "id": 13,
             "title": "Update Picker to Select Backup File for Multi-Account",
             "description": "Use Google Picker to select existing backup file for multi-account shared folder access",
             "dependencies": [

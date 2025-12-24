@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight, 
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2,
+  CloudOff
 } from 'lucide-react';
 import { ImportWizard } from '@/components/import';
 import { 
@@ -19,6 +20,7 @@ import {
   SplitModal,
   type FilterValues 
 } from '@/components/transactions';
+import { useSyncContextOptional } from '@/hooks/use-sync-context';
 import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult } from '@/types/import';
 import { cn } from '@/lib/utils';
@@ -53,6 +55,10 @@ function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: Sort
 }
 
 function TransactionsPageContent() {
+  // Sync context for edit locking
+  const syncContext = useSyncContextOptional();
+  const canEdit = syncContext?.canEdit ?? true;
+  
   // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterValues>(emptyFilters);
@@ -294,6 +300,16 @@ function TransactionsPageContent() {
   return (
     <>
       <div className="space-y-6">
+        {/* Edit Locked Banner */}
+        {!canEdit && (
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
+            <CloudOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <p className="text-sm text-amber-300">
+              Editing is disabled until you sync with the cloud. Please resolve the sync conflict to continue.
+            </p>
+          </div>
+        )}
+
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -306,14 +322,16 @@ function TransactionsPageContent() {
             <Button 
               variant="outline" 
               onClick={() => setShowImport(true)}
-              className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+              disabled={!canEdit}
+              className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-50"
             >
               <Upload className="w-4 h-4" />
               Import CSV
             </Button>
             <Button 
               onClick={handleAddTransaction}
-              className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
+              disabled={!canEdit}
+              className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:from-slate-600 disabled:to-slate-700"
             >
               <Plus className="w-4 h-4" />
               Add Transaction
@@ -363,7 +381,8 @@ function TransactionsPageContent() {
                 variant="outline"
                 size="sm"
                 onClick={handleBulkDelete}
-                className="gap-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                disabled={!canEdit}
+                className="gap-1 border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
               >
                 <Trash2 className="w-3 h-3" />
                 Delete
@@ -402,14 +421,16 @@ function TransactionsPageContent() {
                   <Button 
                     variant="outline" 
                     onClick={() => setShowImport(true)}
-                    className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800"
+                    disabled={!canEdit}
+                    className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                   >
                     <Upload className="w-4 h-4" />
                     Import CSV
                   </Button>
                   <Button 
                     onClick={handleAddTransaction}
-                    className="gap-2 bg-cyan-600 hover:bg-cyan-500"
+                    disabled={!canEdit}
+                    className="gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
                   >
                     <Plus className="w-4 h-4" />
                     Add Transaction
@@ -530,9 +551,10 @@ function TransactionsPageContent() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon-sm" 
-                                  className="text-violet-400 hover:text-violet-300"
+                                  className="text-violet-400 hover:text-violet-300 disabled:opacity-30"
                                   onClick={() => handleUnsplitTransaction(tx)}
                                   title="Unsplit transaction"
+                                  disabled={!canEdit}
                                 >
                                   <Undo2 className="w-4 h-4" />
                                 </Button>
@@ -540,9 +562,10 @@ function TransactionsPageContent() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon-sm" 
-                                  className="text-slate-400 hover:text-violet-400"
+                                  className="text-slate-400 hover:text-violet-400 disabled:opacity-30"
                                   onClick={() => handleSplitTransaction(tx)}
                                   title="Split transaction"
+                                  disabled={!canEdit}
                                 >
                                   <Split className="w-4 h-4" />
                                 </Button>
@@ -550,16 +573,18 @@ function TransactionsPageContent() {
                               <Button 
                                 variant="ghost" 
                                 size="icon-sm" 
-                                className="text-slate-400 hover:text-slate-200"
+                                className="text-slate-400 hover:text-slate-200 disabled:opacity-30"
                                 onClick={() => handleEditTransaction(tx)}
+                                disabled={!canEdit}
                               >
                                 <Edit2 className="w-4 h-4" />
                               </Button>
                               <Button 
                                 variant="ghost" 
                                 size="icon-sm" 
-                                className="text-slate-400 hover:text-red-400"
+                                className="text-slate-400 hover:text-red-400 disabled:opacity-30"
                                 onClick={() => handleDeleteTransaction(tx)}
+                                disabled={!canEdit}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
