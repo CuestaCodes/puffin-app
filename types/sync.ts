@@ -13,6 +13,16 @@ export interface SyncConfig {
   lastSyncedAt: string | null;
   /** User's Google email (for display) */
   userEmail: string | null;
+  /** Hash of the local database at last sync */
+  localDbHash: string | null;
+  /** Hash of the cloud database at last sync */
+  cloudDbHash: string | null;
+  /** Whether local changes exist since last sync */
+  hasLocalChanges: boolean;
+  /** Whether sync is required before editing */
+  syncRequired: boolean;
+  /** Backup file ID in Google Drive (for multi-account access) */
+  backupFileId: string | null;
 }
 
 export interface SyncStatus {

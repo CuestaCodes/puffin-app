@@ -121,7 +121,7 @@ export class GoogleDriveService {
   /**
    * Upload database to Google Drive
    */
-  async uploadDatabase(localDbPath: string, folderId: string): Promise<{ success: boolean; error?: string }> {
+  async uploadDatabase(localDbPath: string, folderId: string): Promise<{ success: boolean; error?: string; fileId?: string }> {
     if (!this.drive) {
       const initialized = await this.initialize();
       if (!initialized) {
@@ -137,6 +137,7 @@ export class GoogleDriveService {
       });
 
       const existingFile = existingFiles.data.files?.[0];
+      let fileId: string;
 
       if (existingFile?.id) {
         // Update existing file
@@ -147,9 +148,10 @@ export class GoogleDriveService {
             body: fs.createReadStream(localDbPath),
           },
         });
+        fileId = existingFile.id;
       } else {
         // Create new file
-        await this.drive!.files.create({
+        const createResult = await this.drive!.files.create({
           requestBody: {
             name: DATABASE_FILENAME,
             parents: [folderId],
@@ -158,13 +160,15 @@ export class GoogleDriveService {
             mimeType: 'application/x-sqlite3',
             body: fs.createReadStream(localDbPath),
           },
+          fields: 'id',
         });
+        fileId = createResult.data.id!;
       }
 
       // Update last synced timestamp
       SyncConfigManager.updateLastSynced();
 
-      return { success: true };
+      return { success: true, fileId };
     } catch (error: unknown) {
       const gError = error as { message?: string };
       console.error('Upload error:', error);
@@ -213,17 +217,17 @@ export class GoogleDriveService {
       // Write to destination with timeout
       return new Promise((resolve) => {
         const dest = fs.createWriteStream(localDestPath);
-        const stream = response.data as NodeJS.ReadableStream;
+        const stream = response.data as NodeJS.ReadableStream & { destroy?: () => void };
         
         // Timeout after 2 minutes
         const timeout = setTimeout(() => {
-          stream.destroy();
+          if (stream.destroy) stream.destroy();
           dest.close();
           resolve({ success: false, error: 'Download timed out' });
         }, 120000);
 
         stream
-          .on('error', (err) => {
+          .on('error', (err: Error) => {
             clearTimeout(timeout);
             dest.close();
             resolve({ success: false, error: err.message });
@@ -234,7 +238,7 @@ export class GoogleDriveService {
             SyncConfigManager.updateLastSynced();
             resolve({ success: true });
           })
-          .on('error', (err) => {
+          .on('error', (err: Error) => {
             clearTimeout(timeout);
             resolve({ success: false, error: err.message });
           });

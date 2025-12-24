@@ -763,22 +763,22 @@
       {
         "id": 12,
         "title": "Google Drive Sync and Configuration",
-        "description": "Implement Google Drive synchronization with OAuth2 authentication, folder configuration, sync functionality, and UI management",
-        "details": "1. Install Google APIs: `npm install googleapis`\n2. Create Google Drive configuration section in Settings page\n3. Build folder URL input field that extracts folder ID automatically from pasted URL\n4. Implement Google Drive OAuth2 authentication flow\n5. Implement folder validation on save:\n   - Authenticate with user's Google account (OAuth2 flow)\n   - List folder contents via Drive API to verify access\n   - Create/delete test file (.puffin-validation-test) to confirm write access\n   - Display success message with folder name confirmation\n   - Show clear error messages for failures (Folder not found, No access, Read-only access)\n6. Create sync functionality: push (upload) and pull (download) database\n7. Add local backup creation before sync operations\n8. Implement conflict detection and resolution strategies\n9. Build sync UI with manual trigger buttons and status indicators\n10. Implement blocking sync modal on app close\n11. Add 'Last synced' timestamp display in header\n12. Store folder ID in local config file (not SQLite database)\n13. Implement 'Not configured' state with setup prompt\n14. Hide sync-related UI (banner, prompts) until sync is configured\n15. Build 'Disconnect' button to remove sync configuration\n16. Clear stored folder ID and OAuth tokens on disconnect\n17. Support multi-user shared folder setup (independent validation per user)\n18. Store OAuth refresh token securely (encrypted local file in dev mode)",
-        "testStrategy": "Test folder URL parsing and ID extraction. Verify OAuth2 flow and token refresh. Test validation flow with valid/invalid folders. Test sync upload/download functionality. Test backup creation and conflict resolution. Verify sync UI interactions and status updates. Test disconnect functionality and state transitions.",
+        "description": "Implement Google Drive synchronization with OAuth2 authentication, folder configuration, sync functionality, and UI management. Supports multi-computer sync with different Google accounts to a shared folder using Google Picker API.",
+        "details": "1. Install Google APIs: `npm install googleapis`\n2. Create Google Drive configuration section in Settings page\n3. Build folder URL input field that extracts folder ID automatically from pasted URL\n4. Implement Google Drive OAuth2 authentication flow\n5. Implement folder validation on save:\n   - Authenticate with user's Google account (OAuth2 flow)\n   - List folder contents via Drive API to verify access\n   - Create/delete test file (.puffin-validation-test) to confirm write access\n   - Display success message with folder name confirmation\n   - Show clear error messages for failures (Folder not found, No access, Read-only access)\n6. Create sync functionality: push (upload) and pull (download) database\n7. Add local backup creation before sync operations\n8. Implement conflict detection and resolution strategies\n9. Build sync UI with manual trigger buttons and status indicators\n10. Implement blocking sync modal on app close\n11. Add 'Last synced' timestamp display in header\n12. Store folder ID in local config file (not SQLite database)\n13. Implement 'Not configured' state with setup prompt\n14. Hide sync-related UI (banner, prompts) until sync is configured\n15. Build 'Disconnect' button to remove sync configuration\n16. Clear stored folder ID and OAuth tokens on disconnect\n17. Support multi-user shared folder setup (independent validation per user)\n18. Store OAuth refresh token securely (encrypted local file in dev mode)\n19. Implement Google Picker API for secure folder/file selection\n20. Add first-run credentials setup wizard with encrypted storage\n21. Track local vs cloud database hashes for conflict detection\n22. Implement sync-required modal to enforce sync before editing",
+        "testStrategy": "Test folder URL parsing and ID extraction. Verify OAuth2 flow and token refresh. Test validation flow with valid/invalid folders. Test sync upload/download functionality. Test backup creation and conflict resolution. Verify sync UI interactions and status updates. Test disconnect functionality and state transitions. Test multi-computer sync with different Google accounts. Verify sync-required modal blocks editing when cloud is newer.",
         "priority": "medium",
         "dependencies": [
           10
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
             "title": "Create Google Drive Configuration UI Section",
             "description": "Build the Google Drive configuration section in the Settings page with folder URL input field and automatic folder ID extraction",
             "dependencies": [],
-            "details": "Create a new section in the Settings page specifically for Google Drive configuration. Implement a folder URL input field that can automatically extract the folder ID from pasted Google Drive URLs. Include proper form validation and user-friendly labeling. The UI should handle both configured and unconfigured states appropriately.",
-            "status": "pending",
+            "details": "Created sync-management.tsx component with full UI for Google Drive sync management, including authentication, folder selection (manual URL and Google Picker), sync actions, and disconnect functionality. Displays credentials setup wizard when credentials are not configured.",
+            "status": "done",
             "testStrategy": "Test URL parsing with various Google Drive URL formats, verify folder ID extraction accuracy, and test input field validation"
           },
           {
@@ -788,20 +788,20 @@
             "dependencies": [
               1
             ],
-            "details": "Install googleapis package and implement the complete OAuth2 flow for Google Drive API access. This includes setting up the authentication redirect, handling the callback, and securely storing the OAuth refresh tokens in encrypted local files (dev mode). Ensure proper error handling for authentication failures and token refresh scenarios. Set up Google Drive API client configuration.",
-            "status": "pending",
+            "details": "Implemented complete OAuth2 flow in lib/sync/oauth.ts with getOAuth2Client, getAuthenticatedClient, getAuthUrl, handleOAuthCallback. Modified to read credentials from SyncConfigManager first, falling back to environment variables. Optimized callback to save tokens immediately and fetch user email in background to prevent browser timeouts.",
+            "status": "done",
             "testStrategy": "Test OAuth flow with valid/invalid credentials, verify token storage encryption, test token refresh functionality, and Google Drive API connectivity"
           },
           {
             "id": 3,
-            "title": "Build Folder Validation System",
-            "description": "Implement comprehensive folder validation including access verification and write permission testing via Google Drive API",
+            "title": "Build Folder Validation System with Google Picker",
+            "description": "Implement comprehensive folder validation including access verification and write permission testing via Google Drive API, plus Google Picker API for folder selection",
             "dependencies": [
               2
             ],
-            "details": "Create a validation system that authenticates with Google Drive API, lists folder contents to verify access, and creates/deletes a test file (.puffin-validation-test) to confirm write permissions. Include proper error handling for various failure scenarios like folder not found, no access, or read-only access. Display appropriate success/error messages to users.",
-            "status": "pending",
-            "testStrategy": "Test validation with valid/invalid folders, verify write permission testing, and test error message display for different failure scenarios"
+            "details": "Created validation system in lib/sync/google-drive.ts that authenticates with Google Drive API and validates folder access. Implemented Google Picker API integration in sync-management.tsx for secure folder selection, which grants drive.file scope access to selected folders.",
+            "status": "done",
+            "testStrategy": "Test validation with valid/invalid folders, verify write permission testing, and test error message display for different failure scenarios. Test Google Picker folder selection flow."
           },
           {
             "id": 4,
@@ -810,8 +810,8 @@
             "dependencies": [
               3
             ],
-            "details": "Create a system to store the Google Drive folder ID in a local configuration file (not SQLite database). Implement proper state management to handle 'Not configured' states with setup prompts. Hide sync-related UI elements (banners, prompts) until sync is properly configured. Ensure configuration persistence across app restarts.",
-            "status": "pending",
+            "details": "Created lib/sync/config.ts with SyncConfigManager for storing sync settings including folderId, folderName, lastSyncedAt, userEmail, localDbHash, cloudDbHash, hasLocalChanges, syncRequired, backupFileId. Implemented encrypted credential storage with saveCredentials, getCredentials, hasCredentials, clearCredentials methods.",
+            "status": "done",
             "testStrategy": "Test configuration file creation and persistence, verify UI state transitions, and test sync UI hiding/showing based on configuration status"
           },
           {
@@ -821,20 +821,20 @@
             "dependencies": [
               3
             ],
-            "details": "Implement push (upload) and pull (download) database sync operations. Create database export/import functionality with proper data serialization. Handle file naming conventions and version management on Google Drive.",
-            "status": "pending",
+            "details": "Implemented push (upload) in app/api/sync/push/route.ts with checkpointDatabase function to ensure SQLite WAL changes are merged before upload. Stores localDbHash and backupFileId after successful upload. Implemented pull (download) in app/api/sync/pull/route.ts that removes .db-wal and .db-shm files before replacing the main database.",
+            "status": "done",
             "testStrategy": "Test upload/download operations, data integrity verification, and sync conflict scenarios"
           },
           {
             "id": 6,
-            "title": "Backup and Conflict Resolution",
-            "description": "Implement local backup creation and conflict resolution mechanisms for sync operations",
+            "title": "Conflict Detection and Hash Tracking",
+            "description": "Implement database hash tracking and conflict detection mechanisms for sync operations",
             "dependencies": [
               5
             ],
-            "details": "Create local backup functionality before sync operations to prevent data loss. Implement conflict detection and resolution strategies for concurrent modifications. Add data validation and rollback capabilities for failed sync operations.",
-            "status": "pending",
-            "testStrategy": "Test backup creation, conflict detection, resolution strategies, and rollback functionality"
+            "details": "Added computeDbHash, updateSyncHashes, isSyncRequired, markLocalChanges methods to SyncConfigManager. Created app/api/sync/check/route.ts to compare local and cloud database states, returning syncRequired, reason (cloud_newer/local_changes/synced), and canEdit flags.",
+            "status": "done",
+            "testStrategy": "Test hash computation, conflict detection between local and cloud, and proper detection of cloud_newer and local_changes states"
           },
           {
             "id": 7,
@@ -844,8 +844,8 @@
               5,
               6
             ],
-            "details": "Create sync UI with manual trigger buttons, progress indicators, and status displays. Implement blocking sync modal on app close, add 'Last synced' timestamp in header, and create sync history log. Handle error states and user notifications.",
-            "status": "pending",
+            "details": "Created sync-management.tsx with upload/download buttons, last synced timestamp display, connection status, and folder name display. Created credentials-setup.tsx with 3-step guided setup wizard for Google Cloud credentials. GET endpoint returns isAuthenticated, oauthConfigured, localDbHash, cloudDbHash, hasLocalChanges, syncRequired, backupFileId.",
+            "status": "done",
             "testStrategy": "Test sync UI interactions, status updates, modal behavior, and error state handling"
           },
           {
@@ -855,9 +855,42 @@
             "dependencies": [
               4
             ],
-            "details": "Create a disconnect button that allows users to remove their Google Drive sync configuration. Implement proper cleanup that clears stored folder ID from config file and removes OAuth tokens from encrypted storage. Support multi-user shared folder setup with independent validation per user. Ensure UI returns to unconfigured state after disconnect.",
-            "status": "pending",
+            "details": "Implemented disconnect in sync-management.tsx that calls DELETE /api/sync/config to clear folder configuration and DELETE /api/sync/oauth/logout to revoke OAuth tokens. Added 'Sign out of Google' button for authenticated-but-not-configured state.",
+            "status": "done",
             "testStrategy": "Test disconnect functionality clears all stored data, verify UI returns to unconfigured state, and test multi-user scenario handling"
+          },
+          {
+            "id": 9,
+            "title": "Integrate Sync Check Modal into App Layout",
+            "description": "Show SyncRequiredModal when sync is required to enforce sync before editing",
+            "dependencies": [
+              6
+            ],
+            "details": "Created SyncRequiredModal component in components/sync-required-modal.tsx and useSyncStatus hook in hooks/use-sync-status.ts. Need to integrate into main app layout to check sync status on load and show modal when cloud is newer.",
+            "status": "in-progress",
+            "testStrategy": "Test modal appears when cloud_newer is detected, modal prevents editing until synced, and modal provides download action"
+          },
+          {
+            "id": 10,
+            "title": "Lock Editing When Not Synced",
+            "description": "Disable write operations (add/edit transactions) when sync is required",
+            "dependencies": [
+              9
+            ],
+            "details": "Implement edit locking by checking canEdit flag from sync check API. Disable transaction forms, category management, and other data-modifying operations when syncRequired is true and canEdit is false.",
+            "status": "pending",
+            "testStrategy": "Test that add/edit buttons are disabled when not synced, verify API write operations are blocked, and test that editing is re-enabled after successful sync"
+          },
+          {
+            "id": 11,
+            "title": "Update Picker to Select Backup File for Multi-Account",
+            "description": "Use Google Picker to select existing backup file for multi-account shared folder access",
+            "dependencies": [
+              8
+            ],
+            "details": "Modify Google Picker integration to allow selecting an existing puffin_backup.db file instead of just folders. This grants drive.file scope access to the specific file, enabling different Google accounts to sync to the same shared file. Store backupFileId in SyncConfigManager.",
+            "status": "pending",
+            "testStrategy": "Test file selection with Picker, verify drive.file scope access works for selected file, test download from shared file with different Google account"
           }
         ]
       },

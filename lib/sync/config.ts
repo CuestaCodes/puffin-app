@@ -27,6 +27,10 @@ interface StoredConfig {
   folderName: string | null;
   lastSyncedAt: string | null;
   userEmail: string | null;
+  localDbHash: string | null;
+  cloudDbHash: string | null;
+  hasLocalChanges: boolean;
+  backupFileId: string | null;
 }
 
 /**
@@ -55,19 +59,33 @@ export class SyncConfigManager {
    * Read sync configuration from file
    */
   static getConfig(): SyncConfig {
+    const defaultConfig: SyncConfig = {
+      folderId: null,
+      folderName: null,
+      isConfigured: false,
+      lastSyncedAt: null,
+      userEmail: null,
+      localDbHash: null,
+      cloudDbHash: null,
+      hasLocalChanges: false,
+      syncRequired: false,
+      backupFileId: null,
+    };
+
     try {
       if (!fs.existsSync(CONFIG_FILE)) {
-        return {
-          folderId: null,
-          folderName: null,
-          isConfigured: false,
-          lastSyncedAt: null,
-          userEmail: null,
-        };
+        return defaultConfig;
       }
 
       const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
       const stored: StoredConfig = JSON.parse(data);
+
+      // Sync is required if:
+      // 1. We have a cloud hash but local hash doesn't match, OR
+      // 2. We've never synced but sync is configured
+      const syncRequired = stored.folderId 
+        ? (stored.cloudDbHash && stored.localDbHash !== stored.cloudDbHash) || !stored.lastSyncedAt
+        : false;
 
       return {
         folderId: stored.folderId,
@@ -75,16 +93,15 @@ export class SyncConfigManager {
         isConfigured: !!stored.folderId,
         lastSyncedAt: stored.lastSyncedAt,
         userEmail: stored.userEmail,
+        localDbHash: stored.localDbHash || null,
+        cloudDbHash: stored.cloudDbHash || null,
+        hasLocalChanges: stored.hasLocalChanges || false,
+        syncRequired,
+        backupFileId: stored.backupFileId || null,
       };
     } catch (error) {
       console.error('Failed to read sync config:', error);
-      return {
-        folderId: null,
-        folderName: null,
-        isConfigured: false,
-        lastSyncedAt: null,
-        userEmail: null,
-      };
+      return defaultConfig;
     }
   }
 
@@ -100,6 +117,10 @@ export class SyncConfigManager {
       folderName: config.folderName ?? existing.folderName,
       lastSyncedAt: config.lastSyncedAt ?? existing.lastSyncedAt,
       userEmail: config.userEmail ?? existing.userEmail,
+      localDbHash: config.localDbHash ?? existing.localDbHash,
+      cloudDbHash: config.cloudDbHash ?? existing.cloudDbHash,
+      hasLocalChanges: config.hasLocalChanges ?? existing.hasLocalChanges,
+      backupFileId: config.backupFileId ?? existing.backupFileId,
     };
 
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf-8');
@@ -254,6 +275,63 @@ export class SyncConfigManager {
     } catch (error) {
       console.error('Failed to clear credentials:', error);
     }
+  }
+
+  /**
+   * Compute hash of the database file
+   */
+  static computeDbHash(dbPath?: string): string | null {
+    const DB_PATH = dbPath || path.join(DATA_DIR, 'puffin.db');
+    try {
+      if (!fs.existsSync(DB_PATH)) {
+        return null;
+      }
+      const content = fs.readFileSync(DB_PATH);
+      return crypto.createHash('md5').update(content).digest('hex');
+    } catch (error) {
+      console.error('Failed to compute DB hash:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Mark that local changes have been made (call after any write operation)
+   */
+  static markLocalChanges(): void {
+    this.saveConfig({ hasLocalChanges: true });
+  }
+
+  /**
+   * Update sync hashes after successful sync
+   */
+  static updateSyncHashes(localHash: string, cloudHash: string): void {
+    this.saveConfig({
+      localDbHash: localHash,
+      cloudDbHash: cloudHash,
+      hasLocalChanges: false,
+      lastSyncedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Check if sync is required before editing
+   */
+  static isSyncRequired(): boolean {
+    const config = this.getConfig();
+    if (!config.isConfigured) return false;
+    
+    // Sync required if we haven't synced yet or hashes don't match
+    if (!config.lastSyncedAt) return true;
+    if (config.cloudDbHash && config.localDbHash !== config.cloudDbHash) return true;
+    
+    return false;
+  }
+
+  /**
+   * Save the backup file ID for multi-account access
+   */
+  static setBackupFileId(fileId: string): void {
+    this.saveConfig({ backupFileId: fileId });
   }
 }
 

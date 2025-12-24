@@ -82,14 +82,28 @@ export async function POST() {
     // Create local backup before push
     createLocalBackup();
 
+    // Compute local database hash before upload
+    const localHash = SyncConfigManager.computeDbHash(DB_PATH);
+
     // Upload to Google Drive
     const driveService = new GoogleDriveService();
     const result = await driveService.uploadDatabase(DB_PATH, config.folderId);
 
     if (result.success) {
+      // Update sync hashes - local and cloud are now the same
+      if (localHash) {
+        SyncConfigManager.updateSyncHashes(localHash, localHash);
+      }
+
+      // Store the backup file ID for multi-account access
+      if (result.fileId) {
+        SyncConfigManager.setBackupFileId(result.fileId);
+      }
+
       return NextResponse.json({ 
         success: true, 
-        lastSyncedAt: new Date().toISOString() 
+        lastSyncedAt: new Date().toISOString(),
+        dbHash: localHash,
       });
     } else {
       return NextResponse.json(
