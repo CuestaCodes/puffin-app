@@ -13,10 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { 
-  ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X, 
+import {
+  ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X,
   Loader2, AlertTriangle, LogOut, RefreshCw,
-  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Key, Settings2
+  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Key, Settings2, FileIcon, Users
 } from 'lucide-react';
 import type { SyncConfig } from '@/types/sync';
 import { useGooglePicker } from '@/hooks/use-google-picker';
@@ -112,11 +112,53 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     }
   }, [fetchConfig]);
 
-  // Google Picker hook
+  // Handle file selected via picker (for multi-account sync)
+  const handleFilePickerSelect = useCallback(async (file: { id: string; name: string }) => {
+    setIsValidating(true);
+    setValidationError(null);
+    setValidationSuccess(null);
+
+    try {
+      // Save the file directly with isFileBasedSync=true
+      const response = await fetch('/api/sync/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          backupFileId: file.id,
+          fileName: file.name,
+          isFileBasedSync: true,
+        }),
+      });
+
+      if (response.ok) {
+        setValidationSuccess(`Connected to backup file: ${file.name}`);
+        fetchConfig();
+      } else {
+        setValidationError('Failed to save file configuration');
+      }
+    } catch (err) {
+      console.error('File picker save error:', err);
+      setValidationError('Failed to save file configuration');
+    } finally {
+      setIsValidating(false);
+    }
+  }, [fetchConfig]);
+
+  // Google Picker hook for folders
   const { openPicker, isLoading: isPickerLoading } = useGooglePicker({
     clientId: credentials?.clientId || '',
     apiKey: credentials?.apiKey || '',
+    mode: 'folder',
     onSelect: handlePickerSelect,
+    onError: (error) => setValidationError(error),
+  });
+
+  // Google Picker hook for files (multi-account sync)
+  const { openPicker: openFilePicker, isLoading: isFilePickerLoading } = useGooglePicker({
+    clientId: credentials?.clientId || '',
+    apiKey: credentials?.apiKey || '',
+    mode: 'file',
+    onSelect: handleFilePickerSelect,
     onError: (error) => setValidationError(error),
   });
 
@@ -246,6 +288,9 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
           isConfigured: false,
           lastSyncedAt: null,
           userEmail: null,
+          syncedDbHash: null,
+          backupFileId: null,
+          isFileBasedSync: false,
           isAuthenticated: false,
           oauthConfigured: config?.oauthConfigured ?? false,
         });
@@ -449,6 +494,39 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               </div>
             </div>
 
+            {/* Multi-account sync option */}
+            {credentials?.apiKey && (
+              <div className="border-t border-slate-700/50 pt-4">
+                <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                  <div className="flex items-start gap-3">
+                    <Users className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-300 font-medium mb-1">
+                        Multi-Account Sync
+                      </p>
+                      <p className="text-xs text-slate-400 mb-3">
+                        Already have a Puffin backup shared with you? Select the existing backup file to sync with another computer.
+                      </p>
+                      <Button
+                        onClick={openFilePicker}
+                        disabled={isFilePickerLoading || isValidating}
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
+                      >
+                        {isFilePickerLoading || isValidating ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileIcon className="w-4 h-4 mr-2" />
+                        )}
+                        Connect to Existing Backup
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Manual input fallback */}
             <div className="border-t border-slate-700/50 pt-4">
               <button
@@ -516,14 +594,28 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-900/50">
-                    <Cloud className="w-6 h-6 text-emerald-400" />
+                    {config.isFileBasedSync ? (
+                      <Users className="w-6 h-6 text-emerald-400" />
+                    ) : (
+                      <Cloud className="w-6 h-6 text-emerald-400" />
+                    )}
                   </div>
                   <div>
-                    <CardTitle className="text-lg text-slate-100">Sync Connected</CardTitle>
+                    <CardTitle className="text-lg text-slate-100">
+                      {config.isFileBasedSync ? 'Multi-Account Sync' : 'Sync Connected'}
+                    </CardTitle>
                     <CardDescription className="text-slate-400">
                       {config.userEmail && <span className="text-emerald-400">{config.userEmail}</span>}
                       {config.userEmail && config.folderName && ' • '}
-                      {config.folderName && <span>{config.folderName}</span>}
+                      {config.folderName && (
+                        <span>
+                          {config.isFileBasedSync ? (
+                            <><FileIcon className="w-3 h-3 inline mr-1" />{config.folderName}</>
+                          ) : (
+                            config.folderName
+                          )}
+                        </span>
+                      )}
                     </CardDescription>
                   </div>
                 </div>
@@ -591,30 +683,49 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         </>
       )}
 
-      {/* Change folder section (when configured) */}
+      {/* Change sync source section (when configured) */}
       {config?.isConfigured && (
         <Card className="border-slate-800 bg-slate-900/50">
           <CardHeader>
-            <CardTitle className="text-lg text-slate-100">Change Sync Folder</CardTitle>
+            <CardTitle className="text-lg text-slate-100">
+              {config.isFileBasedSync ? 'Change Sync File' : 'Change Sync Folder'}
+            </CardTitle>
             <CardDescription className="text-slate-400">
-              Switch to a different Google Drive folder
+              {config.isFileBasedSync
+                ? 'Switch to a different backup file or folder'
+                : 'Switch to a different Google Drive folder'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {credentials?.apiKey ? (
-              <Button
-                onClick={openPicker}
-                disabled={isPickerLoading || isValidating}
-                variant="outline"
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              >
-                {isPickerLoading || isValidating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FolderOpen className="w-4 h-4 mr-2" />
-                )}
-                Choose Different Folder
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={openPicker}
+                  disabled={isPickerLoading || isValidating}
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                >
+                  {isPickerLoading || isValidating ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FolderOpen className="w-4 h-4 mr-2" />
+                  )}
+                  Choose Folder
+                </Button>
+                <Button
+                  onClick={openFilePicker}
+                  disabled={isFilePickerLoading || isValidating}
+                  variant="outline"
+                  className="border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
+                >
+                  {isFilePickerLoading || isValidating ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <FileIcon className="w-4 h-4 mr-2" />
+                  )}
+                  Choose Backup File
+                </Button>
+              </div>
             ) : (
               <div className="flex gap-2">
                 <Input

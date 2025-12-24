@@ -17,6 +17,8 @@ export interface SyncConfig {
   syncedDbHash: string | null;
   /** Backup file ID in Google Drive (for multi-account access) */
   backupFileId: string | null;
+  /** True when syncing to a shared file (multi-account mode) instead of a folder */
+  isFileBasedSync: boolean;
 }
 
 export interface SyncStatus {

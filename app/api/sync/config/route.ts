@@ -31,12 +31,22 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { folderId, folderName } = body;
+    const { folderId, folderName, backupFileId, fileName, isFileBasedSync } = body;
 
-    if (folderId !== undefined) {
-      SyncConfigManager.saveConfig({ 
+    if (isFileBasedSync && backupFileId) {
+      // File-based sync: store the backup file ID directly
+      SyncConfigManager.saveConfig({
+        folderId: null, // Clear folder ID for file-based sync
+        folderName: fileName || null,
+        backupFileId,
+        isFileBasedSync: true,
+      });
+    } else if (folderId !== undefined) {
+      // Folder-based sync: store folder ID
+      SyncConfigManager.saveConfig({
         folderId: folderId || null,
         folderName: folderName || null,
+        isFileBasedSync: false,
       });
     }
 

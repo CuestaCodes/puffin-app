@@ -60,8 +60,13 @@ function createLocalBackup(): string {
 export async function POST() {
   try {
     const config = SyncConfigManager.getConfig();
-    
-    if (!config.isConfigured || !config.folderId) {
+
+    // Check configuration - need either folder-based or file-based sync
+    const hasValidConfig = config.isFileBasedSync
+      ? !!config.backupFileId
+      : !!config.folderId;
+
+    if (!config.isConfigured || !hasValidConfig) {
       return NextResponse.json(
         { success: false, error: 'Sync not configured' },
         { status: 400 }
@@ -84,19 +89,30 @@ export async function POST() {
 
     // Upload to Google Drive
     const driveService = new GoogleDriveService();
-    const result = await driveService.uploadDatabase(DB_PATH, config.folderId);
+    let result: { success: boolean; error?: string; fileId?: string };
+
+    if (config.isFileBasedSync && config.backupFileId) {
+      // File-based sync: update the shared file directly by ID
+      result = await driveService.uploadDatabaseByFileId(DB_PATH, config.backupFileId);
+      if (result.success) {
+        result.fileId = config.backupFileId;
+      }
+    } else {
+      // Folder-based sync: upload to folder (creates or updates file)
+      result = await driveService.uploadDatabase(DB_PATH, config.folderId!);
+    }
 
     if (result.success) {
       // Mark as synced - stores current local hash and timestamp
       SyncConfigManager.markSynced();
 
-      // Store the backup file ID for multi-account access
-      if (result.fileId) {
+      // Store the backup file ID for multi-account access (folder-based sync only)
+      if (!config.isFileBasedSync && result.fileId) {
         SyncConfigManager.setBackupFileId(result.fileId);
       }
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         lastSyncedAt: new Date().toISOString(),
       });
     } else {

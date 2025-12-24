@@ -6,12 +6,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 interface PickerResult {
   id: string;
   name: string;
+  mimeType?: string;
 }
+
+type PickerMode = 'folder' | 'file';
 
 interface UseGooglePickerOptions {
   clientId: string;
   apiKey: string;
-  onSelect: (folder: PickerResult) => void;
+  /** 'folder' to select folders, 'file' to select existing backup files */
+  mode?: PickerMode;
+  onSelect: (result: PickerResult) => void;
   onError?: (error: string) => void;
 }
 
@@ -20,20 +25,22 @@ let gapiLoaded = false;
 let gapiLoading = false;
 let pickerLoaded = false;
 
-export function useGooglePicker({ clientId, apiKey, onSelect, onError }: UseGooglePickerOptions) {
+export function useGooglePicker({ clientId, apiKey, mode = 'folder', onSelect, onError }: UseGooglePickerOptions) {
   const [isLoading, setIsLoading] = useState(false);
   const onSelectRef = useRef(onSelect);
   const onErrorRef = useRef(onError);
+  const modeRef = useRef(mode);
 
   // Keep refs updated
   useEffect(() => {
     onSelectRef.current = onSelect;
     onErrorRef.current = onError;
-  }, [onSelect, onError]);
+    modeRef.current = mode;
+  }, [onSelect, onError, mode]);
 
   const openPicker = useCallback(async () => {
-    console.log('[Picker] Opening picker, clientId:', clientId?.slice(0, 10) + '...', 'apiKey:', apiKey?.slice(0, 10) + '...');
-    
+    console.log('[Picker] Opening picker, mode:', modeRef.current, 'clientId:', clientId?.slice(0, 10) + '...', 'apiKey:', apiKey?.slice(0, 10) + '...');
+
     if (!clientId || !apiKey) {
       onErrorRef.current?.('Missing API credentials');
       return;
@@ -45,12 +52,12 @@ export function useGooglePicker({ clientId, apiKey, onSelect, onError }: UseGoog
       // Step 1: Get access token from backend
       console.log('[Picker] Fetching access token...');
       const tokenResponse = await fetch('/api/sync/token');
-      
+
       if (!tokenResponse.ok) {
         const err = await tokenResponse.json();
         throw new Error(err.error || 'Failed to get access token');
       }
-      
+
       const { accessToken } = await tokenResponse.json();
       console.log('[Picker] Got access token');
 
@@ -72,25 +79,44 @@ export function useGooglePicker({ clientId, apiKey, onSelect, onError }: UseGoog
         pickerLoaded = true;
       }
 
-      // Step 4: Create and show picker
-      console.log('[Picker] Creating picker...');
+      // Step 4: Create and show picker based on mode
+      console.log('[Picker] Creating picker for mode:', modeRef.current);
       const google = (window as unknown as { google: { picker: GooglePickerNamespace } }).google;
-      
-      const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
-      view.setIncludeFolders(true);
-      view.setSelectFolderEnabled(true);
-      view.setMimeTypes('application/vnd.google-apps.folder');
+
+      let view: DocsView;
+      let title: string;
+
+      if (modeRef.current === 'file') {
+        // File mode: select existing puffin-backup.db files
+        view = new google.picker.DocsView(google.picker.ViewId.DOCS);
+        view.setIncludeFolders(false);
+        view.setSelectFolderEnabled(false);
+        // Allow all files but we'll filter in the UI description
+        // SQLite files don't have a specific MIME type in Drive
+        title = 'Select existing Puffin backup file (puffin-backup.db)';
+      } else {
+        // Folder mode: select folders (default behavior)
+        view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
+        view.setIncludeFolders(true);
+        view.setSelectFolderEnabled(true);
+        view.setMimeTypes('application/vnd.google-apps.folder');
+        title = 'Select a folder for Puffin backups';
+      }
 
       const picker = new google.picker.PickerBuilder()
         .setOAuthToken(accessToken)
         .setDeveloperKey(apiKey)
         .addView(view)
-        .setTitle('Select a folder for Puffin backups')
+        .setTitle(title)
         .setCallback((data: PickerCallbackData) => {
-          console.log('[Picker] Callback:', data.action);
+          console.log('[Picker] Callback:', data.action, data.docs);
           if (data.action === 'picked' && data.docs?.[0]) {
-            const folder = data.docs[0];
-            onSelectRef.current({ id: folder.id, name: folder.name });
+            const doc = data.docs[0];
+            onSelectRef.current({
+              id: doc.id,
+              name: doc.name,
+              mimeType: doc.mimeType,
+            });
           }
           setIsLoading(false);
         })
@@ -100,7 +126,7 @@ export function useGooglePicker({ clientId, apiKey, onSelect, onError }: UseGoog
       console.log('[Picker] Picker shown');
     } catch (error) {
       console.error('[Picker] Error:', error);
-      onErrorRef.current?.(error instanceof Error ? error.message : 'Failed to open folder picker');
+      onErrorRef.current?.(error instanceof Error ? error.message : 'Failed to open picker');
       setIsLoading(false);
     }
   }, [clientId, apiKey]);
@@ -157,7 +183,7 @@ interface GapiType {
 
 interface GooglePickerNamespace {
   PickerBuilder: new () => PickerBuilder;
-  ViewId: { FOLDERS: string };
+  ViewId: { FOLDERS: string; DOCS: string };
   DocsView: new (viewId: string) => DocsView;
 }
 
@@ -178,6 +204,6 @@ interface DocsView {
 
 interface PickerCallbackData {
   action: string;
-  docs?: Array<{ id: string; name: string }>;
+  docs?: Array<{ id: string; name: string; mimeType?: string }>;
 }
 

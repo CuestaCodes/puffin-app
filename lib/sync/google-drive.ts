@@ -282,11 +282,175 @@ export class GoogleDriveService {
     } catch (error: unknown) {
       const gError = error as { message?: string };
       console.error('Get remote backup info error:', error);
-      return { 
-        exists: false, 
-        error: gError.message || 'Failed to get backup info' 
+      return {
+        exists: false,
+        error: gError.message || 'Failed to get backup info'
       };
     }
+  }
+
+  /**
+   * Get file info by ID (for multi-account sync validation)
+   */
+  async getFileInfo(fileId: string): Promise<{ success: boolean; name?: string; modifiedTime?: Date; error?: string }> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) {
+        return { success: false, error: 'Not authenticated with Google' };
+      }
+    }
+
+    try {
+      const response = await this.drive!.files.get({
+        fileId,
+        fields: 'id,name,modifiedTime,mimeType',
+      });
+
+      return {
+        success: true,
+        name: response.data.name || undefined,
+        modifiedTime: response.data.modifiedTime ? new Date(response.data.modifiedTime) : undefined,
+      };
+    } catch (error: unknown) {
+      const gError = error as { code?: number; message?: string };
+      console.error('Get file info error:', error);
+
+      if (gError.code === 404) {
+        return { success: false, error: 'File not found' };
+      }
+      if (gError.code === 403) {
+        return { success: false, error: 'You don\'t have access to this file' };
+      }
+
+      return {
+        success: false,
+        error: gError.message || 'Failed to get file info'
+      };
+    }
+  }
+
+  /**
+   * Upload database to an existing file by ID (for multi-account sync)
+   */
+  async uploadDatabaseByFileId(localDbPath: string, fileId: string): Promise<{ success: boolean; error?: string }> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) {
+        return { success: false, error: 'Not authenticated with Google' };
+      }
+    }
+
+    try {
+      await this.drive!.files.update({
+        fileId,
+        media: {
+          mimeType: 'application/x-sqlite3',
+          body: fs.createReadStream(localDbPath),
+        },
+      });
+
+      SyncConfigManager.updateLastSynced();
+      return { success: true };
+    } catch (error: unknown) {
+      const gError = error as { code?: number; message?: string };
+      console.error('Upload by file ID error:', error);
+
+      if (gError.code === 404) {
+        return { success: false, error: 'Backup file not found. It may have been deleted.' };
+      }
+      if (gError.code === 403) {
+        return { success: false, error: 'You don\'t have permission to update this file' };
+      }
+
+      return {
+        success: false,
+        error: gError.message || 'Failed to upload database'
+      };
+    }
+  }
+
+  /**
+   * Download database by file ID (for multi-account sync)
+   */
+  async downloadDatabaseByFileId(fileId: string, localDestPath: string): Promise<{ success: boolean; error?: string }> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) {
+        return { success: false, error: 'Not authenticated with Google' };
+      }
+    }
+
+    try {
+      const response = await this.drive!.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'stream' }
+      );
+
+      // Ensure destination directory exists
+      const destDir = path.dirname(localDestPath);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      // Write to destination with timeout
+      return new Promise((resolve) => {
+        const dest = fs.createWriteStream(localDestPath);
+        const stream = response.data as NodeJS.ReadableStream & { destroy?: () => void };
+
+        // Timeout after 2 minutes
+        const timeout = setTimeout(() => {
+          if (stream.destroy) stream.destroy();
+          dest.close();
+          resolve({ success: false, error: 'Download timed out' });
+        }, 120000);
+
+        stream
+          .on('error', (err: Error) => {
+            clearTimeout(timeout);
+            dest.close();
+            resolve({ success: false, error: err.message });
+          })
+          .pipe(dest)
+          .on('finish', () => {
+            clearTimeout(timeout);
+            SyncConfigManager.updateLastSynced();
+            resolve({ success: true });
+          })
+          .on('error', (err: Error) => {
+            clearTimeout(timeout);
+            resolve({ success: false, error: err.message });
+          });
+      });
+    } catch (error: unknown) {
+      const gError = error as { code?: number; message?: string };
+      console.error('Download by file ID error:', error);
+
+      if (gError.code === 404) {
+        return { success: false, error: 'Backup file not found' };
+      }
+      if (gError.code === 403) {
+        return { success: false, error: 'You don\'t have access to this file' };
+      }
+
+      return {
+        success: false,
+        error: gError.message || 'Failed to download database'
+      };
+    }
+  }
+
+  /**
+   * Get backup info by file ID (for multi-account sync)
+   */
+  async getRemoteBackupInfoByFileId(fileId: string): Promise<{ exists: boolean; modifiedTime?: Date; error?: string }> {
+    const result = await this.getFileInfo(fileId);
+    if (!result.success) {
+      return { exists: false, error: result.error };
+    }
+    return {
+      exists: true,
+      modifiedTime: result.modifiedTime,
+    };
   }
 }
 

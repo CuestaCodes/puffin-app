@@ -30,6 +30,8 @@ interface StoredConfig {
   /** Hash of local DB at the time of last sync - used to detect local changes */
   syncedDbHash: string | null;
   backupFileId: string | null;
+  /** True when syncing to a shared file (multi-account mode) instead of a folder */
+  isFileBasedSync: boolean;
 }
 
 /**
@@ -66,6 +68,7 @@ export class SyncConfigManager {
       userEmail: null,
       syncedDbHash: null,
       backupFileId: null,
+      isFileBasedSync: false,
     };
 
     try {
@@ -76,14 +79,18 @@ export class SyncConfigManager {
       const data = fs.readFileSync(CONFIG_FILE, 'utf-8');
       const stored: StoredConfig = JSON.parse(data);
 
+      // Configured if we have either a folder ID or file-based sync with a backup file ID
+      const isConfigured = !!stored.folderId || (stored.isFileBasedSync && !!stored.backupFileId);
+
       return {
         folderId: stored.folderId,
         folderName: stored.folderName,
-        isConfigured: !!stored.folderId,
+        isConfigured,
         lastSyncedAt: stored.lastSyncedAt,
         userEmail: stored.userEmail,
         syncedDbHash: stored.syncedDbHash || null,
         backupFileId: stored.backupFileId || null,
+        isFileBasedSync: stored.isFileBasedSync || false,
       };
     } catch (error) {
       console.error('Failed to read sync config:', error);
@@ -105,6 +112,7 @@ export class SyncConfigManager {
       userEmail: config.userEmail ?? existing.userEmail,
       syncedDbHash: config.syncedDbHash ?? existing.syncedDbHash,
       backupFileId: config.backupFileId ?? existing.backupFileId,
+      isFileBasedSync: config.isFileBasedSync ?? existing.isFileBasedSync,
     };
 
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf-8');

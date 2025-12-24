@@ -48,8 +48,13 @@ function createLocalBackup(): string | null {
 export async function POST() {
   try {
     const config = SyncConfigManager.getConfig();
-    
-    if (!config.isConfigured || !config.folderId) {
+
+    // Check configuration - need either folder-based or file-based sync
+    const hasValidConfig = config.isFileBasedSync
+      ? !!config.backupFileId
+      : !!config.folderId;
+
+    if (!config.isConfigured || !hasValidConfig) {
       return NextResponse.json(
         { success: false, error: 'Sync not configured' },
         { status: 400 }
@@ -61,7 +66,15 @@ export async function POST() {
 
     // Download from Google Drive to temp location
     const driveService = new GoogleDriveService();
-    const result = await driveService.downloadDatabase(config.folderId, TEMP_DOWNLOAD_PATH);
+    let result: { success: boolean; error?: string; notFound?: boolean };
+
+    if (config.isFileBasedSync && config.backupFileId) {
+      // File-based sync: download by file ID directly
+      result = await driveService.downloadDatabaseByFileId(config.backupFileId, TEMP_DOWNLOAD_PATH);
+    } else {
+      // Folder-based sync: search for backup file in folder
+      result = await driveService.downloadDatabase(config.folderId!, TEMP_DOWNLOAD_PATH);
+    }
 
     if (!result.success) {
       // Clean up temp file if it exists
@@ -100,8 +113,8 @@ export async function POST() {
       // Mark as synced - stores current local hash (the downloaded file) and timestamp
       SyncConfigManager.markSynced();
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         lastSyncedAt: new Date().toISOString(),
         backupPath: backupPath || undefined,
       });

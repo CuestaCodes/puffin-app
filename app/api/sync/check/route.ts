@@ -32,8 +32,13 @@ export async function GET() {
   try {
     const config = SyncConfigManager.getConfig();
 
+    // Check configuration - need either folder-based or file-based sync
+    const hasValidConfig = config.isFileBasedSync
+      ? !!config.backupFileId
+      : !!config.folderId;
+
     // If not configured, no sync required - allow editing
-    if (!config.isConfigured || !config.folderId) {
+    if (!config.isConfigured || !hasValidConfig) {
       return NextResponse.json<SyncCheckResponse>({
         syncRequired: false,
         reason: 'not_configured',
@@ -46,7 +51,15 @@ export async function GET() {
 
     // Get cloud backup info
     const driveService = new GoogleDriveService();
-    const cloudInfo = await driveService.getRemoteBackupInfo(config.folderId);
+    let cloudInfo: { exists: boolean; modifiedTime?: Date; error?: string };
+
+    if (config.isFileBasedSync && config.backupFileId) {
+      // File-based sync: get info by file ID directly
+      cloudInfo = await driveService.getRemoteBackupInfoByFileId(config.backupFileId);
+    } else {
+      // Folder-based sync: search for backup file in folder
+      cloudInfo = await driveService.getRemoteBackupInfo(config.folderId!);
+    }
 
     // If no cloud backup exists
     if (!cloudInfo.exists) {
