@@ -36,6 +36,7 @@ app/           # Next.js App Router pages and API routes
 components/    # React UI components
 lib/           # Utility functions, database layer, validations
   db/          # Database operations and abstraction layer
+  sync/        # Google Drive sync (OAuth, encryption, Drive API)
 types/         # TypeScript type definitions
 data/          # SQLite database file (development)
 ```
@@ -74,6 +75,24 @@ Runtime detection via `window.__TAURI__`.
 | Budget | Monthly budget amounts per sub-category |
 | AutoCategoryRule | Rules for automatic transaction categorisation |
 | SyncLog | Google Drive sync history |
+
+### Sync Configuration Storage
+
+Sync state uses encrypted JSON files (not SQLite) for portability:
+
+| File | Purpose |
+|------|---------|
+| `sync-config.json` | Folder ID, last sync time, DB hash, file-based sync flag |
+| `.sync-tokens.enc` | OAuth tokens (AES-256-CBC encrypted) |
+| `.sync-credentials.enc` | Google Cloud credentials (AES-256-CBC encrypted) |
+
+**Sync Modes:**
+- **Folder-based**: User creates folder, app manages `puffin-backup.db` inside
+- **File-based**: User selects existing backup file (for multi-account sync)
+
+**Scope Levels:**
+- `drive.file`: Standard scope for single-account sync
+- `drive`: Extended scope required for multi-account sync (access shared files)
 
 ## Key Commands
 
@@ -121,9 +140,17 @@ npm run tauri build  # Build portable Windows .exe
 
 ## Testing
 
-- Use Vitest for unit and integration tests-
+- Use Vitest for unit and integration tests
 - Test files alongside source: `*.test.ts`
 - Prioritise tests for calculation logic (totals, percentages, budget comparisons)
+
+### Sync Module Testing
+- Mock `fs` module for config/token storage tests
+- Mock `googleapis` with class-style OAuth2 constructor
+- Test encryption round-trips (save then retrieve)
+- Test scope detection with exact string matching (not substring)
+- Test retry logic with simulated error sequences
+- Test URL/ID sanitization against injection attempts
 
 ## Important Notes
 
@@ -131,3 +158,22 @@ npm run tauri build  # Build portable Windows .exe
 - Single-user model per installation (no concurrent access)
 - Local backup created before every sync operation
 - Conflict resolution: last-write-wins
+
+## Security Patterns
+
+### Encryption
+- **Algorithm**: AES-256-CBC for token and credential storage
+- **Key Derivation**: Machine-derived from `os.hostname()` + `os.userInfo().username`, or `SYNC_ENCRYPTION_KEY` env var
+- **IV**: Random 16-byte IV per encryption operation
+
+### Input Sanitization
+- Google Drive IDs: Strip non-alphanumeric except `-_` before use in queries
+- Filenames in Drive queries: Escape single quotes to prevent injection
+
+### API Security
+- **OAuth scopes**: Request minimum necessary (`drive.file` by default)
+- **supportsAllDrives**: Required for accessing files shared from other accounts
+- **Retry logic**: Exponential backoff for transient errors (429, 5xx)
+
+### Hashing
+- Database integrity: SHA-256 for detecting local changes since last sync

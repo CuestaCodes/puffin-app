@@ -770,7 +770,7 @@
         "dependencies": [
           10
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -910,8 +910,8 @@
             "dependencies": [
               8
             ],
-            "details": "Modify Google Picker integration to allow selecting an existing puffin_backup.db file instead of just folders. This grants drive.file scope access to the specific file, enabling different Google accounts to sync to the same shared file. Store backupFileId in SyncConfigManager.",
-            "status": "pending",
+            "details": "Implemented file-based sync mode via Google Picker. Added 'Connect to Existing Backup' option that allows selecting a puffin-backup.db file shared from another account. Fixed hasExtendedScope() to use exact scope matching (not substring). Added supportsAllDrives: true to Drive API calls for shared file access. Implemented progressive permission flow: standard scope (drive.file) first, prompts for extended scope (drive) when multi-account sync is needed. Added OAuth state parameter encoding to preserve scope level through callback. Added security improvements: machine-derived encryption keys, SHA-256 for DB hashing, SQL injection prevention in Drive queries, exponential backoff retry logic. Created comprehensive Vitest tests for sync module (config, oauth, google-drive, types/sync).",
+            "status": "done",
             "testStrategy": "Test file selection with Picker, verify drive.file scope access works for selected file, test download from shared file with different Google account"
           }
         ]
