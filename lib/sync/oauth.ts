@@ -35,11 +35,17 @@ export function getScopes(level: ScopeLevel = 'standard'): string[] {
 
 /**
  * Check if current tokens have extended scope
+ * Note: Must check for exact 'drive' scope, not just substring match
+ * because 'drive.file' contains 'drive' as substring
  */
 export function hasExtendedScope(): boolean {
   const tokens = SyncConfigManager.getTokens();
   if (!tokens?.scope) return false;
-  return tokens.scope.includes('https://www.googleapis.com/auth/drive');
+
+  // Split scope string and check for exact 'drive' scope
+  // Scopes are space-separated in the token response
+  const scopes = tokens.scope.split(' ');
+  return scopes.includes('https://www.googleapis.com/auth/drive');
 }
 
 /**

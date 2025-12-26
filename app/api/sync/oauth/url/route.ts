@@ -21,6 +21,11 @@ export async function GET(request: NextRequest) {
     const scopeLevel = (searchParams.get('scopeLevel') as ScopeLevel) || 'standard';
 
     const url = getAuthUrl(scopeLevel);
+
+    // Debug: Log what scopes are being requested
+    console.log('[OAuth URL] Requested scopeLevel:', scopeLevel);
+    console.log('[OAuth URL] Generated URL scopes:', url.includes('drive%20') ? 'EXTENDED (has drive scope)' : 'STANDARD (drive.file only)');
+
     return NextResponse.json({ url, scopeLevel });
   } catch (error) {
     console.error('Failed to generate OAuth URL:', error);

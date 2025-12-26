@@ -409,6 +409,15 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         </div>
       </div>
 
+      {/* Turbo/Dev Mode Notice */}
+      <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 flex items-start gap-2">
+        <Info className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-slate-400">
+          <strong className="text-slate-300">Note:</strong> Due to Turbo bundling, Google authentication pages may occasionally hang.
+          If this happens, refresh the page and try again.
+        </p>
+      </div>
+
       {/* Success/Error Messages */}
       {(validationSuccess || syncSuccess) && (
         <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/50 p-4 flex items-center gap-3">

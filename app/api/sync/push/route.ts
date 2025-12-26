@@ -93,9 +93,12 @@ export async function POST() {
 
     if (config.isFileBasedSync && config.backupFileId) {
       // File-based sync: update the shared file directly by ID
+      console.log('[Push] Using file-based sync with file ID:', config.backupFileId);
       result = await driveService.uploadDatabaseByFileId(DB_PATH, config.backupFileId);
       if (result.success) {
         result.fileId = config.backupFileId;
+      } else {
+        console.error('[Push] File-based upload failed:', result.error);
       }
     } else {
       // Folder-based sync: upload to folder (creates or updates file)

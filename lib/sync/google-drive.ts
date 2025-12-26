@@ -304,6 +304,7 @@ export class GoogleDriveService {
       const response = await this.drive!.files.get({
         fileId,
         fields: 'id,name,modifiedTime,mimeType',
+        supportsAllDrives: true,
       });
 
       return {
@@ -341,8 +342,10 @@ export class GoogleDriveService {
     }
 
     try {
+      // supportsAllDrives is required to update files shared from other accounts
       await this.drive!.files.update({
         fileId,
+        supportsAllDrives: true,
         media: {
           mimeType: 'application/x-sqlite3',
           body: fs.createReadStream(localDbPath),
@@ -356,10 +359,16 @@ export class GoogleDriveService {
       console.error('Upload by file ID error:', error);
 
       if (gError.code === 404) {
-        return { success: false, error: 'Backup file not found. It may have been deleted.' };
+        return {
+          success: false,
+          error: 'Cannot access backup file. This may happen if: (1) The file was deleted, (2) You need to re-authenticate with extended permissions for multi-account sync, or (3) The file hasn\'t been shared with your account. Try disconnecting and reconnecting with "Connect to Existing Backup".'
+        };
       }
       if (gError.code === 403) {
-        return { success: false, error: 'You don\'t have permission to update this file' };
+        return {
+          success: false,
+          error: 'You don\'t have permission to update this file. Ensure the file is shared with edit access, or try re-authenticating with extended permissions.'
+        };
       }
 
       return {

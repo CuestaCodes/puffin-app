@@ -15,11 +15,17 @@ export async function GET() {
     const oauthConfigured = isOAuthConfigured();
     const hasExtended = hasTokens ? hasExtendedScope() : false;
 
+    // Get stored scope for debugging
+    const tokens = SyncConfigManager.getTokens();
+    const storedScope = tokens?.scope || null;
+
     return NextResponse.json({
       ...config,
       isAuthenticated: hasTokens,
       oauthConfigured,
       hasExtendedScope: hasExtended,
+      // Debug info - stored scope (truncated for display)
+      _debug_scope: storedScope ? storedScope.substring(0, 100) + (storedScope.length > 100 ? '...' : '') : null,
     });
   } catch (error) {
     console.error('Failed to get sync config:', error);
