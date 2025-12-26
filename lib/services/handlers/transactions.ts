@@ -113,7 +113,8 @@ async function getTransactions(params: Record<string, string>): Promise<{
     queryParams.push(params.sourceId);
   }
   if (params.search) {
-    conditions.push('t.description LIKE ?');
+    // Case-insensitive search using LOWER()
+    conditions.push('LOWER(t.description) LIKE LOWER(?)');
     queryParams.push(`%${params.search}%`);
   }
 

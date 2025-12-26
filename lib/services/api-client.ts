@@ -96,7 +96,16 @@ async function handleTauriRequest<T>(
   await ensureHandlersInitialized();
 
   const method = options.method?.toUpperCase() || 'GET';
-  const body = options.body ? JSON.parse(options.body as string) : undefined;
+
+  // Parse request body with error handling
+  let body: unknown;
+  if (options.body) {
+    try {
+      body = JSON.parse(options.body as string);
+    } catch {
+      return { error: 'Invalid request body: malformed JSON', status: 400 };
+    }
+  }
 
   // Parse the endpoint to determine the handler
   const url = new URL(endpoint, 'http://localhost');

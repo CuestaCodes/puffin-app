@@ -60,9 +60,15 @@ export async function handleBudgetTemplates(ctx: HandlerContext): Promise<unknow
     case 'POST': {
       const data = body as { action?: string; templateId?: string; name?: string; year?: number; month?: number };
       if (data.action === 'apply' && data.templateId) {
-        return applyBudgetTemplate(data.templateId, data.year!, data.month!);
+        if (data.year === undefined || data.month === undefined) {
+          throw new Error('year and month are required when applying a template');
+        }
+        return applyBudgetTemplate(data.templateId, data.year, data.month);
       }
-      return createBudgetTemplate(data.name!, data.year!, data.month!);
+      if (!data.name || data.year === undefined || data.month === undefined) {
+        throw new Error('name, year, and month are required to create a template');
+      }
+      return createBudgetTemplate(data.name, data.year, data.month);
     }
     case 'DELETE':
       return deleteBudgetTemplate(params.id);

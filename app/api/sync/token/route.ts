@@ -54,10 +54,10 @@ function verifySameOrigin(request: NextRequest): boolean {
     }
   }
 
-  // If no Origin or Referer, this might be a direct request from the same origin
-  // (some browsers don't send Origin for same-origin requests)
-  // Allow it but with rate limiting as protection
-  return true;
+  // If no Origin or Referer header is present:
+  // - In development, allow it (for testing with tools like curl)
+  // - In production, reject it for stricter security
+  return isDev;
 }
 
 /**

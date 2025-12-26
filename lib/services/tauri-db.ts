@@ -245,8 +245,13 @@ async function runMigrations(database: TauriDatabase): Promise<void> {
     await setSchemaVersion(database, 3);
   }
 
-  // Suppress unused variable warning - this is for documentation
-  void CURRENT_SCHEMA_VERSION;
+  // Verify migrations completed successfully
+  const finalVersion = await getSchemaVersion(database);
+  if (finalVersion !== CURRENT_SCHEMA_VERSION) {
+    throw new Error(
+      `Database migration incomplete: expected version ${CURRENT_SCHEMA_VERSION}, got ${finalVersion}`
+    );
+  }
 }
 
 /**

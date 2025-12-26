@@ -24,8 +24,62 @@ interface HandlerContext {
   path: string;
 }
 
-// In-memory session state for Tauri (desktop app is single-user)
-let isAuthenticated = false;
+// Session configuration
+const SESSION_KEY = 'puffin_auth_session';
+const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+interface SessionData {
+  authenticated: boolean;
+  expiresAt: number;
+}
+
+/**
+ * Get authentication state from sessionStorage.
+ * Falls back to in-memory state if sessionStorage is unavailable.
+ */
+function getAuthState(): boolean {
+  if (typeof window === 'undefined' || !window.sessionStorage) {
+    return false;
+  }
+
+  try {
+    const stored = sessionStorage.getItem(SESSION_KEY);
+    if (!stored) return false;
+
+    const session: SessionData = JSON.parse(stored);
+    if (Date.now() > session.expiresAt) {
+      sessionStorage.removeItem(SESSION_KEY);
+      return false;
+    }
+
+    return session.authenticated;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Set authentication state in sessionStorage.
+ */
+function setAuthState(authenticated: boolean): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) {
+    return;
+  }
+
+  try {
+    if (authenticated) {
+      const session: SessionData = {
+        authenticated: true,
+        expiresAt: Date.now() + SESSION_EXPIRY_MS,
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } else {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 /**
  * Session handler - /api/auth/session
@@ -42,7 +96,7 @@ export async function handleSession(ctx: HandlerContext): Promise<unknown> {
   const isSetup = user !== null;
 
   return {
-    authenticated: isAuthenticated,
+    authenticated: getAuthState(),
     isSetup,
   };
 }
@@ -79,7 +133,7 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
     throw new Error('Invalid PIN');
   }
 
-  isAuthenticated = true;
+  setAuthState(true);
   return { success: true };
 }
 
@@ -93,7 +147,7 @@ export async function handleLogout(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  isAuthenticated = false;
+  setAuthState(false);
   return { success: true };
 }
 
@@ -128,7 +182,7 @@ export async function handleSetup(ctx: HandlerContext): Promise<unknown> {
     [passwordHash, now, now]
   );
 
-  isAuthenticated = true;
+  setAuthState(true);
   return { success: true };
 }
 
@@ -142,7 +196,7 @@ export async function handleChangePin(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  if (!isAuthenticated) {
+  if (!getAuthState()) {
     throw new Error('Not authenticated');
   }
 
@@ -277,12 +331,12 @@ async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
  * Check if user is authenticated (for use by other handlers).
  */
 export function checkAuthenticated(): boolean {
-  return isAuthenticated;
+  return getAuthState();
 }
 
 /**
  * Set authentication state (for testing).
  */
 export function setAuthenticated(value: boolean): void {
-  isAuthenticated = value;
+  setAuthState(value);
 }

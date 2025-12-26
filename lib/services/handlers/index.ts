@@ -104,18 +104,3 @@ export function initializeTauriHandlers(): void {
   // - /api/data/*
   // - /api/net-worth
 }
-
-/**
- * Check if handlers are initialized.
- */
-let handlersInitialized = false;
-
-/**
- * Ensure handlers are initialized (call from api-client).
- */
-export function ensureHandlersInitialized(): void {
-  if (!handlersInitialized) {
-    initializeTauriHandlers();
-    handlersInitialized = true;
-  }
-}

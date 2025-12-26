@@ -175,42 +175,60 @@ async function getDashboardSummary(
 
 /**
  * Get monthly spending trends for a year.
+ * Uses a single aggregated query instead of 12 separate queries.
  */
 async function getMonthlyTrendsByYear(year: number): Promise<MonthlyTrend[]> {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const trends: MonthlyTrend[] = [];
+  const yearStr = year.toString();
 
+  // Single query that aggregates by month
+  const results = await db.query<{
+    month_num: number;
+    income: number;
+    expenses: number;
+    savings: number;
+    bills: number;
+    debt: number;
+    sinking: number;
+  }>(`
+    SELECT
+      CAST(strftime('%m', t.date) AS INTEGER) as month_num,
+      COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
+      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
+    FROM "transaction" t
+    LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
+    LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE strftime('%Y', t.date) = ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+      AND (uc.type IS NULL OR uc.type != 'transfer')
+    GROUP BY month_num
+    ORDER BY month_num
+  `, [yearStr]);
+
+  // Build a map of results by month
+  const resultMap = new Map<number, typeof results[0]>();
+  for (const row of results) {
+    resultMap.set(row.month_num, row);
+  }
+
+  // Generate all 12 months, filling in zeros for missing months
+  const trends: MonthlyTrend[] = [];
   for (let month = 1; month <= 12; month++) {
     const monthStr = String(month).padStart(2, '0');
-    const startDate = `${year}-${monthStr}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
-
-    const result = await db.queryOne<{
-      income: number;
-      expenses: number;
-      savings: number;
-      bills: number;
-      debt: number;
-      sinking: number;
-    }>(`
-      SELECT
-        COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
-        COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
-        COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-        COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
-        COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
-      FROM "transaction" t
-      LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
-      LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
-      WHERE t.date >= ? AND t.date <= ?
-        AND t.is_deleted = 0
-        AND t.is_split = 0
-        AND (uc.type IS NULL OR uc.type != 'transfer')
-    `, [startDate, endDate]);
-
-    const data = result || { income: 0, expenses: 0, savings: 0, bills: 0, debt: 0, sinking: 0 };
+    const data = resultMap.get(month) || {
+      month_num: month,
+      income: 0,
+      expenses: 0,
+      savings: 0,
+      bills: 0,
+      debt: 0,
+      sinking: 0,
+    };
     const totalSpending = data.expenses + data.savings + data.bills + data.debt + data.sinking;
 
     trends.push({
