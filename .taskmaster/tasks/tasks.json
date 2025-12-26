@@ -1198,7 +1198,7 @@
           12,
           15
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -1206,7 +1206,7 @@
             "description": "Set up Tauri window close event handling with sync prompt integration",
             "dependencies": [],
             "details": "Use Tauri's window API to intercept close events, implement beforeunload-style handling that triggers sync prompt modal (reusing Phase 7 modal component), and prevent window close until sync completes or user explicitly skips",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test window close interception works correctly, verify sync prompt displays when sync is configured, test close prevention until sync completion"
           },
           {
@@ -1215,7 +1215,7 @@
             "description": "Implement GitHub Releases API integration for version comparison and update detection",
             "dependencies": [],
             "details": "Create service to check GitHub Releases API (CuestaCodes/puffin-app) on app launch AND periodically every 24 hours while running. Compare local version against latest release using semantic versioning. Store last check timestamp to avoid excessive API calls.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test version comparison logic with various version formats, verify API calls work correctly, test handling of network failures and API rate limits"
           },
           {
@@ -1226,7 +1226,7 @@
               2
             ],
             "details": "Design and implement notification banner with 'Version X.X available — [Download] [Dismiss]' format, integrate download button that opens browser to GitHub release page, add dismiss functionality with local storage persistence",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test banner display and positioning, verify download button opens correct release page, test dismiss functionality persists across sessions"
           },
           {
@@ -1235,7 +1235,7 @@
             "description": "Add version number display in Settings page and ensure version sync between config files",
             "dependencies": [],
             "details": "Display current version number in Settings page footer, create build script or process to keep version synchronized between tauri.conf.json and package.json, implement version reading from appropriate source in both dev and production modes",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify version displays correctly in Settings, test version sync mechanism works during build process, validate version reading in different environments"
           },
           {
@@ -1246,7 +1246,7 @@
               4
             ],
             "details": "Configure GitHub Releases distribution for CuestaCodes/puffin-app repository. Build output: Puffin-vX.X.X-windows-x64.exe (portable, no installer). Document release process. NEEDS SETUP: Create GitHub release workflow, configure Tauri build action, set up release automation. Will explain the process during implementation.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test build output generation with correct naming convention, verify executable works as portable app, validate release documentation completeness"
           }
         ]
