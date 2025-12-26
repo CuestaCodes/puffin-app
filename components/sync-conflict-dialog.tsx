@@ -19,7 +19,7 @@ import {
   HardDrive,
   AlertCircle
 } from 'lucide-react';
-import type { SyncCheckResponse } from '@/app/api/sync/check/route';
+import type { SyncCheckResponse } from '@/types/sync';
 
 interface SyncConflictDialogProps {
   isOpen: boolean;

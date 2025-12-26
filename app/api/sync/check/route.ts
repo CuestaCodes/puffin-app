@@ -15,21 +15,13 @@
 import { NextResponse } from 'next/server';
 import { SyncConfigManager } from '@/lib/sync/config';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
+import type { SyncCheckResponse } from '@/types/sync';
 
 // Buffer for clock differences between local machine and Google servers
 const CLOCK_SKEW_BUFFER_MS = 60000; // 1 minute
 
-export interface SyncCheckResponse {
-  syncRequired: boolean;
-  reason: 'not_configured' | 'no_cloud_backup' | 'never_synced' | 'in_sync' | 'local_only' | 'cloud_only' | 'conflict' | 'check_failed';
-  message?: string;
-  canEdit: boolean;
-  hasLocalChanges?: boolean;
-  hasCloudChanges?: boolean;
-  cloudModifiedAt?: string;
-  lastSyncedAt?: string;
-  warning?: string;
-}
+// Re-export for backward compatibility
+export type { SyncCheckResponse } from '@/types/sync';
 
 export async function GET() {
   try {

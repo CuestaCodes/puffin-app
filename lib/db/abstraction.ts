@@ -265,66 +265,133 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
 }
 
 // ============================================================================
-// Tauri Plugin SQL Stub (for future implementation)
+// Tauri Plugin SQL Implementation
 // ============================================================================
 
 /**
  * Tauri Plugin SQL adapter for packaged app mode
- * 
- * This is a stub implementation that will be completed when Tauri is integrated.
- * For now, it throws an error indicating Tauri is not available.
+ *
+ * Uses @tauri-apps/plugin-sql for native SQLite access in the desktop app.
+ * The database is stored in the app's data directory (%APPDATA%/Puffin on Windows).
  */
 export class TauriSqlAdapter implements DatabaseAdapter {
   private dbPath: string;
-  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private db: any = null;
+  private config: DatabaseConfig;
+
   constructor(config: DatabaseConfig) {
+    this.config = config;
     this.dbPath = config.path;
   }
-  
-  private notImplemented(): never {
-    throw new Error(
-      'Tauri SQL adapter is not yet implemented. ' +
-      'This adapter requires Phase 9 implementation. ' +
-      'See Tasks 13-16 in .taskmaster/tasks/tasks.json for Tauri packaging roadmap.'
+
+  /**
+   * Get or create the database connection
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async getDb(): Promise<any> {
+    if (this.db) {
+      return this.db;
+    }
+
+    // Dynamic import to avoid bundling issues in non-Tauri contexts
+    const { default: Database } = await import('@tauri-apps/plugin-sql');
+
+    // Load SQLite database from the app's data directory
+    // The path format for tauri-plugin-sql is: sqlite:path/to/db.sqlite
+    this.db = await Database.load(`sqlite:${this.dbPath}`);
+
+    // Configure database
+    if (this.config.enableWAL !== false) {
+      await this.db.execute('PRAGMA journal_mode = WAL');
+    }
+    if (this.config.enableForeignKeys !== false) {
+      await this.db.execute('PRAGMA foreign_keys = ON');
+    }
+
+    return this.db;
+  }
+
+  async query<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+    const db = await this.getDb();
+    return await db.select<T[]>(sql, params);
+  }
+
+  async queryOne<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T | null> {
+    const rows = await this.query<T>(sql, params);
+    return rows[0] ?? null;
+  }
+
+  async execute(sql: string, params: unknown[] = []): Promise<MutationResult> {
+    const db = await this.getDb();
+    const result = await db.execute(sql, params);
+    return {
+      changes: result.rowsAffected,
+      lastInsertRowId: result.lastInsertId,
+    };
+  }
+
+  async exec(sql: string): Promise<void> {
+    const db = await this.getDb();
+    // Execute multiple statements by splitting on semicolons
+    const statements = sql.split(';').filter(s => s.trim());
+    for (const stmt of statements) {
+      if (stmt.trim()) {
+        await db.execute(stmt);
+      }
+    }
+  }
+
+  async initialize(schemaSQL: string, seedSQL?: string): Promise<void> {
+    const exists = await this.tableExists('transaction');
+    if (!exists) {
+      await this.exec(schemaSQL);
+      if (seedSQL) {
+        await this.exec(seedSQL);
+      }
+    }
+  }
+
+  async tableExists(tableName: string): Promise<boolean> {
+    const result = await this.queryOne<{ name: string }>(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=$1",
+      [tableName]
     );
+    return result !== null;
   }
-  
-  query<T = Record<string, unknown>>(): Promise<T[]> {
-    return this.notImplemented();
+
+  /**
+   * Run operations in a transaction.
+   *
+   * Note: Tauri plugin-sql supports true async transactions.
+   */
+  async transaction<T>(callback: TransactionCallback<T>): Promise<T> {
+    const db = await this.getDb();
+
+    await db.execute('BEGIN TRANSACTION');
+    try {
+      const result = await callback(this);
+      await db.execute('COMMIT');
+      return result;
+    } catch (error) {
+      await db.execute('ROLLBACK');
+      throw error;
+    }
   }
-  
-  queryOne<T = Record<string, unknown>>(): Promise<T | null> {
-    return this.notImplemented();
+
+  async close(): Promise<void> {
+    if (this.db) {
+      await this.db.close();
+      this.db = null;
+    }
   }
-  
-  execute(): Promise<MutationResult> {
-    return this.notImplemented();
+
+  async backup(targetPath: string): Promise<void> {
+    const db = await this.getDb();
+    // SQLite backup using VACUUM INTO (SQLite 3.27+)
+    await db.execute(`VACUUM INTO '${targetPath}'`);
   }
-  
-  exec(): Promise<void> {
-    return this.notImplemented();
-  }
-  
-  initialize(): Promise<void> {
-    return this.notImplemented();
-  }
-  
-  tableExists(): Promise<boolean> {
-    return this.notImplemented();
-  }
-  
-  transaction<T>(): Promise<T> {
-    return this.notImplemented();
-  }
-  
-  close(): Promise<void> {
-    return this.notImplemented();
-  }
-  
-  backup(): Promise<void> {
-    return this.notImplemented();
-  }
-  
+
   getPath(): string {
     return this.dbPath;
   }

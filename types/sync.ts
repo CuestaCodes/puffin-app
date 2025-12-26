@@ -32,6 +32,18 @@ export interface SyncStatus {
   operation?: string;
 }
 
+export interface SyncCheckResponse {
+  syncRequired: boolean;
+  reason: 'not_configured' | 'no_cloud_backup' | 'never_synced' | 'in_sync' | 'local_only' | 'cloud_only' | 'conflict' | 'check_failed';
+  message?: string;
+  canEdit: boolean;
+  hasLocalChanges?: boolean;
+  hasCloudChanges?: boolean;
+  cloudModifiedAt?: string;
+  lastSyncedAt?: string;
+  warning?: string;
+}
+
 export interface FolderValidationResult {
   success: boolean;
   folderId?: string;
