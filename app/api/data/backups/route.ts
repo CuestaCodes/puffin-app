@@ -7,6 +7,8 @@ import { getBackupsDir } from '@/lib/data/utils';
 import fs from 'fs';
 import path from 'path';
 
+const MAX_BACKUPS = 10;
+
 export async function GET() {
   const auth = await requireAuth();
   if (!auth.isAuthenticated) return auth.response;
@@ -80,6 +82,27 @@ export async function POST() {
 
     // Get the backup file stats
     const stats = fs.statSync(backupPath);
+
+    // Enforce backup limit - delete oldest backups beyond MAX_BACKUPS
+    const allBackups = fs.readdirSync(backupsDir)
+      .filter(file => file.endsWith('.db'))
+      .map(file => ({
+        filename: file,
+        path: path.join(backupsDir, file),
+        mtime: fs.statSync(path.join(backupsDir, file)).mtime.getTime(),
+      }))
+      .sort((a, b) => b.mtime - a.mtime); // Newest first
+
+    if (allBackups.length > MAX_BACKUPS) {
+      const toDelete = allBackups.slice(MAX_BACKUPS);
+      for (const backup of toDelete) {
+        try {
+          fs.unlinkSync(backup.path);
+        } catch (err) {
+          console.warn(`Failed to delete old backup ${backup.filename}:`, err);
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
