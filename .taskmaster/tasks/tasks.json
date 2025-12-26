@@ -1047,7 +1047,7 @@
             "dependencies": [
               4
             ],
-            "details": "Consolidated from 11.5 and 14.5. Test TauriSqlAdapter in actual Tauri runtime: (1) Preliminary test with npm run tauri dev - verify database operations work via window.__TAURI__ detection, (2) Full validation after Task 15 with proper %APPDATA% paths, (3) Production test with built .exe on clean Windows.",
+            "details": "PRELIMINARY TEST PASSED: Tauri dev mode works, window displays correctly on Windows via WSL. Next.js dev server provides API routes in dev mode. REMAINING: Production validation with static export (no API routes) to fully test TauriSqlAdapter - requires Task 15 service layer.",
             "status": "in-progress",
             "testStrategy": "Execute full test suite in Tauri dev mode and production builds. Test data migration, concurrent operations, error scenarios, and performance benchmarks. Verify all API routes work correctly through the abstraction layer"
           }
