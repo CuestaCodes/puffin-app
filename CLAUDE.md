@@ -35,6 +35,7 @@
 app/           # Next.js App Router pages and API routes
 components/    # React UI components
 lib/           # Utility functions, database layer, validations
+  data/        # Data management utilities (backups, exports, formatting)
   db/          # Database operations and abstraction layer
   sync/        # Google Drive sync (OAuth, encryption, Drive API)
 types/         # TypeScript type definitions
@@ -64,6 +65,21 @@ Transactions use `is_deleted` flag for soft delete, allowing recovery.
 
 Runtime detection via `window.__TAURI__`.
 
+### Database Connection Management
+- `getDatabase()` - Get the current database connection
+- `closeDatabase()` - Close connection only (keeps initialization state)
+- `resetDatabaseConnection()` - Close connection AND reset initialization flag (use after database file replacement/deletion)
+
+### SQLite WAL Mode
+The database uses WAL (Write-Ahead Logging) mode for better concurrency. Before any operation that reads/copies the database file directly (backups, exports, sync uploads), always checkpoint first:
+```typescript
+db.pragma('wal_checkpoint(TRUNCATE)');
+```
+This flushes pending writes from the `-wal` file into the main `.db` file. Also clean up stale WAL files after replacing the database:
+```typescript
+cleanupWalFiles(dbPath); // Removes .db-wal and .db-shm files
+```
+
 ## Data Models
 
 | Model | Purpose |
@@ -75,6 +91,15 @@ Runtime detection via `window.__TAURI__`.
 | Budget | Monthly budget amounts per sub-category |
 | AutoCategoryRule | Rules for automatic transaction categorisation |
 | SyncLog | Google Drive sync history |
+
+### Transaction Table Key Columns
+| Column | Purpose |
+|--------|---------|
+| `sub_category_id` | FK to sub_category (not `category_id`) |
+| `parent_transaction_id` | FK to parent for split children (not `split_from`) |
+| `is_split_parent` | Boolean flag for split parent transactions |
+| `is_deleted` | Soft delete flag (0 = active, 1 = deleted) |
+| `source_id` | FK to source (bank/account origin) |
 
 ### Sync Configuration Storage
 
@@ -158,6 +183,23 @@ npm run tauri build  # Build portable Windows .exe
 - Single-user model per installation (no concurrent access)
 - Local backup created before every sync operation
 - Conflict resolution: last-write-wins
+
+## UI Safety Patterns
+
+For destructive operations (delete, restore, reset, clear):
+- Always show a confirmation dialog with clear consequences
+- Use `AlertDialog` from shadcn/ui for consistency
+- Include the item name/details in the confirmation message
+- Use destructive variant styling for delete buttons
+
+For file uploads:
+- Enforce size limits (e.g., `MAX_BACKUP_SIZE = 100MB` in `lib/data/utils.ts`)
+- Validate file types before processing
+- Return appropriate HTTP status codes (413 for payload too large)
+
+When removing UI features:
+- Also remove the corresponding API route to avoid dead code
+- Clean up any shared utilities that become unused
 
 ## Security Patterns
 
