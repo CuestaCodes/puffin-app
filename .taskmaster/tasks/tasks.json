@@ -1626,7 +1626,7 @@
         "testStrategy": "Test forgot password creates backup before reset. Test reset clears all data and config. Test change password requires correct current password. Test invalid current password is rejected. Test new password is properly hashed. Test session is invalidated after password change. Test password strength validation.",
         "priority": "medium",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
