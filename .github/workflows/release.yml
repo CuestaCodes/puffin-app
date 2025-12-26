@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Puffin v__VERSION__'
+          releaseBody: |
+            ## Changes in this Release
+
+            See the [changelog](https://github.com/CuestaCodes/puffin-app/blob/main/CHANGELOG.md) for details.
+
+            ## Installation
+
+            Download the appropriate installer for your system:
+            - **Windows**: `Puffin_x.x.x_x64-setup.exe` (recommended) or `Puffin_x.x.x_x64_en-US.msi`
+
+            ### First Run
+            1. Run the installer
+            2. Set up a 6-digit PIN for local authentication
+            3. Optionally configure Google Drive sync for backups
+
+            ## System Requirements
+            - Windows 10 or later (64-bit)
+            - WebView2 runtime (bundled with installer)
+          releaseDraft: true
+          prerelease: false
+          includeDebug: false
+          includeRelease: true
+          args: --target x86_64-pc-windows-msvc
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Puffin v__VERSION__'
+          releaseDraft: true
+          prerelease: false
+          includeDebug: false
+          includeRelease: true
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app (Apple Silicon)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Puffin v__VERSION__'
+          releaseDraft: true
+          prerelease: false
+          includeDebug: false
+          includeRelease: true
+          args: --target aarch64-apple-darwin
+
+      - name: Build Tauri app (Intel)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Puffin v__VERSION__'
+          releaseDraft: true
+          prerelease: false
+          includeDebug: false
+          includeRelease: true
+          args: --target x86_64-apple-darwin

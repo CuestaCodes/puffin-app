@@ -24,12 +24,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.github.com https://accounts.google.com https://*.googleapis.com"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,6 +38,11 @@
       "icons/icon.ico"
     ],
     "resources": [],
+    "publisher": "CuestaCodes",
+    "copyright": "Copyright © 2025 CuestaCodes",
+    "category": "Finance",
+    "shortDescription": "Personal budgeting application",
+    "longDescription": "Puffin is a locally-hosted personal budgeting application for tracking expenses, categorizing transactions, and monitoring spending against budgets.",
     "linux": {
       "appimage": {
         "bundleMediaFramework": false
@@ -50,6 +55,10 @@
       "webviewInstallMode": {
         "type": "embedBootstrapper",
         "silent": true
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "license": "../LICENSE"
       }
     }
   },
