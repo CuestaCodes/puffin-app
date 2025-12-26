@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { SyncProvider, useSyncContext } from '@/hooks/use-sync-context';
 import { Sidebar } from './sidebar';
@@ -14,26 +14,30 @@ import { SyncConflictDialog } from '@/components/sync-conflict-dialog';
 
 export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'net-worth' | 'settings';
 
+/**
+ * Get initial page from URL params (for OAuth callback navigation)
+ */
+function getInitialPage(): PageId {
+  if (typeof window === 'undefined') return 'dashboard';
+
+  const params = new URLSearchParams(window.location.search);
+  const syncAuth = params.get('sync_auth');
+  const page = params.get('page');
+
+  if (syncAuth === 'success' || page === 'settings') {
+    // Clean up the URL
+    window.history.replaceState({}, '', window.location.pathname);
+    return 'settings';
+  }
+
+  return 'dashboard';
+}
+
 function AppShellContent() {
-  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+  const [currentPage, setCurrentPage] = useState<PageId>(getInitialPage);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { logout } = useAuth();
   const { syncStatus, needsResolution, isLoading, refetch } = useSyncContext();
-
-  // Check for URL params from OAuth callback to auto-navigate to settings
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const syncAuth = params.get('sync_auth');
-      const page = params.get('page');
-      
-      if (syncAuth === 'success' || page === 'settings') {
-        setCurrentPage('settings');
-        // Clean up the URL
-        window.history.replaceState({}, '', window.location.pathname);
-      }
-    }
-  }, []);
 
   const renderPage = () => {
     switch (currentPage) {

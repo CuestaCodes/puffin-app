@@ -102,31 +102,59 @@ export async function getAuthenticatedClient() {
 /**
  * Generate the OAuth2 authorization URL
  * @param scopeLevel - 'standard' for single-account, 'extended' for multi-account sync
- * @param state - Optional state parameter for OAuth flow
+ * @param state - Optional additional state parameter for OAuth flow
  */
 export function getAuthUrl(scopeLevel: ScopeLevel = 'standard', state?: string): string {
   const client = getOAuth2Client();
   const scopes = getScopes(scopeLevel);
 
+  // Encode scope level in state so we can use correct fallback in callback
+  const stateData = JSON.stringify({ scopeLevel, custom: state || null });
+  const encodedState = Buffer.from(stateData).toString('base64url');
+
   return client.generateAuthUrl({
     access_type: 'offline', // Get refresh token
     scope: scopes,
     prompt: 'consent', // Always show consent screen to get refresh token
-    state: state || undefined,
+    state: encodedState,
   });
 }
 
 /**
- * Handle the OAuth2 callback and exchange code for tokens
+ * Parse the state parameter from OAuth callback
  */
-export async function handleOAuthCallback(code: string): Promise<{ success: boolean; error?: string; email?: string }> {
+function parseOAuthState(state: string | null): { scopeLevel: ScopeLevel; custom: string | null } {
+  if (!state) {
+    return { scopeLevel: 'standard', custom: null };
+  }
+  try {
+    const decoded = Buffer.from(state, 'base64url').toString('utf8');
+    const parsed = JSON.parse(decoded);
+    return {
+      scopeLevel: parsed.scopeLevel || 'standard',
+      custom: parsed.custom || null,
+    };
+  } catch {
+    return { scopeLevel: 'standard', custom: null };
+  }
+}
+
+/**
+ * Handle the OAuth2 callback and exchange code for tokens
+ * @param code - The authorization code from Google
+ * @param state - The state parameter from the OAuth flow (contains scope level)
+ */
+export async function handleOAuthCallback(code: string, state?: string | null): Promise<{ success: boolean; error?: string; email?: string }> {
   try {
     const client = getOAuth2Client();
     const { tokens } = await client.getToken(code);
-    
+
     if (!tokens.access_token || !tokens.refresh_token) {
       return { success: false, error: 'Failed to get tokens from Google' };
     }
+
+    // Parse state to get the requested scope level for fallback
+    const { scopeLevel } = parseOAuthState(state || null);
 
     // Save tokens immediately
     SyncConfigManager.saveTokens({
@@ -134,7 +162,7 @@ export async function handleOAuthCallback(code: string): Promise<{ success: bool
       refresh_token: tokens.refresh_token,
       expiry_date: tokens.expiry_date || Date.now() + 3600 * 1000,
       token_type: tokens.token_type || 'Bearer',
-      scope: tokens.scope || getScopes('standard').join(' '),
+      scope: tokens.scope || getScopes(scopeLevel).join(' '),
     });
 
     // Fetch user info in background (don't block the redirect)

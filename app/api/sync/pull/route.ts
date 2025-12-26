@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 import { SyncConfigManager } from '@/lib/sync/config';
-import { resetDatabaseConnection } from '@/lib/db';
+import { resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
 
 // Database paths
 const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
@@ -106,10 +106,7 @@ export async function POST() {
         fs.unlinkSync(DB_PATH);
       }
       // Also remove WAL and SHM files if they exist
-      const walPath = DB_PATH + '-wal';
-      const shmPath = DB_PATH + '-shm';
-      if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
-      if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
+      cleanupWalFiles(DB_PATH);
 
       // Move downloaded file to database location
       fs.renameSync(TEMP_DOWNLOAD_PATH, DB_PATH);

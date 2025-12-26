@@ -79,7 +79,7 @@ export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTa
     return (
       <div className="text-center py-12 text-slate-500">
         <p>No net worth entries yet</p>
-        <p className="text-sm mt-1">Click "Record Net Worth" to add your first snapshot</p>
+        <p className="text-sm mt-1">Click &quot;Record Net Worth&quot; to add your first snapshot</p>
       </div>
     );
   }

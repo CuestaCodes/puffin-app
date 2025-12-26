@@ -20,7 +20,6 @@ import {
   Area,
 } from 'recharts';
 import { CHART_COLORS, UPPER_CATEGORY_COLORS, DONUT_CHART } from '@/lib/constants';
-import { calculateTotalSpend } from '@/lib/utils';
 
 interface DashboardSummary {
   totalIncome: number;

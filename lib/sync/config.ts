@@ -7,6 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import * as os from 'os';
 import type { SyncConfig, OAuthTokens } from '@/types/sync';
 
 // Configuration file paths
@@ -15,12 +16,19 @@ const CONFIG_FILE = path.join(DATA_DIR, 'sync-config.json');
 const TOKENS_FILE = path.join(DATA_DIR, '.sync-tokens.enc');
 const CREDENTIALS_FILE = path.join(DATA_DIR, '.sync-credentials.enc');
 
-// Encryption key derived from machine-specific data (simplified for dev mode)
+// Encryption key derived from environment variable or machine-specific data
 // In production/Tauri, this would use Windows Credential Manager
-const ENCRYPTION_KEY = crypto
-  .createHash('sha256')
-  .update(process.env.SYNC_ENCRYPTION_KEY || 'puffin-dev-key-change-in-prod')
-  .digest();
+function getEncryptionKey(): Buffer {
+  if (process.env.SYNC_ENCRYPTION_KEY) {
+    return crypto.createHash('sha256').update(process.env.SYNC_ENCRYPTION_KEY).digest();
+  }
+  // Fallback to machine-derived key for development
+  const machineId = `${os.hostname()}-${os.userInfo().username}-puffin`;
+  console.warn('[Sync] SYNC_ENCRYPTION_KEY not set, using machine-derived key');
+  return crypto.createHash('sha256').update(machineId).digest();
+}
+
+const ENCRYPTION_KEY = getEncryptionKey();
 
 interface StoredConfig {
   folderId: string | null;
@@ -279,7 +287,7 @@ export class SyncConfigManager {
         return null;
       }
       const content = fs.readFileSync(DB_PATH);
-      return crypto.createHash('md5').update(content).digest('hex');
+      return crypto.createHash('sha256').update(content).digest('hex');
     } catch (error) {
       console.error('Failed to compute DB hash:', error);
       return null;

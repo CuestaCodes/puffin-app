@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ interface SyncRequiredModalProps {
   onSyncComplete: () => void;
 }
 
-export function SyncRequiredModal({ isOpen, onSyncComplete }: SyncRequiredModalProps) {
+export function SyncRequiredModal({ isOpen, onSyncComplete: _onSyncComplete }: SyncRequiredModalProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

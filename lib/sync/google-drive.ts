@@ -14,6 +14,74 @@ const DATABASE_FILENAME = 'puffin-backup.db';
 const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
 
 /**
+ * Sanitize a Google Drive ID for use in query strings
+ * Removes any characters that could be used for query injection
+ */
+function sanitizeDriveId(id: string): string {
+  // Google Drive IDs are alphanumeric with dashes and underscores
+  return id.replace(/[^a-zA-Z0-9_-]/g, '');
+}
+
+/**
+ * Build a safe query for finding files in a folder
+ */
+function buildFolderQuery(folderId: string, filename: string): string {
+  const safeId = sanitizeDriveId(folderId);
+  const safeName = filename.replace(/'/g, "\\'");
+  return `'${safeId}' in parents and name='${safeName}' and trashed=false`;
+}
+
+/**
+ * Retry configuration for transient API errors
+ */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+  retryableStatusCodes: [429, 500, 502, 503, 504], // Rate limit and server errors
+};
+
+/**
+ * Execute a function with exponential backoff retry for transient errors
+ * @param fn - Async function to execute
+ * @param context - Description of the operation for logging
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  context: string
+): Promise<T> {
+  let lastError: Error | undefined;
+  let delay = RETRY_CONFIG.initialDelayMs;
+
+  for (let attempt = 1; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: unknown) {
+      lastError = error as Error;
+      const gError = error as { code?: number; message?: string };
+
+      // Check if error is retryable
+      const isRetryable = gError.code && RETRY_CONFIG.retryableStatusCodes.includes(gError.code);
+
+      if (!isRetryable || attempt === RETRY_CONFIG.maxRetries) {
+        throw error;
+      }
+
+      console.warn(`[GoogleDrive] ${context} failed (attempt ${attempt}/${RETRY_CONFIG.maxRetries}), retrying in ${delay}ms:`, gError.message);
+
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      // Exponential backoff with cap
+      delay = Math.min(delay * RETRY_CONFIG.backoffMultiplier, RETRY_CONFIG.maxDelayMs);
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Google Drive Service for sync operations
  */
 export class GoogleDriveService {
@@ -131,37 +199,46 @@ export class GoogleDriveService {
 
     try {
       // Check if backup file already exists in folder
-      const existingFiles = await this.drive!.files.list({
-        q: `'${folderId}' in parents and name='${DATABASE_FILENAME}' and trashed=false`,
-        fields: 'files(id,name)',
-      });
+      const existingFiles = await withRetry(
+        () => this.drive!.files.list({
+          q: buildFolderQuery(folderId, DATABASE_FILENAME),
+          fields: 'files(id,name)',
+        }),
+        'list files in folder'
+      );
 
       const existingFile = existingFiles.data.files?.[0];
       let fileId: string;
 
       if (existingFile?.id) {
         // Update existing file
-        await this.drive!.files.update({
-          fileId: existingFile.id,
-          media: {
-            mimeType: 'application/x-sqlite3',
-            body: fs.createReadStream(localDbPath),
-          },
-        });
+        await withRetry(
+          () => this.drive!.files.update({
+            fileId: existingFile.id,
+            media: {
+              mimeType: 'application/x-sqlite3',
+              body: fs.createReadStream(localDbPath),
+            },
+          }),
+          'update database file'
+        );
         fileId = existingFile.id;
       } else {
         // Create new file
-        const createResult = await this.drive!.files.create({
-          requestBody: {
-            name: DATABASE_FILENAME,
-            parents: [folderId],
-          },
-          media: {
-            mimeType: 'application/x-sqlite3',
-            body: fs.createReadStream(localDbPath),
-          },
-          fields: 'id',
-        });
+        const createResult = await withRetry(
+          () => this.drive!.files.create({
+            requestBody: {
+              name: DATABASE_FILENAME,
+              parents: [folderId],
+            },
+            media: {
+              mimeType: 'application/x-sqlite3',
+              body: fs.createReadStream(localDbPath),
+            },
+            fields: 'id',
+          }),
+          'create database file'
+        );
         fileId = createResult.data.id!;
       }
 
@@ -172,9 +249,9 @@ export class GoogleDriveService {
     } catch (error: unknown) {
       const gError = error as { message?: string };
       console.error('Upload error:', error);
-      return { 
-        success: false, 
-        error: gError.message || 'Failed to upload database' 
+      return {
+        success: false,
+        error: gError.message || 'Failed to upload database'
       };
     }
   }
@@ -192,10 +269,13 @@ export class GoogleDriveService {
 
     try {
       // Find the backup file in the folder
-      const files = await this.drive!.files.list({
-        q: `'${folderId}' in parents and name='${DATABASE_FILENAME}' and trashed=false`,
-        fields: 'files(id,name,modifiedTime)',
-      });
+      const files = await withRetry(
+        () => this.drive!.files.list({
+          q: buildFolderQuery(folderId, DATABASE_FILENAME),
+          fields: 'files(id,name,modifiedTime)',
+        }),
+        'list files for download'
+      );
 
       const backupFile = files.data.files?.[0];
       if (!backupFile?.id) {
@@ -203,9 +283,12 @@ export class GoogleDriveService {
       }
 
       // Download the file
-      const response = await this.drive!.files.get(
-        { fileId: backupFile.id, alt: 'media' },
-        { responseType: 'stream' }
+      const response = await withRetry(
+        () => this.drive!.files.get(
+          { fileId: backupFile.id, alt: 'media' },
+          { responseType: 'stream' }
+        ),
+        'download database file'
       );
 
       // Ensure destination directory exists
@@ -266,7 +349,7 @@ export class GoogleDriveService {
 
     try {
       const files = await this.drive!.files.list({
-        q: `'${folderId}' in parents and name='${DATABASE_FILENAME}' and trashed=false`,
+        q: buildFolderQuery(folderId, DATABASE_FILENAME),
         fields: 'files(id,name,modifiedTime)',
       });
 
@@ -343,14 +426,17 @@ export class GoogleDriveService {
 
     try {
       // supportsAllDrives is required to update files shared from other accounts
-      await this.drive!.files.update({
-        fileId,
-        supportsAllDrives: true,
-        media: {
-          mimeType: 'application/x-sqlite3',
-          body: fs.createReadStream(localDbPath),
-        },
-      });
+      await withRetry(
+        () => this.drive!.files.update({
+          fileId,
+          supportsAllDrives: true,
+          media: {
+            mimeType: 'application/x-sqlite3',
+            body: fs.createReadStream(localDbPath),
+          },
+        }),
+        'update database by file ID'
+      );
 
       SyncConfigManager.updateLastSynced();
       return { success: true };

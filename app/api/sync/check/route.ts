@@ -16,6 +16,9 @@ import { NextResponse } from 'next/server';
 import { SyncConfigManager } from '@/lib/sync/config';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 
+// Buffer for clock differences between local machine and Google servers
+const CLOCK_SKEW_BUFFER_MS = 60000; // 1 minute
+
 export interface SyncCheckResponse {
   syncRequired: boolean;
   reason: 'not_configured' | 'no_cloud_backup' | 'never_synced' | 'in_sync' | 'local_only' | 'cloud_only' | 'conflict' | 'check_failed';
@@ -90,7 +93,7 @@ export async function GET() {
       const lastSyncTime = new Date(config.lastSyncedAt).getTime();
       const cloudModifiedTime = cloudInfo.modifiedTime.getTime();
       // 1 minute buffer for clock differences
-      hasCloudChanges = cloudModifiedTime > lastSyncTime + 60000;
+      hasCloudChanges = cloudModifiedTime > lastSyncTime + CLOCK_SKEW_BUFFER_MS;
     }
 
     // Determine scenario based on local and cloud changes

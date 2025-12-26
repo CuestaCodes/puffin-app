@@ -37,7 +37,9 @@ export async function GET(request: Request) {
       );
     }
 
-    const result = await handleOAuthCallback(code);
+    // Pass state parameter to preserve scope level for fallback
+    const state = url.searchParams.get('state');
+    const result = await handleOAuthCallback(code, state);
 
     if (result.success) {
       // Redirect to settings with success

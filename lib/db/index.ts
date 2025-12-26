@@ -335,6 +335,24 @@ export function getDatabasePath(): string {
 }
 
 /**
+ * Clean up WAL (Write-Ahead Log) and SHM (Shared Memory) files for a database.
+ * These files are created by SQLite in WAL mode and should be removed when
+ * replacing a database file to ensure a clean state.
+ * @param dbPath - Path to the database file
+ */
+export function cleanupWalFiles(dbPath: string): void {
+  const walPath = dbPath + '-wal';
+  const shmPath = dbPath + '-shm';
+
+  if (fs.existsSync(walPath)) {
+    fs.unlinkSync(walPath);
+  }
+  if (fs.existsSync(shmPath)) {
+    fs.unlinkSync(shmPath);
+  }
+}
+
+/**
  * Get database file size in bytes
  */
 export function getDatabaseSize(): number {

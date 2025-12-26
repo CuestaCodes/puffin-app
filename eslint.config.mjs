@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Test coverage output
     "coverage/**",
+    // Node.js scripts (use CommonJS require)
+    "scripts/**",
   ]),
   // Allow underscore-prefixed unused variables (common convention for intentionally unused)
   {

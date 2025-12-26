@@ -16,7 +16,7 @@ import {
 import {
   ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X,
   Loader2, AlertTriangle, LogOut, RefreshCw,
-  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Key, Settings2, FileIcon, Users, Shield
+  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Settings2, FileIcon, Users, Shield
 } from 'lucide-react';
 import type { SyncConfig } from '@/types/sync';
 import { useGooglePicker } from '@/hooks/use-google-picker';
@@ -409,14 +409,16 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         </div>
       </div>
 
-      {/* Turbo/Dev Mode Notice */}
-      <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 flex items-start gap-2">
-        <Info className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-        <p className="text-xs text-slate-400">
-          <strong className="text-slate-300">Note:</strong> Due to Turbo bundling, Google authentication pages may occasionally hang.
-          If this happens, refresh the page and try again.
-        </p>
-      </div>
+      {/* Turbo/Dev Mode Notice - only show in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-3 flex items-start gap-2">
+          <Info className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-slate-400">
+            <strong className="text-slate-300">Note:</strong> Due to Turbo bundling, Google authentication pages may occasionally hang.
+            If this happens, refresh the page and try again.
+          </p>
+        </div>
+      )}
 
       {/* Success/Error Messages */}
       {(validationSuccess || syncSuccess) && (
