@@ -275,7 +275,7 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
 interface TauriDatabase {
   select<T>(sql: string, params?: unknown[]): Promise<T>;
   execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number; lastInsertId: number }>;
-  close(): Promise<void>;
+  close(): Promise<boolean>;
 }
 
 /**

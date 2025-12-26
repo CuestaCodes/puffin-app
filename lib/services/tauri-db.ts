@@ -14,7 +14,7 @@ import { SCHEMA_SQL, SEED_SQL } from '@/lib/db/schema';
 interface TauriDatabase {
   select<T>(sql: string, params?: unknown[]): Promise<T[]>;
   execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number; lastInsertId: number }>;
-  close(): Promise<void>;
+  close(): Promise<boolean>;
 }
 
 let db: TauriDatabase | null = null;
