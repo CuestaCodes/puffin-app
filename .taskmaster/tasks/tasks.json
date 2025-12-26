@@ -927,7 +927,7 @@
           10,
           11
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -935,7 +935,7 @@
             "description": "Install Tauri CLI and API packages, then initialize Tauri in the existing Next.js project",
             "dependencies": [],
             "details": "Run npm install @tauri-apps/cli @tauri-apps/api to add Tauri dependencies. Execute npx tauri init to scaffold Tauri configuration files and Rust backend structure. Verify src-tauri directory is created with proper Cargo.toml and main.rs files.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify Tauri CLI installation by running tauri --version. Confirm src-tauri directory exists with valid Rust project structure."
           },
           {
@@ -946,7 +946,7 @@
               1
             ],
             "details": "Configure tauri.conf.json with app name 'Puffin', window title 'Puffin — Personal Budgeting', default window size 1280x800 with resizable enabled. Enable single instance enforcement to prevent multiple windows accessing the same database. Set build target for Windows x64 portable executable.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify configuration loads correctly and single instance enforcement prevents duplicate app launches. Test window dimensions and resizing behavior."
           },
           {
@@ -957,7 +957,7 @@
               1
             ],
             "details": "Update next.config.js to include output: 'export' configuration for static site generation. Ensure all dynamic routes and API endpoints are compatible with static export. Configure asset handling and routing for Tauri webview environment.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run next build to verify static export generates correctly without errors. Test that all pages and assets load properly in static mode."
           },
           {
@@ -969,7 +969,7 @@
               3
             ],
             "details": "Add npm run tauri:dev script for development with hot reload and dev tools. Create npm run tauri:build script for production .exe generation. Ensure existing npm run dev continues to work for standard Next.js development. Configure scripts to handle both web and desktop development workflows.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test tauri:dev launches app with hot reload functionality. Verify tauri:build produces valid .exe file. Confirm standard Next.js dev mode still works independently."
           },
           {
@@ -980,7 +980,7 @@
               4
             ],
             "details": "Execute full build pipeline to generate Windows portable executable. Verify .exe file size is within 10-30MB target range and runs independently. Test development workflow with both web and desktop modes. Document build requirements, dependencies, and step-by-step build process for team members.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify final .exe runs on clean Windows system without dependencies. Test file size meets requirements. Validate documentation by following steps on different development environment."
           }
         ]
@@ -996,7 +996,7 @@
           11,
           13
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -1004,7 +1004,7 @@
             "description": "Install tauri-plugin-sql package and configure it in the Tauri application for native SQLite access",
             "dependencies": [],
             "details": "Install tauri-plugin-sql via npm/yarn, add it to Cargo.toml dependencies, configure the plugin in tauri.conf.json with appropriate permissions for database access, and ensure the plugin is properly initialized in the Tauri app setup",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Verify plugin installation by checking package.json and Cargo.toml. Test basic plugin initialization and connection establishment in Tauri dev mode"
           },
           {
@@ -1015,7 +1015,7 @@
               1
             ],
             "details": "Modify lib/db-abstraction.ts to check for window.__TAURI__ availability and create runtime detection logic that determines whether to use tauri-plugin-sql or better-sqlite3 implementation based on the execution environment",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test context detection in both Tauri app and browser development environments. Verify correct implementation is selected based on runtime context"
           },
           {
@@ -1026,7 +1026,7 @@
               2
             ],
             "details": "Implement Tauri-specific database operations including Database.load('sqlite:puffin.db') for connection establishment, db.select() for query operations, and db.execute() for mutation operations. Ensure all operations handle the async nature of tauri-plugin-sql and return Promises consistently",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test all CRUD operations using tauri-plugin-sql. Verify database connection, query execution, and mutation operations work correctly with proper error handling"
           },
           {
@@ -1037,7 +1037,7 @@
               3
             ],
             "details": "Update the abstraction layer to maintain the existing better-sqlite3 implementation for development mode while ensuring both implementations provide identical results for all database operations. Handle the sync/async differences between implementations and ensure consistent error handling and data formatting",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Run identical test suites against both implementations. Compare results, performance, and error handling. Verify data integrity and consistency across both modes"
           },
           {
@@ -1047,8 +1047,8 @@
             "dependencies": [
               4
             ],
-            "details": "Perform comprehensive testing of all database operations in Tauri development mode and create production builds to test packaged application behavior. Verify data integrity, concurrent operations, and error handling work correctly in both environments. Update all API routes to use the abstraction layer consistently",
-            "status": "pending",
+            "details": "Perform comprehensive testing of all database operations in Tauri runtime (not just dev mode). Need to run actual Tauri app to test TauriSqlAdapter with real @tauri-apps/plugin-sql. The implementation is complete but requires production validation.",
+            "status": "in-progress",
             "testStrategy": "Execute full test suite in Tauri dev mode and production builds. Test data migration, concurrent operations, error scenarios, and performance benchmarks. Verify all API routes work correctly through the abstraction layer"
           }
         ]
@@ -1065,7 +1065,7 @@
           13,
           14
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -1092,7 +1092,7 @@
             "title": "Configure Application File System Paths",
             "description": "Set up proper file system locations for packaged application with standardized paths",
             "dependencies": [],
-            "details": "Configure paths for database (%APPDATA%/Puffin/puffin.db), backups (%APPDATA%/Puffin/backups/), and config (%APPDATA%/Puffin/config.json) with proper cross-platform path resolution",
+            "details": "Configure paths for database and config. Use single detection mechanism for both dev and packaged mode: check window.__TAURI__ to determine paths. Dev: ./data/puffin.db, Packaged: %APPDATA%/Puffin/puffin.db",
             "status": "pending",
             "testStrategy": "Test path resolution on different operating systems, verify paths are created correctly, and confirm file access permissions"
           },
@@ -1144,7 +1144,7 @@
             "title": "Protect Token API Endpoint",
             "description": "Add security protections to /api/sync/token endpoint to prevent token theft via XSS",
             "dependencies": [],
-            "details": "Add CSRF token validation to /api/sync/token endpoint. Verify Origin/Referer headers match application origin. Consider implementing short-lived token exchange where frontend receives time-limited token. Add rate limiting to prevent brute force. Log token access for security auditing.",
+            "details": "Add CSRF token validation to /api/sync/token endpoint. Implement Origin/Referer header verification. Add rate limiting (already done for auth endpoints in task 23, reuse pattern). Log token access for security auditing.",
             "status": "pending",
             "testStrategy": "Test CSRF protection blocks cross-origin requests. Verify same-origin requests succeed. Test rate limiting works. Verify audit logs capture token access."
           },
@@ -1212,7 +1212,7 @@
             "title": "Build Auto-Update Version Checking System",
             "description": "Implement GitHub Releases API integration for version comparison and update detection",
             "dependencies": [],
-            "details": "Create service to check GitHub Releases API on app launch, compare local version from package.json against latest available release, implement version parsing and comparison logic with semantic versioning support",
+            "details": "Create service to check GitHub Releases API (CuestaCodes/puffin-app) on app launch AND periodically every 24 hours while running. Compare local version against latest release using semantic versioning. Store last check timestamp to avoid excessive API calls.",
             "status": "pending",
             "testStrategy": "Test version comparison logic with various version formats, verify API calls work correctly, test handling of network failures and API rate limits"
           },
@@ -1243,7 +1243,7 @@
             "dependencies": [
               4
             ],
-            "details": "Configure Tauri build to generate Puffin-vX.X.X-windows-x64.exe portable executable for GitHub Releases distribution. Optionally create .zip packaging for easier hosting. Document complete release process with GitHub Releases as the primary distribution channel. Set up GitHub Actions for automated builds and releases. Create release template with changelog format.",
+            "details": "Configure GitHub Releases distribution for CuestaCodes/puffin-app repository. Build output: Puffin-vX.X.X-windows-x64.exe (portable, no installer). Document release process. NEEDS SETUP: Create GitHub release workflow, configure Tauri build action, set up release automation. Will explain the process during implementation.",
             "status": "pending",
             "testStrategy": "Test build output generation with correct naming convention, verify executable works as portable app, validate release documentation completeness"
           }
@@ -1455,7 +1455,9 @@
         "details": "1. Create net_worth_entry table in database schema with: id, recorded_at, assets_data (JSON), liabilities_data (JSON), total_assets, total_liabilities, net_worth, notes, created_at\n2. Assets fields: Home (at purchase), Car (current value), Stocks 1, Stocks 2, Superannuation 1, Superannuation 2, Cash, Offset, Asset 1-4\n3. Liabilities fields: Mortgage, Credit Card Debt, Car Loan, Debt 1-4\n4. Store customizable labels with values in JSON format\n5. Build RecordNetWorthDialog with editable labels and value inputs for each field\n6. Create EntriesTable with date, totals, net worth, and edit/delete actions\n7. Delete action must show confirmation dialog with warning\n8. Build NetWorthChart using Recharts LineChart with solid historical line\n9. Add dashed projection line using linear regression for 5 years ahead (only when 2+ data points)\n10. Add 'Net Worth' to sidebar navigation and app-shell PageId",
         "testStrategy": "Test database CRUD operations for net worth entries. Verify JSON storage and retrieval of custom labels. Test linear regression calculation for projection. Test delete confirmation dialog shows appropriate warning. Verify chart renders correctly with projection line.",
         "priority": "medium",
-        "dependencies": [1],
+        "dependencies": [
+          1
+        ],
         "status": "done",
         "subtasks": [
           {
@@ -1471,7 +1473,9 @@
             "id": 2,
             "title": "Database Operations Layer",
             "description": "Create lib/db/net-worth.ts with CRUD operations",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Implement functions: createNetWorthEntry, getAllNetWorthEntries, getNetWorthEntryById, updateNetWorthEntry, deleteNetWorthEntry. Handle JSON serialization/deserialization for assets_data and liabilities_data fields.",
             "status": "done",
             "testStrategy": "Unit tests for all CRUD operations. Test JSON serialization works correctly."
@@ -1480,7 +1484,9 @@
             "id": 3,
             "title": "API Routes",
             "description": "Create API routes for net worth operations",
-            "dependencies": [2],
+            "dependencies": [
+              2
+            ],
             "details": "Create app/api/net-worth/route.ts with GET (list all) and POST (create). Create app/api/net-worth/[id]/route.ts with GET (single), PUT (update), DELETE. Add Zod validation for request bodies.",
             "status": "done",
             "testStrategy": "Test all API endpoints with valid and invalid payloads."
@@ -1489,7 +1495,9 @@
             "id": 4,
             "title": "Record Net Worth Dialog",
             "description": "Build dialog form for recording net worth snapshots with customizable labels",
-            "dependencies": [3],
+            "dependencies": [
+              3
+            ],
             "details": "Create components/net-worth/record-dialog.tsx with date picker, assets section (12 fields with editable labels), liabilities section (7 fields with editable labels). Each field has label input and value input. Calculate totals on save. Support both create and edit modes.",
             "status": "done",
             "testStrategy": "Test form validation. Test label customization persists. Test totals calculate correctly."
@@ -1498,7 +1506,9 @@
             "id": 5,
             "title": "Entries Table with Delete Warning",
             "description": "Build table component displaying net worth entries with edit and delete actions",
-            "dependencies": [3],
+            "dependencies": [
+              3
+            ],
             "details": "Create components/net-worth/entries-table.tsx with columns: Date, Total Assets, Total Liabilities, Net Worth, Actions. Edit button opens pre-filled dialog. Delete button shows confirmation dialog with prominent warning about permanent deletion.",
             "status": "done",
             "testStrategy": "Test table renders entries correctly. Test edit opens dialog with correct data. Test delete shows warning and requires confirmation."
@@ -1507,7 +1517,9 @@
             "id": 6,
             "title": "Net Worth Chart with Projection",
             "description": "Build line chart with historical data and 5-year dashed projection line",
-            "dependencies": [3],
+            "dependencies": [
+              3
+            ],
             "details": "Create components/net-worth/net-worth-chart.tsx using Recharts LineChart. Solid line for historical net worth values. Implement linear regression calculation. Add dashed line projecting 5 years into future (only when 2+ data points). Style to match existing dashboard charts.",
             "status": "done",
             "testStrategy": "Test chart renders with sample data. Test projection calculation is reasonable. Test styling matches app theme."
@@ -1516,7 +1528,11 @@
             "id": 7,
             "title": "Net Worth Page Component",
             "description": "Create main page combining chart, table, and record button",
-            "dependencies": [4, 5, 6],
+            "dependencies": [
+              4,
+              5,
+              6
+            ],
             "details": "Create components/pages/net-worth.tsx with header (title + 'Record Net Worth' button), NetWorthChart, and EntriesTable. Fetch data from API on mount. Handle loading and empty states.",
             "status": "done",
             "testStrategy": "Test page loads and displays all components. Test record button opens dialog. Test data refresh after create/edit/delete."
@@ -1525,7 +1541,9 @@
             "id": 8,
             "title": "Navigation Integration",
             "description": "Add Net Worth page to sidebar and app-shell routing",
-            "dependencies": [7],
+            "dependencies": [
+              7
+            ],
             "details": "Add 'net-worth' to PageId type in app-shell.tsx. Add nav item to sidebar.tsx with Wallet icon from lucide-react. Import and render NetWorthPage in app-shell switch statement.",
             "status": "done",
             "testStrategy": "Test navigation to Net Worth page works. Test sidebar highlights correctly when on page."
@@ -1557,7 +1575,9 @@
             "id": 2,
             "title": "Implement Transaction CSV Export",
             "description": "Build CSV export functionality for transactions with optional date range filter",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create GET /api/data/export/transactions endpoint that queries all transactions and formats as CSV. Include columns: date, description, amount, category, subcategory, source, notes, is_split. Add date range query params. Trigger browser download with Content-Disposition header.",
             "status": "done",
             "testStrategy": "Test CSV contains all transactions. Test date filter works. Test file downloads correctly. Test special characters are escaped."
@@ -1566,7 +1586,9 @@
             "id": 3,
             "title": "Implement Database Backup Export",
             "description": "Allow users to download a full copy of their database file",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create GET /api/data/export/backup endpoint. Run WAL checkpoint before export. Copy database to temp location, stream as download with filename puffin-backup-{timestamp}.db. Ensure backup is consistent (no partial writes).",
             "status": "done",
             "testStrategy": "Test backup file is valid SQLite database. Test backup contains all data. Test WAL is checkpointed before backup."
@@ -1575,7 +1597,9 @@
             "id": 4,
             "title": "Implement Database Restore",
             "description": "Allow users to restore from a previously exported database backup",
-            "dependencies": [3],
+            "dependencies": [
+              3
+            ],
             "details": "Create POST /api/data/import/backup endpoint. Accept .db file upload. Validate it's a valid Puffin database (check schema). Create backup of current database before restore. Replace current database with uploaded file. Clear WAL files after restore.",
             "status": "done",
             "testStrategy": "Test restore replaces all data. Test invalid files are rejected. Test automatic backup before restore. Test app works after restore."
@@ -1584,7 +1608,9 @@
             "id": 5,
             "title": "Implement Database Statistics",
             "description": "Show database size, transaction count, and other useful statistics",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create GET /api/data/stats endpoint. Return: file size (bytes), transaction count, category count, rule count, earliest transaction date, latest transaction date, source count. Display in UI with formatted values.",
             "status": "done",
             "testStrategy": "Test all statistics are accurate. Test formatting is human-readable. Test updates after data changes."
@@ -1593,7 +1619,9 @@
             "id": 6,
             "title": "Implement Clear and Reset Functions",
             "description": "Add ability to clear transactions or fully reset the database",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create POST /api/data/clear endpoint to delete all transactions (preserves categories, rules, sources). Create POST /api/data/reset endpoint to drop and recreate all tables (full reset). Both require confirmation with typed phrase. Create backup before destructive actions.",
             "status": "done",
             "testStrategy": "Test clear removes transactions but keeps categories. Test reset creates fresh database. Test confirmation prevents accidental deletion. Test backup is created."
@@ -1602,7 +1630,9 @@
             "id": 7,
             "title": "Implement Local Backup Management",
             "description": "List, view, and manage local backups in data/backups/",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create GET /api/data/backups endpoint to list all .db files in backups directory with timestamps and sizes. Create DELETE /api/data/backups/:filename to remove a backup. Create POST /api/data/backups/:filename/restore to restore from local backup. Display list in UI with restore/delete buttons.",
             "status": "done",
             "testStrategy": "Test backup list shows all files. Test delete removes file. Test restore works from local backup. Test cannot delete currently-in-use database."
@@ -1611,7 +1641,9 @@
             "id": 8,
             "title": "Implement Database Optimization",
             "description": "Add VACUUM command to optimize and shrink database file",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create POST /api/data/vacuum endpoint. Run SQLite VACUUM command to rebuild database and reclaim space. Show before/after file size. Add loading state during operation (can take time for large databases).",
             "status": "done",
             "testStrategy": "Test vacuum reduces file size after deletions. Test database remains valid after vacuum. Test loading state displays during operation."
@@ -1641,7 +1673,9 @@
             "id": 2,
             "title": "Implement App Reset API",
             "description": "Create API endpoint to reset the application to fresh state with rate limiting",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Create POST /api/auth/reset endpoint with rate limiting (3 attempts/hour). Delete puffin.db, delete sync config, delete OAuth tokens, delete credentials, delete local backups. Return success to trigger redirect to setup.",
             "status": "done",
             "testStrategy": "Test all data files are deleted. Test sync config is cleared. Test session is invalidated. Test app returns to setup state. Test rate limiting blocks excessive attempts."
@@ -1650,7 +1684,9 @@
             "id": 3,
             "title": "Build Reset Confirmation Dialog",
             "description": "Create confirmation dialog with strong warnings about data loss",
-            "dependencies": [1],
+            "dependencies": [
+              1
+            ],
             "details": "Integrated into login-form.tsx. Show warning icon and red-themed styling. Explain data loss consequences. Require typing 'RESET' to confirm. Call reset API on confirm, redirect to setup on success.",
             "status": "done",
             "testStrategy": "Test dialog requires typing RESET to enable button. Test cancel closes dialog. Test confirm calls API and redirects. Test error handling if reset fails."
@@ -1668,7 +1704,9 @@
             "id": 5,
             "title": "Implement Change PIN API",
             "description": "Create API endpoint to change the user's PIN with rate limiting",
-            "dependencies": [4],
+            "dependencies": [
+              4
+            ],
             "details": "Create POST /api/auth/change-password endpoint with rate limiting (5 attempts/15min). Accept: currentPin, newPin. Verify current PIN matches stored hash. If valid, hash new PIN and update local_user table. Invalidate current session. Return success.",
             "status": "done",
             "testStrategy": "Test correct current PIN allows change. Test incorrect current PIN is rejected. Test new PIN is properly hashed. Test session is cleared after change. Test rate limiting."
@@ -1677,7 +1715,10 @@
             "id": 6,
             "title": "Wire Up Change PIN UI",
             "description": "Connect the change PIN form to the API with validation and feedback",
-            "dependencies": [4, 5],
+            "dependencies": [
+              4,
+              5
+            ],
             "details": "Add form submission handler to security-settings.tsx. Validate: current PIN required, new PIN is 6 digits, confirm matches new. Call change-password API. On success: show success state, redirect to login via Next.js router. On error: show inline error message. Add loading state during submission.",
             "status": "done",
             "testStrategy": "Test form validation prevents submission with invalid data. Test successful change shows message and redirects. Test failed change shows error. Test loading state displays during API call."
