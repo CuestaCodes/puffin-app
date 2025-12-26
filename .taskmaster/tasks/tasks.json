@@ -1531,6 +1531,92 @@
             "testStrategy": "Test navigation to Net Worth page works. Test sidebar highlights correctly when on page."
           }
         ]
+      },
+      {
+        "id": 22,
+        "title": "Data Management Settings Page",
+        "description": "Build the Data Management settings page with export, import, backup, and database utilities. Complete the placeholder UI in settings.tsx.",
+        "details": "1. Create components/settings/data-management.tsx component\n2. Wire up Data Management card in settings.tsx with onClick and view\n3. Export Features:\n   - Export all transactions to CSV (with date range filter)\n   - Export full database backup (.db file download)\n   - Export categories and rules as JSON\n4. Import Features:\n   - Import transactions from CSV (link to existing import wizard)\n   - Restore from database backup (.db file upload)\n   - Import categories/rules from JSON\n5. Database Utilities:\n   - Show database statistics (file size, transaction count, date range)\n   - Clear all transactions (with confirmation)\n   - Reset to fresh database (with strong warning)\n   - Optimize/vacuum database\n6. Backup Management:\n   - List local backups in data/backups/\n   - Delete old backups\n   - Restore from local backup\n7. Create API routes:\n   - GET/POST /api/data/export (transactions CSV, full backup)\n   - POST /api/data/import (restore backup)\n   - GET /api/data/stats (database statistics)\n   - POST /api/data/clear (clear transactions)\n   - POST /api/data/vacuum (optimize database)\n   - GET/DELETE /api/data/backups (list/delete local backups)",
+        "testStrategy": "Test CSV export includes all fields and respects date filters. Test database backup creates valid .db file. Test restore replaces database correctly. Test clear transactions removes all but preserves categories. Test vacuum reduces file size. Test backup list shows correct files. Verify confirmation dialogs for destructive actions.",
+        "priority": "low",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Data Management Component Shell",
+            "description": "Create the data-management.tsx component and wire it up in settings.tsx",
+            "dependencies": [],
+            "details": "Create components/settings/data-management.tsx with back button, header, and section cards for Export, Import, Database Utilities, and Backup Management. Add 'data' view case to settings.tsx and onClick handler to Data Management card.",
+            "status": "pending",
+            "testStrategy": "Test navigation to Data Management page works. Test back button returns to settings main."
+          },
+          {
+            "id": 2,
+            "title": "Implement Transaction CSV Export",
+            "description": "Build CSV export functionality for transactions with optional date range filter",
+            "dependencies": [1],
+            "details": "Create GET /api/data/export/transactions endpoint that queries all transactions and formats as CSV. Include columns: date, description, amount, category, subcategory, source, notes, is_split. Add date range query params. Trigger browser download with Content-Disposition header.",
+            "status": "pending",
+            "testStrategy": "Test CSV contains all transactions. Test date filter works. Test file downloads correctly. Test special characters are escaped."
+          },
+          {
+            "id": 3,
+            "title": "Implement Database Backup Export",
+            "description": "Allow users to download a full copy of their database file",
+            "dependencies": [1],
+            "details": "Create GET /api/data/export/backup endpoint. Run WAL checkpoint before export. Copy database to temp location, stream as download with filename puffin-backup-{timestamp}.db. Ensure backup is consistent (no partial writes).",
+            "status": "pending",
+            "testStrategy": "Test backup file is valid SQLite database. Test backup contains all data. Test WAL is checkpointed before backup."
+          },
+          {
+            "id": 4,
+            "title": "Implement Database Restore",
+            "description": "Allow users to restore from a previously exported database backup",
+            "dependencies": [3],
+            "details": "Create POST /api/data/import/backup endpoint. Accept .db file upload. Validate it's a valid Puffin database (check schema). Create backup of current database before restore. Replace current database with uploaded file. Clear WAL files after restore.",
+            "status": "pending",
+            "testStrategy": "Test restore replaces all data. Test invalid files are rejected. Test automatic backup before restore. Test app works after restore."
+          },
+          {
+            "id": 5,
+            "title": "Implement Database Statistics",
+            "description": "Show database size, transaction count, and other useful statistics",
+            "dependencies": [1],
+            "details": "Create GET /api/data/stats endpoint. Return: file size (bytes), transaction count, category count, rule count, earliest transaction date, latest transaction date, source count. Display in UI with formatted values.",
+            "status": "pending",
+            "testStrategy": "Test all statistics are accurate. Test formatting is human-readable. Test updates after data changes."
+          },
+          {
+            "id": 6,
+            "title": "Implement Clear and Reset Functions",
+            "description": "Add ability to clear transactions or fully reset the database",
+            "dependencies": [1],
+            "details": "Create POST /api/data/clear endpoint to delete all transactions (preserves categories, rules, sources). Create POST /api/data/reset endpoint to drop and recreate all tables (full reset). Both require confirmation with typed phrase. Create backup before destructive actions.",
+            "status": "pending",
+            "testStrategy": "Test clear removes transactions but keeps categories. Test reset creates fresh database. Test confirmation prevents accidental deletion. Test backup is created."
+          },
+          {
+            "id": 7,
+            "title": "Implement Local Backup Management",
+            "description": "List, view, and manage local backups in data/backups/",
+            "dependencies": [1],
+            "details": "Create GET /api/data/backups endpoint to list all .db files in backups directory with timestamps and sizes. Create DELETE /api/data/backups/:filename to remove a backup. Create POST /api/data/backups/:filename/restore to restore from local backup. Display list in UI with restore/delete buttons.",
+            "status": "pending",
+            "testStrategy": "Test backup list shows all files. Test delete removes file. Test restore works from local backup. Test cannot delete currently-in-use database."
+          },
+          {
+            "id": 8,
+            "title": "Implement Database Optimization",
+            "description": "Add VACUUM command to optimize and shrink database file",
+            "dependencies": [1],
+            "details": "Create POST /api/data/vacuum endpoint. Run SQLite VACUUM command to rebuild database and reclaim space. Show before/after file size. Add loading state during operation (can take time for large databases).",
+            "status": "pending",
+            "testStrategy": "Test vacuum reduces file size after deletions. Test database remains valid after vacuum. Test loading state displays during operation."
+          }
+        ]
       }
     ],
     "metadata": {
