@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ListTree, Sparkles, CloudUpload, Database, Shield } from 'lucide-react';
-import { CategoryManagement, RulesManagement, SyncManagement } from '@/components/settings';
+import { CategoryManagement, RulesManagement, SyncManagement, DataManagement } from '@/components/settings';
 
 type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
 
@@ -24,6 +24,11 @@ export function SettingsPage() {
   // Render the sync management page
   if (currentView === 'sync') {
     return <SyncManagement onBack={() => setCurrentView('main')} />;
+  }
+
+  // Render the data management page
+  if (currentView === 'data') {
+    return <DataManagement onBack={() => setCurrentView('main')} />;
   }
 
   return (
@@ -108,7 +113,10 @@ export function SettingsPage() {
         </Card>
 
         {/* Data Management */}
-        <Card className="border-slate-800 bg-slate-900/50 hover:border-amber-700 transition-colors cursor-pointer">
+        <Card
+          className="border-slate-800 bg-slate-900/50 hover:border-amber-700 transition-colors cursor-pointer"
+          onClick={() => setCurrentView('data')}
+        >
           <CardHeader>
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-900/50">

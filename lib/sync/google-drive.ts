@@ -212,9 +212,10 @@ export class GoogleDriveService {
 
       if (existingFile?.id) {
         // Update existing file
+        const existingFileId = existingFile.id;
         await withRetry(
           () => this.drive!.files.update({
-            fileId: existingFile.id,
+            fileId: existingFileId,
             media: {
               mimeType: 'application/x-sqlite3',
               body: fs.createReadStream(localDbPath),
@@ -222,7 +223,7 @@ export class GoogleDriveService {
           }),
           'update database file'
         );
-        fileId = existingFile.id;
+        fileId = existingFileId;
       } else {
         // Create new file
         const createResult = await withRetry(
@@ -283,9 +284,10 @@ export class GoogleDriveService {
       }
 
       // Download the file
+      const backupFileId = backupFile.id;
       const response = await withRetry(
         () => this.drive!.files.get(
-          { fileId: backupFile.id, alt: 'media' },
+          { fileId: backupFileId, alt: 'media' },
           { responseType: 'stream' }
         ),
         'download database file'
