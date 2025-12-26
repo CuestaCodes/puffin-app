@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, ShieldCheck } from 'lucide-react';
+import { sanitizePinInput } from '@/lib/utils';
 
 export function SetupForm() {
   const { setup, isLoading, error } = useAuth();
@@ -15,8 +16,7 @@ export function SetupForm() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-    setter(value);
+    setter(sanitizePinInput(e.target.value));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

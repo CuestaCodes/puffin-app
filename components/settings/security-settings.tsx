@@ -1,17 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Shield, Loader2, Eye, EyeOff, Check } from 'lucide-react';
+import { sanitizePinInput } from '@/lib/utils';
 
 interface SecuritySettingsProps {
   onBack: () => void;
 }
 
 export function SecuritySettings({ onBack }: SecuritySettingsProps) {
+  const router = useRouter();
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -23,8 +26,7 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
   const [success, setSuccess] = useState(false);
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-    setter(value);
+    setter(sanitizePinInput(e.target.value));
   };
 
   const pinsMatch = newPin === confirmPin && confirmPin.length === 6;
@@ -46,8 +48,8 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentPassword: currentPin,
-          newPassword: newPin,
+          currentPin,
+          newPin,
         }),
       });
 
@@ -55,9 +57,9 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
 
       if (response.ok) {
         setSuccess(true);
-        // Redirect to login after a short delay
+        // Redirect to login after a short delay using Next.js router
         setTimeout(() => {
-          window.location.href = '/';
+          router.push('/');
         }, 2000);
       } else {
         setError(data.error || 'Failed to change PIN');

@@ -1,12 +1,33 @@
 // POST /api/auth/reset - Full app reset (unauthenticated, for forgot password)
 // This endpoint does NOT require authentication since the user forgot their password
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDatabasePath, resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
 import { SyncConfigManager } from '@/lib/sync/config';
+import { checkRateLimit, recordAttempt, getClientIp, AUTH_RATE_LIMITS } from '@/lib/auth';
 import fs from 'fs';
 import path from 'path';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Apply rate limiting (3 attempts per hour)
+  const clientIp = getClientIp(request.headers);
+  const rateLimitKey = `reset:${clientIp}`;
+  const rateLimit = checkRateLimit(rateLimitKey, AUTH_RATE_LIMITS.reset);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: rateLimit.message },
+      {
+        status: 429,
+        headers: rateLimit.retryAfterMs
+          ? { 'Retry-After': String(Math.ceil(rateLimit.retryAfterMs / 1000)) }
+          : undefined,
+      }
+    );
+  }
+
+  // Record this attempt
+  recordAttempt(rateLimitKey);
+
   try {
     const dbPath = getDatabasePath();
     const backupsDir = path.join(path.dirname(dbPath), 'backups');
@@ -42,11 +63,11 @@ export async function POST() {
     }
 
     // The next request will automatically recreate the database with fresh schema
-    // User will need to set up password again
+    // User will need to set up PIN again
 
     return NextResponse.json({
       success: true,
-      message: 'App reset successfully. Please set up your password.',
+      message: 'App reset successfully. Please set up your PIN.',
     });
   } catch (error) {
     console.error('Reset app error:', error);

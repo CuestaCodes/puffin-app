@@ -78,22 +78,28 @@ export const reorderRulesSchema = z.object({
   ruleIds: z.array(z.string().regex(uuidPattern, 'Invalid rule ID')),
 });
 
+// PIN validation helper
+const pinValidation = z.string()
+  .length(6, 'PIN must be exactly 6 digits')
+  .regex(/^\d{6}$/, 'PIN must contain only digits');
+
 // Auth schemas (6-digit PIN)
-export const setupPasswordSchema = z.object({
-  password: z.string()
-    .length(6, 'PIN must be exactly 6 digits')
-    .regex(/^\d{6}$/, 'PIN must contain only digits'),
+// Note: Field names use 'password' for API backward compatibility with use-auth.tsx
+export const setupPinSchema = z.object({
+  password: pinValidation,
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
   message: 'PINs do not match',
   path: ['confirmPassword'],
 });
 
-export const loginSchema = z.object({
-  password: z.string()
-    .length(6, 'PIN must be exactly 6 digits')
-    .regex(/^\d{6}$/, 'PIN must contain only digits'),
+export const loginPinSchema = z.object({
+  password: pinValidation,
 });
+
+// Backward-compatible aliases (deprecated, use setupPinSchema/loginPinSchema)
+export const setupPasswordSchema = setupPinSchema;
+export const loginSchema = loginPinSchema;
 
 // Import schemas
 export const columnMappingSchema = z.object({
@@ -170,8 +176,11 @@ export type CreateBudgetInput = z.infer<typeof createBudgetSchema>;
 export type UpdateBudgetInput = z.infer<typeof updateBudgetSchema>;
 export type CreateAutoRuleInput = z.infer<typeof createAutoRuleSchema>;
 export type UpdateAutoRuleInput = z.infer<typeof updateAutoRuleSchema>;
-export type SetupPasswordInput = z.infer<typeof setupPasswordSchema>;
-export type LoginInput = z.infer<typeof loginSchema>;
+export type SetupPinInput = z.infer<typeof setupPinSchema>;
+export type LoginPinInput = z.infer<typeof loginPinSchema>;
+// Backward-compatible type aliases
+export type SetupPasswordInput = SetupPinInput;
+export type LoginInput = LoginPinInput;
 export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
 export type PaginationParams = z.infer<typeof paginationSchema>;
 export type CreateNetWorthInput = z.infer<typeof createNetWorthSchema>;

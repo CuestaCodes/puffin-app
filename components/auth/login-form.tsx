@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Lock, AlertTriangle } from 'lucide-react';
+import { sanitizePinInput } from '@/lib/utils';
 
 export function LoginForm() {
   const { login, isLoading, error } = useAuth();
@@ -25,8 +26,7 @@ export function LoginForm() {
   const [isResetting, setIsResetting] = useState(false);
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-    setPin(value);
+    setPin(sanitizePinInput(e.target.value));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
