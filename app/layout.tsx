@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { AuthProvider } from "@/hooks/use-auth";
+import { TauriProvider } from "@/components/tauri-provider";
+import { UpdateNotificationBanner } from "@/components/update-notification-banner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,9 +17,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="font-sans antialiased bg-background text-foreground">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <TauriProvider>
+          <AuthProvider>
+            <UpdateNotificationBanner />
+            {children}
+          </AuthProvider>
+        </TauriProvider>
       </body>
     </html>
   );

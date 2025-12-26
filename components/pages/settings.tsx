@@ -5,11 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { ListTree, Sparkles, CloudUpload, Database, Shield } from 'lucide-react';
 import { CategoryManagement, RulesManagement, SyncManagement, DataManagement, SecuritySettings } from '@/components/settings';
+import { useTauri } from '@/components/tauri-provider';
 
 type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
 
 export function SettingsPage() {
   const [currentView, setCurrentView] = useState<SettingsView>('main');
+  const { isTauri, appVersion } = useTauri();
 
   // Render the category management page
   if (currentView === 'categories') {
@@ -163,6 +165,15 @@ export function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Version footer */}
+      <div className="pt-6 border-t border-slate-800">
+        <p className="text-center text-xs text-slate-500">
+          Puffin {appVersion ? `v${appVersion}` : 'Development'}
+          {isTauri && <span className="ml-2 text-slate-600">• Desktop App</span>}
+          {!isTauri && <span className="ml-2 text-slate-600">• Web Mode</span>}
+        </p>
+      </div>
     </div>
   );
 }

@@ -99,8 +99,28 @@ export function initializeTauriHandlers(): void {
     return handleDashboard;
   });
 
+  // Sync handlers
+  registerHandler('/api/sync/config', async () => {
+    const { handleSyncConfig } = await import('./sync');
+    return handleSyncConfig;
+  });
+
+  registerHandler('/api/sync/status', async () => {
+    const { handleSyncStatus } = await import('./sync');
+    return handleSyncStatus;
+  });
+
+  registerHandler('/api/sync/push', async () => {
+    const { handleSyncPush } = await import('./sync');
+    return handleSyncPush;
+  });
+
+  registerHandler('/api/sync/disconnect', async () => {
+    const { handleSyncDisconnect } = await import('./sync');
+    return handleSyncDisconnect;
+  });
+
   // TODO: Add more handlers as needed:
-  // - /api/sync/*
   // - /api/data/*
   // - /api/net-worth
 }
