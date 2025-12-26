@@ -14,20 +14,6 @@ export async function POST() {
     const dbPath = getDatabasePath();
     const backupsDir = path.join(path.dirname(dbPath), 'backups');
 
-    // Create a backup before resetting
-    if (!fs.existsSync(backupsDir)) {
-      fs.mkdirSync(backupsDir, { recursive: true });
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const backupFilename = `pre-reset-${timestamp}.db`;
-    const backupPath = path.join(backupsDir, backupFilename);
-
-    // Backup existing database if it exists
-    if (fs.existsSync(dbPath)) {
-      fs.copyFileSync(dbPath, backupPath);
-    }
-
     // Close database connection and reset initialization flag
     resetDatabaseConnection();
 
@@ -36,6 +22,18 @@ export async function POST() {
       fs.unlinkSync(dbPath);
     }
     cleanupWalFiles(dbPath);
+
+    // Delete all local backups (full reset means starting completely fresh)
+    if (fs.existsSync(backupsDir)) {
+      const backupFiles = fs.readdirSync(backupsDir).filter(f => f.endsWith('.db'));
+      for (const file of backupFiles) {
+        try {
+          fs.unlinkSync(path.join(backupsDir, file));
+        } catch (err) {
+          console.warn(`Failed to delete backup ${file}:`, err);
+        }
+      }
+    }
 
     // Clear all sync configuration (Google Drive connection, tokens, credentials)
     try {
@@ -52,7 +50,6 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: 'App reset successfully. Please refresh and set up your password again.',
-      backupFilename,
     });
   } catch (error) {
     console.error('Reset database error:', error);

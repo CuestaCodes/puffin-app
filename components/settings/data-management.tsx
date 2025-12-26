@@ -667,8 +667,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
             </DialogTitle>
             <DialogDescription className="text-slate-400">
               This will permanently delete ALL data including transactions, categories, rules, sources,
-              and disconnect Google Drive sync. You will need to set up the app from scratch.
-              A backup will be created before reset.
+              local backups, and disconnect Google Drive sync. You will need to set up the app from scratch.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
