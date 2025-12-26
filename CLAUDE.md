@@ -38,9 +38,13 @@ lib/           # Utility functions, database layer, validations
   auth/        # Authentication (PIN hashing, session, rate limiting)
   data/        # Data management utilities (backups, exports, formatting)
   db/          # Database operations and abstraction layer
+  services/    # Tauri client-side service layer (static export mode)
+    handlers/  # API route handler implementations for Tauri
   sync/        # Google Drive sync (OAuth, encryption, Drive API)
 types/         # TypeScript type definitions
 data/          # SQLite database file (development)
+src-tauri/     # Tauri Rust backend (desktop packaging)
+scripts/       # Build scripts (build-static.js)
 ```
 
 ## Key Conventions
@@ -65,6 +69,34 @@ Transactions use `is_deleted` flag for soft delete, allowing recovery.
 - `tauri-plugin-sql` for packaged app (native Tauri integration)
 
 Runtime detection via `window.__TAURI__`.
+
+### Tauri Service Layer
+
+For Tauri static export mode (no server), API routes are replaced by a client-side service layer:
+
+| File | Purpose |
+|------|---------|
+| `lib/services/tauri-db.ts` | Client-side SQLite via @tauri-apps/plugin-sql |
+| `lib/services/api-client.ts` | Routes requests based on environment |
+| `lib/services/handlers/*` | Handler implementations mirroring API routes |
+
+**Request Flow:**
+- **Development**: `fetch('/api/...')` → Next.js API routes → better-sqlite3
+- **Tauri Static**: `api.get('/api/...')` → api-client → handlers → tauri-db
+
+**Usage:**
+```typescript
+import { api } from '@/lib/services';
+
+// Works in both dev and Tauri modes
+const result = await api.get('/api/transactions');
+const result = await api.post('/api/transactions', { ... });
+```
+
+**Adding New Handlers:**
+1. Create handler in `lib/services/handlers/` (mirror API route logic)
+2. Register in `lib/services/handlers/index.ts`
+3. Use `tauri-db` functions instead of `lib/db/` imports
 
 ### Database Connection Management
 - `getDatabase()` - Get the current database connection
@@ -130,9 +162,10 @@ npm run build      # Build for production
 npm run test       # Run Vitest tests
 npm run lint       # ESLint check
 
-# Tauri (when configured)
-npm run tauri dev    # Run in Tauri shell with dev tools
-npm run tauri build  # Build portable Windows .exe
+# Tauri desktop app
+npm run tauri:dev      # Run in Tauri shell with dev tools
+npm run tauri:build    # Build portable Windows .exe
+npm run build:static   # Build static export for Tauri (moves API routes temporarily)
 ```
 
 ## API Routes
