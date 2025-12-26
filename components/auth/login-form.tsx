@@ -6,12 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Lock } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Loader2, Lock, AlertTriangle } from 'lucide-react';
 
 export function LoginForm() {
   const { login, isLoading, error } = useAuth();
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +36,32 @@ export function LoginForm() {
     const success = await login(password);
     if (!success) {
       setLocalError('Invalid password');
+    }
+  };
+
+  const handleReset = async () => {
+    if (resetConfirmText !== 'RESET') return;
+
+    setIsResetting(true);
+    try {
+      const response = await fetch('/api/auth/reset', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        // Reload the page to show password setup
+        window.location.reload();
+      } else {
+        const data = await response.json();
+        setLocalError(data.error || 'Failed to reset app');
+        setShowResetDialog(false);
+      }
+    } catch {
+      setLocalError('Failed to reset app');
+      setShowResetDialog(false);
+    } finally {
+      setIsResetting(false);
+      setResetConfirmText('');
     }
   };
 
@@ -69,8 +106,8 @@ export function LoginForm() {
             </p>
           )}
 
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium shadow-lg shadow-cyan-500/25"
             disabled={isLoading}
           >
@@ -83,8 +120,78 @@ export function LoginForm() {
               'Unlock'
             )}
           </Button>
+
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={() => setShowResetDialog(true)}
+              className="text-sm text-slate-500 hover:text-slate-400 transition-colors"
+            >
+              Forgot Password?
+            </button>
+          </div>
         </form>
       </CardContent>
+
+      {/* Reset App Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Reset App
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              <span className="block mb-2 text-red-400 font-medium">
+                Warning: This action cannot be undone!
+              </span>
+              If you&apos;ve forgotten your password, you&apos;ll need to reset the app. This will:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Delete all your transactions and data</li>
+                <li>Remove all categories and rules</li>
+                <li>Disconnect Google Drive sync</li>
+                <li>Delete all local backups</li>
+              </ul>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reset-confirm" className="text-slate-300">
+              Type <span className="font-mono text-red-400">RESET</span> to confirm
+            </Label>
+            <Input
+              id="reset-confirm"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              className="mt-2 bg-slate-800 border-slate-700 text-slate-100"
+              placeholder="RESET"
+              disabled={isResetting}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowResetDialog(false);
+                setResetConfirmText('');
+              }}
+              className="text-slate-400"
+              disabled={isResetting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReset}
+              disabled={resetConfirmText !== 'RESET' || isResetting}
+              className="bg-red-600 hover:bg-red-500"
+            >
+              {isResetting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Reset App
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
