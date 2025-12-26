@@ -461,58 +461,74 @@ describe('Auto-Categorization Rule Schemas', () => {
 
 describe('Authentication Schemas', () => {
   describe('setupPasswordSchema', () => {
-    it('should validate matching passwords', () => {
+    it('should validate matching 6-digit PINs', () => {
       const result = setupPasswordSchema.safeParse({
-        password: 'MySecurePassword123',
-        confirmPassword: 'MySecurePassword123',
+        password: '123456',
+        confirmPassword: '123456',
       });
-      
+
       expect(result.success).toBe(true);
     });
 
-    it('should reject mismatched passwords', () => {
+    it('should reject mismatched PINs', () => {
       const result = setupPasswordSchema.safeParse({
-        password: 'Password123',
-        confirmPassword: 'DifferentPassword',
+        password: '123456',
+        confirmPassword: '654321',
       });
-      
+
       expect(result.success).toBe(false);
     });
 
-    it('should reject password less than 8 characters', () => {
+    it('should reject PIN less than 6 digits', () => {
       const result = setupPasswordSchema.safeParse({
-        password: 'short',
-        confirmPassword: 'short',
+        password: '12345',
+        confirmPassword: '12345',
       });
-      
+
       expect(result.success).toBe(false);
     });
 
-    it('should reject password over 100 characters', () => {
-      const longPassword = 'a'.repeat(101);
+    it('should reject PIN more than 6 digits', () => {
       const result = setupPasswordSchema.safeParse({
-        password: longPassword,
-        confirmPassword: longPassword,
+        password: '1234567',
+        confirmPassword: '1234567',
       });
-      
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-numeric PIN', () => {
+      const result = setupPasswordSchema.safeParse({
+        password: '12345a',
+        confirmPassword: '12345a',
+      });
+
       expect(result.success).toBe(false);
     });
   });
 
   describe('loginSchema', () => {
-    it('should validate password input', () => {
+    it('should validate 6-digit PIN input', () => {
       const result = loginSchema.safeParse({
-        password: 'anypassword',
+        password: '123456',
       });
-      
+
       expect(result.success).toBe(true);
     });
 
-    it('should reject empty password', () => {
+    it('should reject empty PIN', () => {
       const result = loginSchema.safeParse({
         password: '',
       });
-      
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-numeric PIN', () => {
+      const result = loginSchema.safeParse({
+        password: 'abcdef',
+      });
+
       expect(result.success).toBe(false);
     });
   });

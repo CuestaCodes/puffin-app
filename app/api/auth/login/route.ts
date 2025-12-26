@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     
     if (!isValid) {
       return NextResponse.json(
-        { error: 'Invalid password' },
+        { error: 'Invalid PIN' },
         { status: 401 }
       );
     }

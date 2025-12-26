@@ -78,19 +78,21 @@ export const reorderRulesSchema = z.object({
   ruleIds: z.array(z.string().regex(uuidPattern, 'Invalid rule ID')),
 });
 
-// Auth schemas
+// Auth schemas (6-digit PIN)
 export const setupPasswordSchema = z.object({
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(100, 'Password too long'),
+    .length(6, 'PIN must be exactly 6 digits')
+    .regex(/^\d{6}$/, 'PIN must contain only digits'),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
-  message: 'Passwords do not match',
+  message: 'PINs do not match',
   path: ['confirmPassword'],
 });
 
 export const loginSchema = z.object({
-  password: z.string().min(1, 'Password is required'),
+  password: z.string()
+    .length(6, 'PIN must be exactly 6 digits')
+    .regex(/^\d{6}$/, 'PIN must contain only digits'),
 });
 
 // Import schemas
