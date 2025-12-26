@@ -1617,6 +1617,81 @@
             "testStrategy": "Test vacuum reduces file size after deletions. Test database remains valid after vacuum. Test loading state displays during operation."
           }
         ]
+      },
+      {
+        "id": 23,
+        "title": "Password Recovery and Security Settings",
+        "description": "Implement password reset/forgot password flow on login screen and change password functionality in Settings security section.",
+        "details": "1. Forgot Password Flow (Login Screen):\n   - Add 'Forgot Password?' link below login form\n   - Show warning dialog explaining data will be lost\n   - 'Reset App' button deletes database and restarts setup flow\n   - Create backup before reset (in case user remembers later)\n   - Clear all config files, tokens, credentials\n   - Redirect to password setup screen\n\n2. Change Password (Settings > Security):\n   - Wire up Security card in settings.tsx with onClick and view\n   - Create security-settings.tsx component\n   - Current password verification required\n   - New password + confirm password fields\n   - Password strength indicator\n   - Update password_hash in local_user table\n   - Invalidate existing session after change\n   - Show success message and redirect to login\n\n3. API Routes:\n   - POST /api/auth/reset - Delete database, clear config, return fresh state\n   - POST /api/auth/change-password - Verify current, update to new\n   - GET /api/auth/password-strength - Optional: check password strength\n\n4. Security Considerations:\n   - Rate limit password attempts\n   - Log password change events\n   - Require re-authentication for sensitive operations",
+        "testStrategy": "Test forgot password creates backup before reset. Test reset clears all data and config. Test change password requires correct current password. Test invalid current password is rejected. Test new password is properly hashed. Test session is invalidated after password change. Test password strength validation.",
+        "priority": "medium",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add Forgot Password Link to Login Screen",
+            "description": "Add 'Forgot Password?' link below the login form that triggers the reset flow",
+            "dependencies": [],
+            "details": "Modify login page to include 'Forgot Password?' link. When clicked, show a confirmation dialog warning that all data will be lost. Include clear messaging about the consequences.",
+            "status": "pending",
+            "testStrategy": "Test link appears on login screen. Test clicking opens confirmation dialog. Test dialog clearly warns about data loss."
+          },
+          {
+            "id": 2,
+            "title": "Implement App Reset API",
+            "description": "Create API endpoint to reset the application to fresh state",
+            "dependencies": [1],
+            "details": "Create POST /api/auth/reset endpoint. Before reset: create backup of current database to backups folder with timestamp. Then: delete puffin.db, delete sync config, delete OAuth tokens, delete credentials. Clear any session cookies. Return success to trigger redirect to setup.",
+            "status": "pending",
+            "testStrategy": "Test backup is created before reset. Test all data files are deleted. Test sync config is cleared. Test session is invalidated. Test app returns to setup state."
+          },
+          {
+            "id": 3,
+            "title": "Build Reset Confirmation Dialog",
+            "description": "Create confirmation dialog with strong warnings about data loss",
+            "dependencies": [1],
+            "details": "Create ResetConfirmDialog component. Show warning icon and red-themed styling. Explain: 'This will delete ALL your data including transactions, categories, and budgets.' Require typing 'RESET' to confirm. Show backup location message. Call reset API on confirm, redirect to setup on success.",
+            "status": "pending",
+            "testStrategy": "Test dialog requires typing RESET to enable button. Test cancel closes dialog. Test confirm calls API and redirects. Test error handling if reset fails."
+          },
+          {
+            "id": 4,
+            "title": "Create Security Settings Component",
+            "description": "Build the security settings page with change password form",
+            "dependencies": [],
+            "details": "Create components/settings/security-settings.tsx. Add 'security' view to settings.tsx with onClick handler. Include back button, header. Main section: Change Password form with current password, new password, confirm password fields. Add password strength indicator using zxcvbn or similar.",
+            "status": "pending",
+            "testStrategy": "Test navigation to security settings works. Test back button returns to main settings. Test form renders all fields."
+          },
+          {
+            "id": 5,
+            "title": "Implement Change Password API",
+            "description": "Create API endpoint to change the user's password",
+            "dependencies": [4],
+            "details": "Create POST /api/auth/change-password endpoint. Accept: currentPassword, newPassword. Verify current password matches stored hash using bcrypt.compare(). If valid, hash new password and update local_user table. Invalidate current session (clear cookie). Return success. Add rate limiting to prevent brute force.",
+            "status": "pending",
+            "testStrategy": "Test correct current password allows change. Test incorrect current password is rejected. Test new password is properly hashed. Test session is cleared after change."
+          },
+          {
+            "id": 6,
+            "title": "Wire Up Change Password UI",
+            "description": "Connect the change password form to the API with validation and feedback",
+            "dependencies": [4, 5],
+            "details": "Add form submission handler to security-settings.tsx. Validate: current password required, new password meets requirements, confirm matches new. Call change-password API. On success: show toast message, redirect to login. On error: show inline error message. Add loading state during submission.",
+            "status": "pending",
+            "testStrategy": "Test form validation prevents submission with invalid data. Test successful change shows message and redirects. Test failed change shows error. Test loading state displays during API call."
+          },
+          {
+            "id": 7,
+            "title": "Add Password Strength Indicator",
+            "description": "Visual indicator showing password strength as user types",
+            "dependencies": [4],
+            "details": "Add password strength meter to new password field. Use color coding: red (weak), yellow (fair), green (strong). Show text feedback: 'Weak', 'Fair', 'Good', 'Strong'. Consider using zxcvbn library for accurate strength estimation. Don't block weak passwords, just warn.",
+            "status": "pending",
+            "testStrategy": "Test strength updates as user types. Test different password patterns show appropriate strength. Test visual feedback is clear."
+          }
+        ]
       }
     ],
     "metadata": {
