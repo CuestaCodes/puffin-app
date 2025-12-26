@@ -6,6 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Sanitize PIN input to only allow 6 digits.
+ * Used by PIN input components for consistent validation.
+ */
+export function sanitizePinInput(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 6);
+}
+
+/**
  * Format a date as YYYY-MM-DD without timezone conversion issues.
  * Unlike Date.toISOString().split('T')[0], this function constructs the string
  * directly from the components, avoiding UTC timezone offset problems.

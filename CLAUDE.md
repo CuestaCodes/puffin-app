@@ -35,6 +35,7 @@
 app/           # Next.js App Router pages and API routes
 components/    # React UI components
 lib/           # Utility functions, database layer, validations
+  auth/        # Authentication (PIN hashing, session, rate limiting)
   data/        # Data management utilities (backups, exports, formatting)
   db/          # Database operations and abstraction layer
   sync/        # Google Drive sync (OAuth, encryption, Drive API)
@@ -84,13 +85,15 @@ cleanupWalFiles(dbPath); // Removes .db-wal and .db-shm files
 
 | Model | Purpose |
 |-------|---------|
-| LocalUser | Single-row table for local password authentication |
+| LocalUser | Single-row table for local PIN authentication (6-digit PIN, bcrypt hashed) |
 | Transaction | Financial transactions with soft delete support |
 | UpperCategory | Top-level category groups |
 | SubCategory | User-defined categories under upper categories |
 | Budget | Monthly budget amounts per sub-category |
 | AutoCategoryRule | Rules for automatic transaction categorisation |
 | SyncLog | Google Drive sync history |
+
+**Note:** Authentication uses a 6-digit numeric PIN (not passwords). Validation schemas use PIN terminology (`setupPinSchema`, `loginPinSchema`) with backward-compatible aliases (`setupPasswordSchema`, `loginSchema`).
 
 ### Transaction Table Key Columns
 | Column | Purpose |
@@ -219,3 +222,31 @@ When removing UI features:
 
 ### Hashing
 - Database integrity: SHA-256 for detecting local changes since last sync
+
+### Rate Limiting
+Authentication endpoints use in-memory rate limiting (`lib/auth/rate-limit.ts`):
+
+| Endpoint | Max Attempts | Window | Lockout |
+|----------|-------------|--------|---------|
+| Login | 5 | 15 min | 15 min |
+| Change PIN | 5 | 15 min | 15 min |
+| Reset | 3 | 1 hour | 1 hour |
+
+Usage pattern:
+```typescript
+import { checkRateLimit, recordAttempt, clearAttempts, getClientIp, AUTH_RATE_LIMITS } from '@/lib/auth';
+
+const clientIp = getClientIp(request.headers);
+const rateLimitKey = `action:${clientIp}`;
+const rateLimit = checkRateLimit(rateLimitKey, AUTH_RATE_LIMITS.login);
+
+if (!rateLimit.allowed) {
+  return NextResponse.json({ error: rateLimit.message }, { status: 429 });
+}
+
+recordAttempt(rateLimitKey);  // Before verification
+// ... verify credentials ...
+clearAttempts(rateLimitKey);  // On success
+```
+
+**Note:** Rate limit state is in-memory and resets on server restart. For production with multiple instances, consider Redis.

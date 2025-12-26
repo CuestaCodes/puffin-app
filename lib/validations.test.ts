@@ -16,6 +16,9 @@ import {
   updateBudgetSchema,
   createAutoRuleSchema,
   updateAutoRuleSchema,
+  setupPinSchema,
+  loginPinSchema,
+  // Backward-compatible aliases
   setupPasswordSchema,
   loginSchema,
   columnMappingSchema,
@@ -460,60 +463,84 @@ describe('Auto-Categorization Rule Schemas', () => {
 });
 
 describe('Authentication Schemas', () => {
-  describe('setupPasswordSchema', () => {
-    it('should validate matching passwords', () => {
-      const result = setupPasswordSchema.safeParse({
-        password: 'MySecurePassword123',
-        confirmPassword: 'MySecurePassword123',
+  describe('setupPinSchema', () => {
+    it('should validate matching 6-digit PINs', () => {
+      const result = setupPinSchema.safeParse({
+        password: '123456',
+        confirmPassword: '123456',
       });
-      
+
       expect(result.success).toBe(true);
     });
 
-    it('should reject mismatched passwords', () => {
-      const result = setupPasswordSchema.safeParse({
-        password: 'Password123',
-        confirmPassword: 'DifferentPassword',
+    it('should reject mismatched PINs', () => {
+      const result = setupPinSchema.safeParse({
+        password: '123456',
+        confirmPassword: '654321',
       });
-      
+
       expect(result.success).toBe(false);
     });
 
-    it('should reject password less than 8 characters', () => {
-      const result = setupPasswordSchema.safeParse({
-        password: 'short',
-        confirmPassword: 'short',
+    it('should reject PIN less than 6 digits', () => {
+      const result = setupPinSchema.safeParse({
+        password: '12345',
+        confirmPassword: '12345',
       });
-      
+
       expect(result.success).toBe(false);
     });
 
-    it('should reject password over 100 characters', () => {
-      const longPassword = 'a'.repeat(101);
-      const result = setupPasswordSchema.safeParse({
-        password: longPassword,
-        confirmPassword: longPassword,
+    it('should reject PIN more than 6 digits', () => {
+      const result = setupPinSchema.safeParse({
+        password: '1234567',
+        confirmPassword: '1234567',
       });
-      
+
       expect(result.success).toBe(false);
+    });
+
+    it('should reject non-numeric PIN', () => {
+      const result = setupPinSchema.safeParse({
+        password: '12345a',
+        confirmPassword: '12345a',
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should be aliased as setupPasswordSchema for backward compatibility', () => {
+      expect(setupPasswordSchema).toBe(setupPinSchema);
     });
   });
 
-  describe('loginSchema', () => {
-    it('should validate password input', () => {
-      const result = loginSchema.safeParse({
-        password: 'anypassword',
+  describe('loginPinSchema', () => {
+    it('should validate 6-digit PIN input', () => {
+      const result = loginPinSchema.safeParse({
+        password: '123456',
       });
-      
+
       expect(result.success).toBe(true);
     });
 
-    it('should reject empty password', () => {
-      const result = loginSchema.safeParse({
+    it('should reject empty PIN', () => {
+      const result = loginPinSchema.safeParse({
         password: '',
       });
-      
+
       expect(result.success).toBe(false);
+    });
+
+    it('should reject non-numeric PIN', () => {
+      const result = loginPinSchema.safeParse({
+        password: 'abcdef',
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should be aliased as loginSchema for backward compatibility', () => {
+      expect(loginSchema).toBe(loginPinSchema);
     });
   });
 });

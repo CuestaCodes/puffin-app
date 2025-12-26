@@ -4,4 +4,5 @@ export { RulesManagement } from './rules-management';
 export { SyncManagement } from './sync-management';
 export { CredentialsSetup } from './credentials-setup';
 export { DataManagement } from './data-management';
+export { SecuritySettings } from './security-settings';
 
