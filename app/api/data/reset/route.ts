@@ -1,7 +1,8 @@
-// POST /api/data/reset - Full database reset (delete everything, recreate schema)
+// POST /api/data/reset - Full app reset (delete database and all sync configuration)
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getDatabasePath, resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
+import { SyncConfigManager } from '@/lib/sync/config';
 import fs from 'fs';
 import path from 'path';
 
@@ -36,12 +37,21 @@ export async function POST() {
     }
     cleanupWalFiles(dbPath);
 
+    // Clear all sync configuration (Google Drive connection, tokens, credentials)
+    try {
+      SyncConfigManager.clearConfig();
+      SyncConfigManager.clearCredentials();
+    } catch (syncError) {
+      console.warn('Failed to clear sync config during reset:', syncError);
+      // Continue with reset even if sync config clearing fails
+    }
+
     // The next request will automatically recreate the database with fresh schema
-    // User will need to set up password again
+    // User will need to set up password and reconfigure sync again
 
     return NextResponse.json({
       success: true,
-      message: 'Database reset successfully. Please refresh and set up your password again.',
+      message: 'App reset successfully. Please refresh and set up your password again.',
       backupFilename,
     });
   } catch (error) {

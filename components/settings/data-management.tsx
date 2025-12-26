@@ -601,7 +601,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
               className="flex-1 border-red-900/50 text-red-400 hover:bg-red-950/50 hover:border-red-700"
             >
               <AlertTriangle className="w-4 h-4 mr-2" />
-              Reset Entire Database
+              Full App Reset
             </Button>
           </div>
         </CardContent>
@@ -663,11 +663,12 @@ export function DataManagement({ onBack }: DataManagementProps) {
           <DialogHeader>
             <DialogTitle className="text-red-400 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
-              Reset Entire Database
+              Full App Reset
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              This will permanently delete ALL data including transactions, categories, rules, and sources.
-              You will need to set up the app again. A backup will be created before reset.
+              This will permanently delete ALL data including transactions, categories, rules, sources,
+              and disconnect Google Drive sync. You will need to set up the app from scratch.
+              A backup will be created before reset.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -701,7 +702,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
               {isResetting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
-              Reset Database
+              Reset App
             </Button>
           </DialogFooter>
         </DialogContent>
