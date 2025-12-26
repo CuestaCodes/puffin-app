@@ -269,6 +269,16 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
 // ============================================================================
 
 /**
+ * Interface for Tauri SQL Database connection.
+ * Provides type safety for the dynamic import of @tauri-apps/plugin-sql.
+ */
+interface TauriDatabase {
+  select<T>(sql: string, params?: unknown[]): Promise<T>;
+  execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number; lastInsertId: number }>;
+  close(): Promise<void>;
+}
+
+/**
  * Tauri Plugin SQL adapter for packaged app mode
  *
  * Uses @tauri-apps/plugin-sql for native SQLite access in the desktop app.
@@ -276,8 +286,7 @@ export class BetterSqlite3Adapter implements DatabaseAdapter {
  */
 export class TauriSqlAdapter implements DatabaseAdapter {
   private dbPath: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private db: any = null;
+  private db: TauriDatabase | null = null;
   private config: DatabaseConfig;
 
   constructor(config: DatabaseConfig) {
@@ -288,8 +297,7 @@ export class TauriSqlAdapter implements DatabaseAdapter {
   /**
    * Get or create the database connection
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async getDb(): Promise<any> {
+  private async getDb(): Promise<TauriDatabase> {
     if (this.db) {
       return this.db;
     }
@@ -299,7 +307,7 @@ export class TauriSqlAdapter implements DatabaseAdapter {
 
     // Load SQLite database from the app's data directory
     // The path format for tauri-plugin-sql is: sqlite:path/to/db.sqlite
-    this.db = await Database.load(`sqlite:${this.dbPath}`);
+    this.db = await Database.load(`sqlite:${this.dbPath}`) as TauriDatabase;
 
     // Configure database
     if (this.config.enableWAL !== false) {
@@ -333,7 +341,9 @@ export class TauriSqlAdapter implements DatabaseAdapter {
 
   async exec(sql: string): Promise<void> {
     const db = await this.getDb();
-    // Execute multiple statements by splitting on semicolons
+    // Execute multiple statements by splitting on semicolons.
+    // WARNING: This naive splitting does not handle semicolons inside SQL string
+    // literals. Only use for schema DDL statements, not user-provided SQL.
     const statements = sql.split(';').filter(s => s.trim());
     for (const stmt of statements) {
       if (stmt.trim()) {
@@ -354,7 +364,7 @@ export class TauriSqlAdapter implements DatabaseAdapter {
 
   async tableExists(tableName: string): Promise<boolean> {
     const result = await this.queryOne<{ name: string }>(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name=$1",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
       [tableName]
     );
     return result !== null;
@@ -389,7 +399,9 @@ export class TauriSqlAdapter implements DatabaseAdapter {
   async backup(targetPath: string): Promise<void> {
     const db = await this.getDb();
     // SQLite backup using VACUUM INTO (SQLite 3.27+)
-    await db.execute(`VACUUM INTO '${targetPath}'`);
+    // Escape single quotes to prevent SQL injection
+    const safePath = targetPath.replace(/'/g, "''");
+    await db.execute(`VACUUM INTO '${safePath}'`);
   }
 
   getPath(): string {

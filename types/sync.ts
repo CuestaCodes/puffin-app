@@ -32,15 +32,38 @@ export interface SyncStatus {
   operation?: string;
 }
 
+/**
+ * Sync status check response from the server.
+ * Used to determine if sync is needed and what action to take.
+ */
 export interface SyncCheckResponse {
+  /** Whether a sync operation is required */
   syncRequired: boolean;
+  /**
+   * The reason for the current sync state:
+   * - `not_configured`: Sync not set up, user can edit freely
+   * - `no_cloud_backup`: Cloud folder exists but no backup file yet, user should upload
+   * - `never_synced`: Backup exists in cloud but never synced locally, user should download
+   * - `in_sync`: Local and cloud are synchronized, no action needed
+   * - `local_only`: Only local changes exist, safe to upload
+   * - `cloud_only`: Only cloud changes exist, user should download
+   * - `conflict`: Both local and cloud have changes, user must choose which to keep
+   * - `check_failed`: Could not verify sync status, proceed with caution
+   */
   reason: 'not_configured' | 'no_cloud_backup' | 'never_synced' | 'in_sync' | 'local_only' | 'cloud_only' | 'conflict' | 'check_failed';
+  /** Human-readable message describing the sync state */
   message?: string;
+  /** Whether the user can safely edit data without risking data loss */
   canEdit: boolean;
+  /** Whether there are unsynchronized local changes */
   hasLocalChanges?: boolean;
+  /** Whether there are unsynchronized cloud changes */
   hasCloudChanges?: boolean;
+  /** ISO timestamp of when cloud backup was last modified */
   cloudModifiedAt?: string;
+  /** ISO timestamp of the last successful sync */
   lastSyncedAt?: string;
+  /** Warning message (e.g., when check failed but editing is allowed) */
   warning?: string;
 }
 

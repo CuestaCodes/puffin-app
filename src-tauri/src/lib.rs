@@ -1,3 +1,19 @@
+//! Puffin Desktop Application Entry Point
+//!
+//! This module initializes the Tauri application with required plugins:
+//! - single-instance: Prevents multiple app instances
+//! - sql: Native SQLite database access
+//! - log: Debug logging (development builds only)
+//!
+//! # Security Notes
+//!
+//! The CSP in tauri.conf.json includes `'unsafe-inline'` for styles because:
+//! - Tailwind CSS and many UI libraries inject inline styles dynamically
+//! - Next.js uses inline styles for critical CSS optimization
+//! - This is a common requirement for React/CSS-in-JS applications
+//!
+//! Future improvement: Consider nonce-based CSP for stricter security.
+
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

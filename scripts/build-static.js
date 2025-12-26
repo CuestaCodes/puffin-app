@@ -13,6 +13,9 @@ const API_DIR = path.join(__dirname, '..', 'app', 'api');
 const API_BACKUP_DIR = path.join(__dirname, '..', 'app', '_api_backup');
 const NEXT_CACHE_DIR = path.join(__dirname, '..', '.next');
 
+// Track state for cleanup
+let apiMoved = false;
+
 function moveDir(from, to) {
   if (fs.existsSync(from)) {
     fs.renameSync(from, to);
@@ -27,9 +30,33 @@ function removeDir(dir) {
   }
 }
 
-function main() {
-  let apiMoved = false;
+/**
+ * Restore API folder from backup.
+ * Called on normal exit and signal interrupts.
+ */
+function restoreApiFolder() {
+  if (apiMoved && fs.existsSync(API_BACKUP_DIR)) {
+    try {
+      console.log('Restoring API routes...');
+      moveDir(API_BACKUP_DIR, API_DIR);
+      apiMoved = false;
+    } catch (restoreError) {
+      console.error('CRITICAL: Failed to restore API routes:', restoreError.message);
+      console.error('Manual recovery required: mv app/_api_backup app/api');
+    }
+  }
+}
 
+// Handle interrupts to ensure API folder is restored
+['SIGINT', 'SIGTERM'].forEach(signal => {
+  process.on(signal, () => {
+    console.log(`\nReceived ${signal}, cleaning up...`);
+    restoreApiFolder();
+    process.exit(1);
+  });
+});
+
+function main() {
   try {
     // Clean Next.js cache to avoid stale type references
     console.log('Cleaning Next.js cache...');
@@ -54,10 +81,7 @@ function main() {
     process.exit(1);
   } finally {
     // Always restore API folder
-    if (apiMoved && fs.existsSync(API_BACKUP_DIR)) {
-      console.log('Restoring API routes...');
-      moveDir(API_BACKUP_DIR, API_DIR);
-    }
+    restoreApiFolder();
   }
 }
 
