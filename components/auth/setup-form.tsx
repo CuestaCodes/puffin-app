@@ -10,30 +10,30 @@ import { Loader2, ShieldCheck } from 'lucide-react';
 
 export function SetupForm() {
   const { setup, isLoading, error } = useAuth();
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setter(value);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
 
-    if (!password) {
-      setLocalError('Password is required');
+    if (pin.length !== 6) {
+      setLocalError('PIN must be exactly 6 digits');
       return;
     }
 
-    if (password.length < 8) {
-      setLocalError('Password must be at least 8 characters');
+    if (pin !== confirmPin) {
+      setLocalError('PINs do not match');
       return;
     }
 
-    if (password !== confirmPassword) {
-      setLocalError('Passwords do not match');
-      return;
-    }
-
-    await setup(password, confirmPassword);
+    await setup(pin, confirmPin);
   };
 
   const displayError = localError || error;
@@ -49,40 +49,46 @@ export function SetupForm() {
             Welcome to Puffin
           </CardTitle>
           <CardDescription className="text-slate-400 mt-2">
-            Create a password to secure your financial data
+            Create a 6-digit PIN to secure your financial data
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-slate-300">
-              Password
+            <Label htmlFor="pin" className="text-slate-300">
+              PIN
             </Label>
             <Input
-              id="password"
+              id="pin"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => handlePinChange(e, setPin)}
+              placeholder="Enter 6-digit PIN"
               disabled={isLoading}
-              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 text-center text-2xl tracking-[0.5em] placeholder:text-slate-500 placeholder:text-base placeholder:tracking-normal focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               autoFocus
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword" className="text-slate-300">
-              Confirm Password
+            <Label htmlFor="confirmPin" className="text-slate-300">
+              Confirm PIN
             </Label>
             <Input
-              id="confirmPassword"
+              id="confirmPin"
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={confirmPin}
+              onChange={(e) => handlePinChange(e, setConfirmPin)}
+              placeholder="Confirm 6-digit PIN"
               disabled={isLoading}
-              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 text-center text-2xl tracking-[0.5em] placeholder:text-slate-500 placeholder:text-base placeholder:tracking-normal focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             />
           </div>
 
@@ -92,10 +98,10 @@ export function SetupForm() {
             </p>
           )}
 
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full h-12 bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white font-medium shadow-lg shadow-emerald-500/25"
-            disabled={isLoading}
+            disabled={isLoading || pin.length !== 6 || confirmPin.length !== 6}
           >
             {isLoading ? (
               <>
@@ -108,7 +114,7 @@ export function SetupForm() {
           </Button>
 
           <p className="text-xs text-center text-slate-500 mt-4">
-            Your data is stored locally and secured with your password
+            Your data is stored locally and secured with your PIN
           </p>
         </form>
       </CardContent>

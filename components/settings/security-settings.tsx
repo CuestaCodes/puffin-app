@@ -1,62 +1,37 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Shield, Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
+import { ArrowLeft, Shield, Loader2, Eye, EyeOff, Check } from 'lucide-react';
 
 interface SecuritySettingsProps {
   onBack: () => void;
 }
 
-// Password strength calculation
-function getPasswordStrength(password: string): {
-  score: number;
-  label: string;
-  color: string;
-  requirements: { label: string; met: boolean }[];
-} {
-  const requirements = [
-    { label: 'At least 8 characters', met: password.length >= 8 },
-    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
-    { label: 'Contains lowercase letter', met: /[a-z]/.test(password) },
-    { label: 'Contains number', met: /[0-9]/.test(password) },
-    { label: 'Contains special character', met: /[^A-Za-z0-9]/.test(password) },
-  ];
-
-  const metCount = requirements.filter((r) => r.met).length;
-
-  if (metCount <= 1) {
-    return { score: 1, label: 'Weak', color: 'bg-red-500', requirements };
-  } else if (metCount <= 2) {
-    return { score: 2, label: 'Fair', color: 'bg-orange-500', requirements };
-  } else if (metCount <= 3) {
-    return { score: 3, label: 'Good', color: 'bg-yellow-500', requirements };
-  } else {
-    return { score: 4, label: 'Strong', color: 'bg-green-500', requirements };
-  }
-}
-
 export function SecuritySettings({ onBack }: SecuritySettingsProps) {
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
+  const [showNewPin, setShowNewPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const passwordStrength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setter(value);
+  };
 
-  const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
+  const pinsMatch = newPin === confirmPin && confirmPin.length === 6;
   const canSubmit =
-    currentPassword.length > 0 &&
-    newPassword.length >= 8 &&
-    passwordsMatch &&
+    currentPin.length === 6 &&
+    newPin.length === 6 &&
+    pinsMatch &&
     !isSubmitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,8 +46,8 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentPassword,
-          newPassword,
+          currentPassword: currentPin,
+          newPassword: newPin,
         }),
       });
 
@@ -85,10 +60,10 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
           window.location.href = '/';
         }, 2000);
       } else {
-        setError(data.error || 'Failed to change password');
+        setError(data.error || 'Failed to change PIN');
       }
     } catch {
-      setError('Failed to change password');
+      setError('Failed to change PIN');
     } finally {
       setIsSubmitting(false);
     }
@@ -103,9 +78,9 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
               <div className="mx-auto w-16 h-16 bg-green-950/50 border border-green-900/50 rounded-full flex items-center justify-center">
                 <Check className="w-8 h-8 text-green-400" />
               </div>
-              <h2 className="text-xl font-semibold text-green-400">Password Changed</h2>
+              <h2 className="text-xl font-semibold text-green-400">PIN Changed</h2>
               <p className="text-slate-400">
-                Your password has been updated successfully. Redirecting to login...
+                Your PIN has been updated successfully. Redirecting to login...
               </p>
             </div>
           </CardContent>
@@ -128,11 +103,11 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-white">Security Settings</h1>
-          <p className="text-slate-400 mt-1">Change your password</p>
+          <p className="text-slate-400 mt-1">Change your PIN</p>
         </div>
       </div>
 
-      {/* Change Password Form */}
+      {/* Change PIN Form */}
       <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -140,36 +115,39 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
               <Shield className="w-5 h-5 text-red-400" />
             </div>
             <div>
-              <CardTitle className="text-lg text-slate-100">Change Password</CardTitle>
+              <CardTitle className="text-lg text-slate-100">Change PIN</CardTitle>
               <CardDescription className="text-slate-400">
-                Update your password to keep your account secure
+                Update your 6-digit PIN to keep your account secure
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Current Password */}
+            {/* Current PIN */}
             <div className="space-y-2">
-              <Label htmlFor="current-password" className="text-slate-300">
-                Current Password
+              <Label htmlFor="current-pin" className="text-slate-300">
+                Current PIN
               </Label>
               <div className="relative">
                 <Input
-                  id="current-password"
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="bg-slate-800 border-slate-700 text-slate-100 pr-10"
-                  placeholder="Enter current password"
+                  id="current-pin"
+                  type={showCurrentPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={currentPin}
+                  onChange={(e) => handlePinChange(e, setCurrentPin)}
+                  className="bg-slate-800 border-slate-700 text-slate-100 text-center text-xl tracking-[0.5em] pr-10"
+                  placeholder="••••••"
                   disabled={isSubmitting}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  onClick={() => setShowCurrentPin(!showCurrentPin)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
                 >
-                  {showCurrentPassword ? (
+                  {showCurrentPin ? (
                     <EyeOff className="w-4 h-4" />
                   ) : (
                     <Eye className="w-4 h-4" />
@@ -178,112 +156,74 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
               </div>
             </div>
 
-            {/* New Password */}
+            {/* New PIN */}
             <div className="space-y-2">
-              <Label htmlFor="new-password" className="text-slate-300">
-                New Password
+              <Label htmlFor="new-pin" className="text-slate-300">
+                New PIN
               </Label>
               <div className="relative">
                 <Input
-                  id="new-password"
-                  type={showNewPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="bg-slate-800 border-slate-700 text-slate-100 pr-10"
-                  placeholder="Enter new password"
+                  id="new-pin"
+                  type={showNewPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={newPin}
+                  onChange={(e) => handlePinChange(e, setNewPin)}
+                  className="bg-slate-800 border-slate-700 text-slate-100 text-center text-xl tracking-[0.5em] pr-10"
+                  placeholder="••••••"
                   disabled={isSubmitting}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  onClick={() => setShowNewPin(!showNewPin)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
                 >
-                  {showNewPassword ? (
+                  {showNewPin ? (
                     <EyeOff className="w-4 h-4" />
                   ) : (
                     <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>
-
-              {/* Password Strength Indicator */}
-              {newPassword.length > 0 && (
-                <div className="space-y-2 mt-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 ${passwordStrength.color}`}
-                        style={{ width: `${(passwordStrength.score / 4) * 100}%` }}
-                      />
-                    </div>
-                    <span
-                      className={`text-sm font-medium ${
-                        passwordStrength.score <= 1
-                          ? 'text-red-400'
-                          : passwordStrength.score <= 2
-                          ? 'text-orange-400'
-                          : passwordStrength.score <= 3
-                          ? 'text-yellow-400'
-                          : 'text-green-400'
-                      }`}
-                    >
-                      {passwordStrength.label}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 text-xs">
-                    {passwordStrength.requirements.map((req) => (
-                      <div
-                        key={req.label}
-                        className={`flex items-center gap-1 ${
-                          req.met ? 'text-green-400' : 'text-slate-500'
-                        }`}
-                      >
-                        {req.met ? (
-                          <Check className="w-3 h-3" />
-                        ) : (
-                          <X className="w-3 h-3" />
-                        )}
-                        {req.label}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Confirm Password */}
+            {/* Confirm PIN */}
             <div className="space-y-2">
-              <Label htmlFor="confirm-password" className="text-slate-300">
-                Confirm New Password
+              <Label htmlFor="confirm-pin" className="text-slate-300">
+                Confirm New PIN
               </Label>
               <div className="relative">
                 <Input
-                  id="confirm-password"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`bg-slate-800 border-slate-700 text-slate-100 pr-10 ${
-                    confirmPassword.length > 0 && !passwordsMatch
+                  id="confirm-pin"
+                  type={showConfirmPin ? 'text' : 'password'}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={confirmPin}
+                  onChange={(e) => handlePinChange(e, setConfirmPin)}
+                  className={`bg-slate-800 border-slate-700 text-slate-100 text-center text-xl tracking-[0.5em] pr-10 ${
+                    confirmPin.length === 6 && !pinsMatch
                       ? 'border-red-500 focus:ring-red-500'
                       : ''
                   }`}
-                  placeholder="Confirm new password"
+                  placeholder="••••••"
                   disabled={isSubmitting}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  onClick={() => setShowConfirmPin(!showConfirmPin)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
                 >
-                  {showConfirmPassword ? (
+                  {showConfirmPin ? (
                     <EyeOff className="w-4 h-4" />
                   ) : (
                     <Eye className="w-4 h-4" />
                   )}
                 </button>
               </div>
-              {confirmPassword.length > 0 && !passwordsMatch && (
-                <p className="text-sm text-red-400">Passwords do not match</p>
+              {confirmPin.length === 6 && !pinsMatch && (
+                <p className="text-sm text-red-400">PINs do not match</p>
               )}
             </div>
 
@@ -303,10 +243,10 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Changing Password...
+                  Changing PIN...
                 </>
               ) : (
-                'Change Password'
+                'Change PIN'
               )}
             </Button>
           </form>

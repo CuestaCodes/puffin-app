@@ -18,24 +18,29 @@ import { Loader2, Lock, AlertTriangle } from 'lucide-react';
 
 export function LoginForm() {
   const { login, isLoading, error } = useAuth();
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setPin(value);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
 
-    if (!password) {
-      setLocalError('Password is required');
+    if (pin.length !== 6) {
+      setLocalError('Please enter your 6-digit PIN');
       return;
     }
 
-    const success = await login(password);
+    const success = await login(pin);
     if (!success) {
-      setLocalError('Invalid password');
+      setLocalError('Invalid PIN');
     }
   };
 
@@ -49,7 +54,6 @@ export function LoginForm() {
       });
 
       if (response.ok) {
-        // Reload the page to show password setup
         window.location.reload();
       } else {
         const data = await response.json();
@@ -78,24 +82,27 @@ export function LoginForm() {
             Welcome Back
           </CardTitle>
           <CardDescription className="text-slate-400 mt-2">
-            Enter your password to access Puffin
+            Enter your PIN to access Puffin
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-slate-300">
-              Password
+            <Label htmlFor="pin" className="text-slate-300">
+              PIN
             </Label>
             <Input
-              id="password"
+              id="pin"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={pin}
+              onChange={handlePinChange}
+              placeholder="Enter 6-digit PIN"
               disabled={isLoading}
-              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              className="h-12 bg-slate-900/50 border-slate-700 text-slate-100 text-center text-2xl tracking-[0.5em] placeholder:text-slate-500 placeholder:text-base placeholder:tracking-normal focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
               autoFocus
             />
           </div>
@@ -109,7 +116,7 @@ export function LoginForm() {
           <Button
             type="submit"
             className="w-full h-12 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium shadow-lg shadow-cyan-500/25"
-            disabled={isLoading}
+            disabled={isLoading || pin.length !== 6}
           >
             {isLoading ? (
               <>
@@ -127,7 +134,7 @@ export function LoginForm() {
               onClick={() => setShowResetDialog(true)}
               className="text-sm text-slate-500 hover:text-slate-400 transition-colors"
             >
-              Forgot Password?
+              Forgot PIN?
             </button>
           </div>
         </form>
@@ -145,7 +152,7 @@ export function LoginForm() {
               <span className="block mb-2 text-red-400 font-medium">
                 Warning: This action cannot be undone!
               </span>
-              If you&apos;ve forgotten your password, you&apos;ll need to reset the app. This will:
+              If you&apos;ve forgotten your PIN, you&apos;ll need to reset the app. This will:
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Delete all your transactions and data</li>
                 <li>Remove all categories and rules</li>
