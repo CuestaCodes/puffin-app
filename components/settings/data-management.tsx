@@ -65,10 +65,14 @@ export function DataManagement({ onBack }: DataManagementProps) {
   // Dialogs
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
   const [clearConfirmText, setClearConfirmText] = useState('');
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [isClearing, setIsClearing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Messages
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -274,14 +278,25 @@ export function DataManagement({ onBack }: DataManagementProps) {
     }
   };
 
+  // Open delete confirmation dialog
+  const confirmDeleteBackup = (filename: string) => {
+    setSelectedBackup(filename);
+    setShowDeleteDialog(true);
+  };
+
   // Delete a local backup
-  const handleDeleteBackup = async (filename: string) => {
+  const handleDeleteBackup = async () => {
+    if (!selectedBackup) return;
+
+    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/data/backups/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`/api/data/backups/${encodeURIComponent(selectedBackup)}`, {
         method: 'DELETE',
       });
       if (response.ok) {
         showSuccess('Backup deleted');
+        setShowDeleteDialog(false);
+        setSelectedBackup(null);
         fetchBackups();
       } else {
         showError('Failed to delete backup');
@@ -289,18 +304,30 @@ export function DataManagement({ onBack }: DataManagementProps) {
     } catch (error) {
       console.error('Delete backup error:', error);
       showError('Failed to delete backup');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
+  // Open restore confirmation dialog
+  const confirmRestoreLocalBackup = (filename: string) => {
+    setSelectedBackup(filename);
+    setShowRestoreDialog(true);
+  };
+
   // Restore from local backup
-  const handleRestoreLocalBackup = async (filename: string) => {
+  const handleRestoreLocalBackup = async () => {
+    if (!selectedBackup) return;
+
     setIsRestoring(true);
     try {
-      const response = await fetch(`/api/data/backups/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`/api/data/backups/${encodeURIComponent(selectedBackup)}`, {
         method: 'POST',
       });
       if (response.ok) {
         showSuccess('Restored from backup. Reloading...');
+        setShowRestoreDialog(false);
+        setSelectedBackup(null);
         setTimeout(() => window.location.reload(), 1500);
       } else {
         showError('Failed to restore from backup');
@@ -518,7 +545,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRestoreLocalBackup(backup.filename)}
+                      onClick={() => confirmRestoreLocalBackup(backup.filename)}
                       disabled={isRestoring}
                       className="text-slate-400 hover:text-cyan-400"
                     >
@@ -527,7 +554,8 @@ export function DataManagement({ onBack }: DataManagementProps) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteBackup(backup.filename)}
+                      onClick={() => confirmDeleteBackup(backup.filename)}
+                      disabled={isDeleting}
                       className="text-slate-400 hover:text-red-400"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -674,6 +702,90 @@ export function DataManagement({ onBack }: DataManagementProps) {
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
               Reset Database
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restore Backup Confirmation Dialog */}
+      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-cyan-400 flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Restore from Backup
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              This will replace your current database with the backup. A pre-restore backup will be created automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-slate-300">
+              Restore from: <span className="font-mono text-cyan-400">{selectedBackup}</span>
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowRestoreDialog(false);
+                setSelectedBackup(null);
+              }}
+              className="text-slate-400"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRestoreLocalBackup}
+              disabled={isRestoring}
+              className="bg-cyan-600 hover:bg-cyan-500"
+            >
+              {isRestoring ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Restore Backup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Backup Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              Delete Backup
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Are you sure you want to delete this backup? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-slate-300">
+              Delete: <span className="font-mono text-red-400">{selectedBackup}</span>
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setSelectedBackup(null);
+              }}
+              className="text-slate-400"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteBackup}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-500"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Delete Backup
             </Button>
           </DialogFooter>
         </DialogContent>

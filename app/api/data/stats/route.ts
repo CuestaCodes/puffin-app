@@ -22,43 +22,32 @@ export async function GET() {
       // File might not exist in some edge cases
     }
 
-    // Get transaction count (excluding deleted)
-    const transactionCount = db.prepare(`
-      SELECT COUNT(*) as count FROM "transaction" WHERE is_deleted = 0
-    `).get() as { count: number };
-
-    // Get category count (sub-categories, excluding deleted)
-    const categoryCount = db.prepare(`
-      SELECT COUNT(*) as count FROM sub_category WHERE is_deleted = 0
-    `).get() as { count: number };
-
-    // Get rule count
-    const ruleCount = db.prepare(`
-      SELECT COUNT(*) as count FROM auto_category_rule
-    `).get() as { count: number };
-
-    // Get source count
-    const sourceCount = db.prepare(`
-      SELECT COUNT(*) as count FROM source
-    `).get() as { count: number };
-
-    // Get date range
-    const dateRange = db.prepare(`
+    // Get all statistics in a single query using subqueries
+    const stats = db.prepare(`
       SELECT
-        MIN(date) as earliest,
-        MAX(date) as latest
-      FROM "transaction"
-      WHERE is_deleted = 0
-    `).get() as { earliest: string | null; latest: string | null };
+        (SELECT COUNT(*) FROM "transaction" WHERE is_deleted = 0) as transaction_count,
+        (SELECT COUNT(*) FROM sub_category WHERE is_deleted = 0) as category_count,
+        (SELECT COUNT(*) FROM auto_category_rule) as rule_count,
+        (SELECT COUNT(*) FROM source) as source_count,
+        (SELECT MIN(date) FROM "transaction" WHERE is_deleted = 0) as earliest,
+        (SELECT MAX(date) FROM "transaction" WHERE is_deleted = 0) as latest
+    `).get() as {
+      transaction_count: number;
+      category_count: number;
+      rule_count: number;
+      source_count: number;
+      earliest: string | null;
+      latest: string | null;
+    };
 
     return NextResponse.json({
       fileSize,
-      transactionCount: transactionCount.count,
-      categoryCount: categoryCount.count,
-      ruleCount: ruleCount.count,
-      sourceCount: sourceCount.count,
-      earliestTransaction: dateRange.earliest,
-      latestTransaction: dateRange.latest,
+      transactionCount: stats.transaction_count,
+      categoryCount: stats.category_count,
+      ruleCount: stats.rule_count,
+      sourceCount: stats.source_count,
+      earliestTransaction: stats.earliest,
+      latestTransaction: stats.latest,
     });
   } catch (error) {
     console.error('Stats error:', error);

@@ -1,14 +1,10 @@
 // POST /api/data/import/backup - Restore database from uploaded backup file
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { getDatabasePath, resetDatabaseConnection } from '@/lib/db';
+import { getDatabasePath, resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
+import { getBackupsDir, MAX_BACKUP_SIZE } from '@/lib/data/utils';
 import fs from 'fs';
 import path from 'path';
-
-// Get backups directory relative to database path
-function getBackupsDir(): string {
-  return path.join(path.dirname(getDatabasePath()), 'backups');
-}
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -30,6 +26,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid file type. Please upload a .db file.' },
         { status: 400 }
+      );
+    }
+
+    // Validate file size
+    if (file.size > MAX_BACKUP_SIZE) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 100MB.' },
+        { status: 413 }
       );
     }
 
@@ -69,6 +73,9 @@ export async function POST(request: NextRequest) {
 
     // Write the uploaded file as the new database
     fs.writeFileSync(dbPath, buffer);
+
+    // Clean up any stale WAL/SHM files from the old database
+    cleanupWalFiles(dbPath);
 
     return NextResponse.json({
       success: true,

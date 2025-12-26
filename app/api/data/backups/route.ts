@@ -3,13 +3,9 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getDatabasePath, getDatabase, initializeDatabase } from '@/lib/db';
+import { getBackupsDir } from '@/lib/data/utils';
 import fs from 'fs';
 import path from 'path';
-
-// Get backups directory relative to database path
-function getBackupsDir(): string {
-  return path.join(path.dirname(getDatabasePath()), 'backups');
-}
 
 export async function GET() {
   const auth = await requireAuth();
