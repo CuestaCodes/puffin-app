@@ -27,31 +27,31 @@ export async function handleStats(ctx: HandlerContext): Promise<unknown> {
   const db = await getDatabase();
 
   // Get transaction count
-  const transactionResult = await db.select<{ count: number }[]>(
+  const transactionResult = await db.select<{ count: number }>(
     'SELECT COUNT(*) as count FROM "transaction" WHERE is_deleted = 0'
   );
   const transactionCount = transactionResult[0]?.count ?? 0;
 
   // Get category count
-  const categoryResult = await db.select<{ count: number }[]>(
+  const categoryResult = await db.select<{ count: number }>(
     'SELECT COUNT(*) as count FROM sub_category WHERE is_deleted = 0'
   );
   const categoryCount = categoryResult[0]?.count ?? 0;
 
   // Get rule count
-  const ruleResult = await db.select<{ count: number }[]>(
+  const ruleResult = await db.select<{ count: number }>(
     'SELECT COUNT(*) as count FROM auto_category_rule WHERE is_active = 1'
   );
   const ruleCount = ruleResult[0]?.count ?? 0;
 
   // Get source count
-  const sourceResult = await db.select<{ count: number }[]>(
+  const sourceResult = await db.select<{ count: number }>(
     'SELECT COUNT(*) as count FROM source'
   );
   const sourceCount = sourceResult[0]?.count ?? 0;
 
   // Get date range
-  const dateRangeResult = await db.select<{ earliest: string | null; latest: string | null }[]>(
+  const dateRangeResult = await db.select<{ earliest: string | null; latest: string | null }>(
     `SELECT
       MIN(date) as earliest,
       MAX(date) as latest
@@ -61,8 +61,8 @@ export async function handleStats(ctx: HandlerContext): Promise<unknown> {
   const dateRange = dateRangeResult[0] ?? { earliest: null, latest: null };
 
   // Get file size (approximation based on page count)
-  const pageSizeResult = await db.select<{ page_size: number }[]>('PRAGMA page_size');
-  const pageCountResult = await db.select<{ page_count: number }[]>('PRAGMA page_count');
+  const pageSizeResult = await db.select<{ page_size: number }>('PRAGMA page_size');
+  const pageCountResult = await db.select<{ page_count: number }>('PRAGMA page_count');
   const pageSize = pageSizeResult[0]?.page_size ?? 4096;
   const pageCount = pageCountResult[0]?.page_count ?? 0;
   const fileSize = pageSize * pageCount;
@@ -305,7 +305,7 @@ export async function handleExportTransactions(ctx: HandlerContext): Promise<unk
     upper_category_name: string | null;
     source_name: string | null;
     notes: string | null;
-  }[]>(`
+  }>(`
     SELECT
       t.id,
       t.date,

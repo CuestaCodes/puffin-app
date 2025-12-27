@@ -55,10 +55,6 @@
       "webviewInstallMode": {
         "type": "embedBootstrapper",
         "silent": true
-      },
-      "nsis": {
-        "installerIcon": "icons/icon.ico",
-        "license": "../LICENSE"
       }
     }
   },
