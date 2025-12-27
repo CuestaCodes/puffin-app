@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import { api } from '@/lib/services';
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -10,10 +11,16 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (password: string) => Promise<boolean>;
+  login: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  setup: (password: string, confirmPassword: string) => Promise<boolean>;
+  setup: (pin: string, confirmPin: string) => Promise<boolean>;
+  reset: () => Promise<boolean>;
   checkSession: () => Promise<void>;
+}
+
+interface SessionResponse {
+  authenticated: boolean;
+  isSetup: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -29,45 +36,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkSession = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      const response = await fetch('/api/auth/session');
-      const data = await response.json();
-      
-      if (response.ok) {
+      console.log('[Auth] Checking session...');
+      const result = await api.get<SessionResponse>('/api/auth/session');
+      console.log('[Auth] Session result:', result);
+
+      if (result.data) {
         setState({
-          isLoggedIn: data.isLoggedIn,
-          isSetup: data.isSetup,
+          isLoggedIn: result.data.authenticated,
+          isSetup: result.data.isSetup,
           isLoading: false,
           error: null,
         });
       } else {
+        console.log('[Auth] Session check failed:', result.error);
         setState(prev => ({
           ...prev,
           isLoading: false,
-          error: data.error || 'Failed to check session',
+          error: result.error || 'Failed to check session',
         }));
       }
-    } catch (_error) {
+    } catch (error) {
+      console.error('[Auth] Session check exception:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: 'Failed to connect to server',
+        error: `Connection error: ${errorMessage}`,
       }));
     }
   }, []);
 
-  const login = useCallback(async (password: string): Promise<boolean> => {
+  const login = useCallback(async (pin: string): Promise<boolean> => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
+
+      const result = await api.post<{ success: boolean }>('/api/auth/login', { pin });
+
+      if (result.data?.success) {
         setState(prev => ({
           ...prev,
           isLoggedIn: true,
@@ -79,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState(prev => ({
           ...prev,
           isLoading: false,
-          error: data.error || 'Login failed',
+          error: result.error || 'Login failed',
         }));
         return false;
       }
@@ -96,9 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      await fetch('/api/auth/logout', { method: 'POST' });
-      
+
+      await api.post('/api/auth/logout');
+
       setState(prev => ({
         ...prev,
         isLoggedIn: false,
@@ -114,19 +119,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setup = useCallback(async (password: string, confirmPassword: string): Promise<boolean> => {
+  const setup = useCallback(async (pin: string, _confirmPin: string): Promise<boolean> => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      
-      const response = await fetch('/api/auth/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, confirmPassword }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
+
+      const result = await api.post<{ success: boolean }>('/api/auth/setup', { pin });
+
+      if (result.data?.success) {
         setState(prev => ({
           ...prev,
           isLoggedIn: true,
@@ -139,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState(prev => ({
           ...prev,
           isLoading: false,
-          error: data.error || 'Setup failed',
+          error: result.error || 'Setup failed',
         }));
         return false;
       }
@@ -153,6 +152,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const reset = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await api.post<{ success: boolean }>('/api/auth/reset');
+      return result.data?.success ?? false;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Check session on mount - this is a valid pattern for initial data fetching
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Initial auth check on mount is intentional
@@ -160,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkSession]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, setup, checkSession }}>
+    <AuthContext.Provider value={{ ...state, login, logout, setup, reset, checkSession }}>
       {children}
     </AuthContext.Provider>
   );

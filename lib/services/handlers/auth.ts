@@ -328,6 +328,35 @@ async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
 }
 
 /**
+ * Reset handler - /api/auth/reset
+ * Clears all data and resets the app to initial state.
+ */
+export async function handleReset(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  // Clear all data by dropping and recreating tables
+  // This is a destructive operation - the user must confirm in the UI
+  await db.exec(`
+    DELETE FROM "transaction";
+    DELETE FROM sub_category WHERE id NOT IN (SELECT id FROM sub_category WHERE 1=0);
+    DELETE FROM budget;
+    DELETE FROM auto_category_rule;
+    DELETE FROM source;
+    DELETE FROM local_user;
+    DELETE FROM sync_log;
+  `);
+
+  // Clear session
+  setAuthState(false);
+
+  return { success: true };
+}
+
+/**
  * Check if user is authenticated (for use by other handlers).
  */
 export function checkAuthenticated(): boolean {

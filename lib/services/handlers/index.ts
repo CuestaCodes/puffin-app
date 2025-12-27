@@ -38,6 +38,11 @@ export function initializeTauriHandlers(): void {
     return handleChangePin;
   });
 
+  registerHandler('/api/auth/reset', async () => {
+    const { handleReset } = await import('./auth');
+    return handleReset;
+  });
+
   // Transaction handlers
   registerHandler('/api/transactions', async () => {
     const { handleTransactions } = await import('./transactions');

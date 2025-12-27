@@ -47,18 +47,23 @@ export async function getDatabase(): Promise<TauriDatabase> {
   if (dbPromise) return dbPromise;
 
   dbPromise = (async () => {
+    console.log('[Tauri DB] Initializing database...');
     const { default: Database } = await import('@tauri-apps/plugin-sql');
     const dbPath = await getDatabasePath();
+    console.log('[Tauri DB] Database path:', dbPath);
 
     // Load SQLite database (creates file if it doesn't exist)
     db = await Database.load(`sqlite:${dbPath}`) as TauriDatabase;
+    console.log('[Tauri DB] Database loaded');
 
     // Configure database
     await db.execute('PRAGMA journal_mode = WAL');
     await db.execute('PRAGMA foreign_keys = ON');
+    console.log('[Tauri DB] Pragmas set');
 
     // Initialize schema if needed
     await initializeSchema(db);
+    console.log('[Tauri DB] Schema initialized');
 
     return db;
   })();

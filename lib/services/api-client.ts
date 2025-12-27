@@ -15,7 +15,8 @@
 export function isTauriContext(): boolean {
   if (typeof window === 'undefined') return false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return !!(window as any).__TAURI__;
+  const hasTauri = !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__;
+  return hasTauri;
 }
 
 /**
@@ -37,8 +38,11 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
+  const isTauri = isTauriContext();
+  console.log('[API Client] Request:', endpoint, 'isTauri:', isTauri);
+
   // In Tauri mode, route to Tauri handlers
-  if (isTauriContext()) {
+  if (isTauri) {
     return handleTauriRequest<T>(endpoint, options);
   }
 
@@ -92,8 +96,15 @@ async function handleTauriRequest<T>(
   endpoint: string,
   options: RequestInit
 ): Promise<ApiResponse<T>> {
+  console.log('[Tauri API] Request:', endpoint, options.method || 'GET');
+
   // Ensure handlers are registered
-  await ensureHandlersInitialized();
+  try {
+    await ensureHandlersInitialized();
+  } catch (initError) {
+    console.error('[Tauri API] Handler init failed:', initError);
+    return { error: `Handler initialization failed: ${initError}`, status: 500 };
+  }
 
   const method = options.method?.toUpperCase() || 'GET';
 
@@ -116,13 +127,16 @@ async function handleTauriRequest<T>(
     // Route to appropriate handler based on path
     const handler = getHandler(path);
     if (!handler) {
+      console.error('[Tauri API] No handler for:', path);
       return { error: `No handler for ${path}`, status: 404 };
     }
 
+    console.log('[Tauri API] Calling handler for:', path);
     const result = await handler({ method, body, params, path });
+    console.log('[Tauri API] Handler result:', result);
     return { data: result as T, status: 200 };
   } catch (error) {
-    console.error(`Tauri handler error for ${path}:`, error);
+    console.error(`[Tauri API] Handler error for ${path}:`, error);
     return {
       error: error instanceof Error ? error.message : 'Handler error',
       status: 500,

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,25 +45,19 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentPin,
-          newPin,
-        }),
+      const result = await api.post<{ success: boolean }>('/api/auth/change-password', {
+        currentPin,
+        newPin,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (result.data?.success) {
         setSuccess(true);
         // Redirect to login after a short delay using Next.js router
         setTimeout(() => {
           router.push('/');
         }, 2000);
       } else {
-        setError(data.error || 'Failed to change PIN');
+        setError(result.error || 'Failed to change PIN');
       }
     } catch {
       setError('Failed to change PIN');

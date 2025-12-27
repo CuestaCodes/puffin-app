@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { api } from '@/lib/services';
 import type { UpperCategory, SubCategoryWithUpper } from '@/types/database';
 
 interface CategoriesData {
@@ -26,12 +27,12 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/categories');
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories');
+      const result = await api.get<CategoriesData>('/api/categories');
+      if (result.data) {
+        setCategories(result.data);
+      } else {
+        throw new Error(result.error || 'Failed to fetch categories');
       }
-      const data = await response.json();
-      setCategories(data);
     } catch (err) {
       console.error('Failed to fetch categories:', err);
       setError(err instanceof Error ? err.message : 'Failed to load categories');

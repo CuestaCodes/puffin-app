@@ -18,7 +18,7 @@ import { Loader2, Lock, AlertTriangle } from 'lucide-react';
 import { sanitizePinInput } from '@/lib/utils';
 
 export function LoginForm() {
-  const { login, isLoading, error } = useAuth();
+  const { login, reset, isLoading, error } = useAuth();
   const [pin, setPin] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -49,15 +49,12 @@ export function LoginForm() {
 
     setIsResetting(true);
     try {
-      const response = await fetch('/api/auth/reset', {
-        method: 'POST',
-      });
+      const success = await reset();
 
-      if (response.ok) {
+      if (success) {
         window.location.reload();
       } else {
-        const data = await response.json();
-        setLocalError(data.error || 'Failed to reset app');
+        setLocalError('Failed to reset app');
         setShowResetDialog(false);
       }
     } catch {

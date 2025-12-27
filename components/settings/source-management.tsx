@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,10 +45,11 @@ export function SourceManagement({ className }: SourceManagementProps) {
 
   const fetchSources = useCallback(async () => {
     try {
-      const response = await fetch('/api/sources');
-      if (response.ok) {
-        const data = await response.json();
-        setSources(data.sources || []);
+      const result = await api.get<{ sources: Source[] }>('/api/sources');
+      if (result.data) {
+        setSources(result.data.sources || []);
+      } else {
+        setError(result.error || 'Failed to load sources');
       }
     } catch (err) {
       console.error('Failed to fetch sources:', err);
@@ -69,22 +71,17 @@ export function SourceManagement({ className }: SourceManagementProps) {
 
   const handleSaveSourceName = async () => {
     if (!editingSource || !editingName.trim()) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/sources/${editingSource.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingName.trim() }),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to update source');
+      const result = await api.patch(`/api/sources/${editingSource.id}`, { name: editingName.trim() });
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setEditingSource(null);
       fetchSources();
     } catch (err) {
@@ -97,22 +94,17 @@ export function SourceManagement({ className }: SourceManagementProps) {
   // New source
   const handleCreateSource = async () => {
     if (!newName.trim()) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch('/api/sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim() }),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create source');
+      const result = await api.post('/api/sources', { name: newName.trim() });
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setShowNewDialog(false);
       setNewName('');
       fetchSources();
@@ -126,20 +118,17 @@ export function SourceManagement({ className }: SourceManagementProps) {
   // Delete source
   const handleDeleteSource = async () => {
     if (!deletingSource) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/sources/${deletingSource.id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete source');
+      const result = await api.delete(`/api/sources/${deletingSource.id}`);
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setDeletingSource(null);
       fetchSources();
     } catch (err) {

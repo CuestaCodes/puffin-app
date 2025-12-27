@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,12 +72,13 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch('/api/categories');
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data.categories);
+      const result = await api.get<{ categories: CategoryGroup[] }>('/api/categories');
+      if (result.data) {
+        setCategories(result.data.categories);
         // Expand all groups by default
-        setExpandedGroups(new Set(data.categories.map((c: CategoryGroup) => c.id)));
+        setExpandedGroups(new Set(result.data.categories.map((c: CategoryGroup) => c.id)));
+      } else {
+        setError(result.error || 'Failed to load categories');
       }
     } catch (err) {
       console.error('Failed to fetch categories:', err);
@@ -110,21 +112,17 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   const handleSaveUpperName = async () => {
     if (!editingUpper || !editingUpperName.trim()) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/categories/${editingUpper.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingUpperName.trim() }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update category');
+      const result = await api.patch(`/api/categories/${editingUpper.id}`, { name: editingUpperName.trim() });
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setEditingUpper(null);
       fetchCategories();
     } catch {
@@ -142,21 +140,17 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   const handleSaveSubName = async () => {
     if (!editingSub || !editingSubName.trim()) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/categories/${editingSub.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingSubName.trim() }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update category');
+      const result = await api.patch(`/api/categories/${editingSub.id}`, { name: editingSubName.trim() });
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setEditingSub(null);
       fetchCategories();
     } catch {
@@ -175,24 +169,20 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   const handleCreateSub = async () => {
     if (!newSubUpperId || !newSubName.trim()) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          upper_category_id: newSubUpperId,
-          name: newSubName.trim(),
-        }),
+      const result = await api.post('/api/categories', {
+        upper_category_id: newSubUpperId,
+        name: newSubName.trim(),
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create category');
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setShowNewSubDialog(false);
       fetchCategories();
     } catch {
@@ -207,32 +197,28 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
     setDeletingSub(sub);
     setReassignTarget('null');
     setCheckingTransactions(true);
-    
+
     try {
       // First, check if category has transactions
-      const countResponse = await fetch(`/api/transactions?categoryId=${sub.id}&limit=1`);
-      if (!countResponse.ok) {
+      const countResult = await api.get<{ total: number }>(`/api/transactions?categoryId=${sub.id}&limit=1`);
+      if (countResult.error) {
         throw new Error('Failed to check transactions');
       }
-      
-      const countData = await countResponse.json();
-      const txCount = countData.total || 0;
-      
+
+      const txCount = countResult.data?.total || 0;
+
       if (txCount > 0) {
         // Has transactions - show reassign dialog
         setTransactionCount(txCount);
       } else {
         // No transactions - proceed with delete directly
-        const response = await fetch(`/api/categories/${sub.id}`, {
-          method: 'DELETE',
-        });
-        
-        if (response.ok) {
+        const result = await api.delete(`/api/categories/${sub.id}`);
+
+        if (!result.error) {
           setDeletingSub(null);
           fetchCategories();
         } else {
-          const data = await response.json();
-          setError(data.error || 'Failed to delete category');
+          setError(result.error || 'Failed to delete category');
           setDeletingSub(null);
         }
       }
@@ -246,21 +232,17 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
 
   const handleConfirmDelete = async () => {
     if (!deletingSub) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(
-        `/api/categories/${deletingSub.id}?reassignTo=${reassignTarget}`,
-        { method: 'DELETE' }
-      );
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete category');
+      const result = await api.delete(`/api/categories/${deletingSub.id}?reassignTo=${reassignTarget}`);
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
+
       setDeletingSub(null);
       fetchCategories();
     } catch (err) {

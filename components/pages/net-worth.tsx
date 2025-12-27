@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -31,18 +32,16 @@ export function NetWorthPage() {
     try {
       // Fetch table data and chart data in parallel
       const [tableRes, chartRes] = await Promise.all([
-        fetch('/api/net-worth'),
-        fetch('/api/net-worth?chart=true'),
+        api.get<NetWorthEntryParsed[]>('/api/net-worth'),
+        api.get<ChartData>('/api/net-worth?chart=true'),
       ]);
 
-      if (tableRes.ok) {
-        const tableData = await tableRes.json();
-        setEntries(tableData);
+      if (tableRes.data) {
+        setEntries(tableRes.data);
       }
 
-      if (chartRes.ok) {
-        const chartDataRes = await chartRes.json();
-        setChartData(chartDataRes);
+      if (chartRes.data) {
+        setChartData(chartRes.data);
       }
     } catch (error) {
       console.error('Failed to fetch net worth data:', error);

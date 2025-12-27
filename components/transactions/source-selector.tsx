@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -47,10 +48,9 @@ export function SourceSelector({
 
   const fetchSources = useCallback(async () => {
     try {
-      const response = await fetch('/api/sources');
-      if (response.ok) {
-        const data = await response.json();
-        setSources(data.sources || []);
+      const result = await api.get<{ sources: Source[] }>('/api/sources');
+      if (result.data) {
+        setSources(result.data.sources || []);
       }
     } catch (error) {
       console.error('Failed to fetch sources:', error);
@@ -70,15 +70,10 @@ export function SourceSelector({
 
     setIsCreating(true);
     try {
-      const response = await fetch('/api/sources', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSourceName.trim() }),
-      });
+      const result = await api.post<{ source: Source }>('/api/sources', { name: newSourceName.trim() });
 
-      if (response.ok) {
-        const data = await response.json();
-        const newSource = data.source;
+      if (result.data?.source) {
+        const newSource = result.data.source;
         setSources(prev => [...prev, newSource]);
         onChange(newSource.id);
         setNewSourceName('');

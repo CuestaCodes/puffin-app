@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/services';
 import { format } from 'date-fns';
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -114,7 +115,7 @@ export function TransactionForm({
     try {
       const numAmount = parseFloat(amount);
       const finalAmount = isExpense ? -Math.abs(numAmount) : Math.abs(numAmount);
-      
+
       const payload = {
         date: format(date, 'yyyy-MM-dd'),
         description: description.trim(),
@@ -123,32 +124,25 @@ export function TransactionForm({
         sub_category_id: categoryId,
         source_id: sourceId,
       };
-      
-      let response: Response;
-      
+
+      let result;
+
       if (isEditing && transaction) {
         // Update existing
-        response = await fetch(`/api/transactions/${transaction.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        result = await api.patch<{ transaction: TransactionWithCategory }>(`/api/transactions/${transaction.id}`, payload);
       } else {
         // Create new
-        response = await fetch('/api/transactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        result = await api.post<{ transaction: TransactionWithCategory }>('/api/transactions', payload);
       }
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save transaction');
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-      
-      const saved = await response.json();
-      onSuccess?.(saved.transaction || saved);
+
+      const saved = result.data?.transaction;
+      if (saved) {
+        onSuccess?.(saved);
+      }
       onOpenChange(false);
     } catch (error) {
       console.error('Failed to save transaction:', error);

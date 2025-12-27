@@ -71,12 +71,22 @@ export async function handleCategory(ctx: HandlerContext): Promise<unknown> {
   }
 }
 
+interface CategoryGroup {
+  id: string;
+  name: string;
+  type: string;
+  sort_order: number;
+  subCategories: SubCategory[];
+}
+
 /**
  * Get all categories with optional filters.
+ * Returns both flat format (upperCategories, subCategories) and grouped format (categories).
  */
 async function getCategories(params: Record<string, string>): Promise<{
   upperCategories: UpperCategory[];
   subCategories: SubCategory[];
+  categories: CategoryGroup[];
 }> {
   const includeDeleted = params.includeDeleted === 'true';
 
@@ -98,7 +108,16 @@ async function getCategories(params: Record<string, string>): Promise<{
     ORDER BY uc.sort_order, sc.sort_order`
   );
 
-  return { upperCategories, subCategories };
+  // Build grouped format for category-management.tsx
+  const categories: CategoryGroup[] = upperCategories.map(upper => ({
+    id: upper.id,
+    name: upper.name,
+    type: upper.type,
+    sort_order: upper.sort_order,
+    subCategories: subCategories.filter(sub => sub.upper_category_id === upper.id),
+  }));
+
+  return { upperCategories, subCategories, categories };
 }
 
 /**
