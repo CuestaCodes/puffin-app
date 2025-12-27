@@ -72,7 +72,18 @@ Runtime detection via `window.__TAURI__`.
 
 ### Tauri Service Layer
 
-For Tauri static export mode (no server), API routes are replaced by a client-side service layer:
+For Tauri static export mode (no server), API routes are replaced by a client-side service layer.
+
+**CRITICAL**: All components MUST use the `api` client from `@/lib/services` instead of `fetch()`:
+
+```typescript
+// ❌ WRONG - breaks in Tauri static export
+const response = await fetch('/api/transactions');
+
+// ✅ CORRECT - works in both dev and Tauri modes
+import { api } from '@/lib/services';
+const result = await api.get('/api/transactions');
+```
 
 | File | Purpose |
 |------|---------|
@@ -81,17 +92,13 @@ For Tauri static export mode (no server), API routes are replaced by a client-si
 | `lib/services/handlers/*` | Handler implementations mirroring API routes |
 
 **Request Flow:**
-- **Development**: `fetch('/api/...')` → Next.js API routes → better-sqlite3
+- **Development**: `api.get('/api/...')` → fetch → Next.js API routes → better-sqlite3
 - **Tauri Static**: `api.get('/api/...')` → api-client → handlers → tauri-db
 
-**Usage:**
-```typescript
-import { api } from '@/lib/services';
-
-// Works in both dev and Tauri modes
-const result = await api.get('/api/transactions');
-const result = await api.post('/api/transactions', { ... });
-```
+**Checklist when adding/modifying components:**
+- [ ] Uses `api.get()`, `api.post()`, `api.patch()`, `api.del()` instead of `fetch()`
+- [ ] Handles `result.data` and `result.error` from ApiResponse type
+- [ ] Handler exists in `lib/services/handlers/` for new endpoints
 
 **Adding New Handlers:**
 1. Create handler in `lib/services/handlers/` (mirror API route logic)
@@ -168,6 +175,19 @@ npm run tauri:build    # Build portable Windows .exe
 npm run build:static   # Build static export for Tauri (moves API routes temporarily)
 ```
 
+### Platform-Specific Builds
+
+**WSL Development Caveat:**
+- Native modules (lightningcss, rollup) are platform-specific
+- If `node_modules` was installed on Windows, WSL builds will fail
+- If `node_modules` was installed on WSL, Windows builds will fail
+- **Solution**: Run `npm ci` on the target platform before building
+- Pre-commit hooks may fail on WSL with Windows-installed modules; use `git commit --no-verify` when necessary
+
+**Tauri Build Requirements:**
+- Tauri desktop builds MUST be run from Windows PowerShell (not WSL)
+- Run `npm ci && npm run tauri:build` from Windows for Windows executables
+
 ## API Routes
 
 ```
@@ -219,6 +239,20 @@ npm run build:static   # Build static export for Tauri (moves API routes tempora
 - Single-user model per installation (no concurrent access)
 - Local backup created before every sync operation
 - Conflict resolution: last-write-wins
+
+### Logging Practices
+
+- **Never commit debug `console.log` statements** to production code
+- Use conditional logging or remove before committing:
+  ```typescript
+  // ❌ BAD - pollutes production logs
+  console.log('[Debug] Request:', endpoint);
+
+  // ✅ OK - error logging for unexpected failures
+  console.error('Handler failed:', error);
+  ```
+- Keep error-level logging (`console.error`) for genuine failures that need visibility
+- Remove all debug logs before committing; they add noise and were flagged in code review
 
 ## UI Safety Patterns
 
