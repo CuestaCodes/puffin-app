@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,10 +93,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
   const fetchRules = useCallback(async () => {
     try {
-      const response = await fetch('/api/rules');
-      if (response.ok) {
-        const data = await response.json();
-        setRules(data);
+      const result = await api.get<AutoCategoryRuleWithCategory[]>('/api/rules');
+      if (result.data) {
+        setRules(result.data);
       }
     } catch (err) {
       console.error('Failed to fetch rules:', err);
@@ -105,12 +105,11 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await fetch('/api/categories');
-      if (response.ok) {
-        const data = await response.json();
+      const result = await api.get<{ categories: Array<{ subCategories: SubCategoryWithUpper[] }> }>('/api/categories');
+      if (result.data) {
         // Flatten categories for the dropdown
         const allSubs: SubCategoryWithUpper[] = [];
-        for (const group of data.categories) {
+        for (const group of result.data.categories) {
           allSubs.push(...group.subCategories);
         }
         setCategories(allSubs);
@@ -135,10 +134,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
     setIsTesting(true);
     try {
-      const response = await fetch(`/api/rules?action=test&matchText=${encodeURIComponent(matchText)}&limit=5`);
-      if (response.ok) {
-        const data = await response.json();
-        setTestMatches(data.matches || []);
+      const result = await api.get<{ matches: Array<{ id: string; description: string; date: string; amount: number }> }>(`/api/rules?action=test&matchText=${encodeURIComponent(matchText)}&limit=5`);
+      if (result.data) {
+        setTestMatches(result.data.matches || []);
       }
     } catch (err) {
       console.error('Failed to test rule:', err);
@@ -156,40 +154,36 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
     try {
       const url = editingRule ? `/api/rules/${editingRule.id}` : '/api/rules';
-      const method = editingRule ? 'PATCH' : 'POST';
       const isNewRule = !editingRule;
       const matchText = ruleMatchText;
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          match_text: matchText,
-          sub_category_id: ruleCategoryId,
-        }),
-      });
+      const result = editingRule
+        ? await api.patch<AutoCategoryRuleWithCategory>(url, {
+            match_text: matchText,
+            sub_category_id: ruleCategoryId,
+          })
+        : await api.post<AutoCategoryRuleWithCategory>(url, {
+            match_text: matchText,
+            sub_category_id: ruleCategoryId,
+          });
 
-      if (response.ok) {
-        const savedRule = await response.json();
+      if (result.data) {
+        const savedRule = result.data;
         await fetchRules();
         closeRuleDialog();
 
         // For new rules, check if there are existing transactions to apply to
         if (isNewRule) {
-          const countResponse = await fetch(`/api/rules?action=count&matchText=${encodeURIComponent(matchText)}`);
-          if (countResponse.ok) {
-            const { count } = await countResponse.json();
-            if (count > 0) {
-              setApplyingRuleId(savedRule.id);
-              setMatchingCount(count);
-              setApplyResult(null);
-              setShowApplyDialog(true);
-            }
+          const countResult = await api.get<{ count: number }>(`/api/rules?action=count&matchText=${encodeURIComponent(matchText)}`);
+          if (countResult.data && countResult.data.count > 0) {
+            setApplyingRuleId(savedRule.id);
+            setMatchingCount(countResult.data.count);
+            setApplyResult(null);
+            setShowApplyDialog(true);
           }
         }
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to save rule');
+        setError(result.error || 'Failed to save rule');
       }
     } catch (err) {
       console.error('Failed to save rule:', err);
@@ -205,13 +199,10 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
     setIsApplying(true);
     try {
-      const response = await fetch(`/api/rules/${applyingRuleId}`, {
-        method: 'POST',
-      });
+      const result = await api.post<{ updatedCount: number }>(`/api/rules/${applyingRuleId}`, {});
 
-      if (response.ok) {
-        const data = await response.json();
-        setApplyResult({ success: true, count: data.updatedCount });
+      if (result.data) {
+        setApplyResult({ success: true, count: result.data.updatedCount });
         await fetchRules(); // Refresh to get updated match counts
       } else {
         setApplyResult({ success: false, count: 0 });
@@ -234,11 +225,10 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
   // Open apply dialog for an existing rule
   const openApplyDialog = async (rule: AutoCategoryRuleWithCategory) => {
     try {
-      const response = await fetch(`/api/rules?action=count&matchText=${encodeURIComponent(rule.match_text)}`);
-      if (response.ok) {
-        const { count } = await response.json();
+      const result = await api.get<{ count: number }>(`/api/rules?action=count&matchText=${encodeURIComponent(rule.match_text)}`);
+      if (result.data) {
         setApplyingRuleId(rule.id);
-        setMatchingCount(count);
+        setMatchingCount(result.data.count);
         setApplyResult(null);
         setShowApplyDialog(true);
       }
@@ -250,13 +240,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
   // Toggle rule active state
   const handleToggleActive = async (rule: AutoCategoryRuleWithCategory) => {
     try {
-      const response = await fetch(`/api/rules/${rule.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !rule.is_active }),
-      });
+      const result = await api.patch(`/api/rules/${rule.id}`, { is_active: !rule.is_active });
 
-      if (response.ok) {
+      if (result.data) {
         setRules(rules.map(r =>
           r.id === rule.id ? { ...r, is_active: !r.is_active } : r
         ));
@@ -272,11 +258,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/rules/${deletingRule.id}`, {
-        method: 'DELETE',
-      });
+      const result = await api.delete(`/api/rules/${deletingRule.id}`);
 
-      if (response.ok) {
+      if (result.data) {
         setRules(rules.filter(r => r.id !== deletingRule.id));
         setDeletingRule(null);
       }
@@ -315,11 +299,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
     // Update priorities on server
     try {
-      await fetch('/api/rules', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ruleIds: newRules.map(r => r.id) }),
-      });
+      await api.patch('/api/rules', { ruleIds: newRules.map(r => r.id) });
     } catch (err) {
       console.error('Failed to update rule priorities:', err);
       // Refresh to get correct order

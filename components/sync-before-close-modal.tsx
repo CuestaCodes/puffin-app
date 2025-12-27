@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/services';
 import {
   Dialog,
   DialogContent,
@@ -33,11 +34,7 @@ export function SyncBeforeCloseModal({
     setError(null);
 
     try {
-      // Use apiRequest for consistent behavior in both web and Tauri modes
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ success: boolean; error?: string }>('/api/sync/push', {
-        method: 'POST',
-      });
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/push', {});
 
       if (result.data?.success) {
         onSyncComplete();

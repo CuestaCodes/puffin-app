@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,22 +49,16 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
     setError(null);
 
     try {
-      const response = await fetch('/api/sync/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim(),
-          apiKey: apiKey.trim(),
-        }),
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/credentials', {
+        clientId: clientId.trim(),
+        clientSecret: clientSecret.trim(),
+        apiKey: apiKey.trim(),
       });
 
-      const result = await response.json();
-
-      if (response.ok) {
+      if (result.data?.success) {
         onComplete();
       } else {
-        setError(result.error || 'Failed to save credentials');
+        setError(result.data?.error || result.error || 'Failed to save credentials');
       }
     } catch (err) {
       console.error('Save error:', err);

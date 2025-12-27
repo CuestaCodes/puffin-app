@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/services';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,20 +32,17 @@ export function DeleteDialog({
 
   const handleDelete = async () => {
     if (!transaction) return;
-    
+
     setIsDeleting(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/transactions/${transaction.id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to delete transaction');
+      const result = await api.delete(`/api/transactions/${transaction.id}`);
+
+      if (result.error) {
+        throw new Error(result.error || 'Failed to delete transaction');
       }
-      
+
       onSuccess?.();
       onOpenChange(false);
     } catch (err) {

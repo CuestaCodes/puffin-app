@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/services';
 import {
   Dialog,
   DialogContent,
@@ -146,25 +147,26 @@ export function RecordNetWorthDialog({
       const liabilities: LiabilitiesData = { fields: liabilityFields };
 
       const url = editEntry ? `/api/net-worth/${editEntry.id}` : '/api/net-worth';
-      const method = editEntry ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recorded_at: recordedAt,
-          assets,
-          liabilities,
-          notes: notes || null,
-        }),
-      });
+      const result = editEntry
+        ? await api.put(url, {
+            recorded_at: recordedAt,
+            assets,
+            liabilities,
+            notes: notes || null,
+          })
+        : await api.post(url, {
+            recorded_at: recordedAt,
+            assets,
+            liabilities,
+            notes: notes || null,
+          });
 
-      if (response.ok) {
+      if (result.data) {
         onSave();
         onOpenChange(false);
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to save entry');
+        setError(result.error || 'Failed to save entry');
       }
     } catch (err) {
       console.error('Failed to save net worth entry:', err);

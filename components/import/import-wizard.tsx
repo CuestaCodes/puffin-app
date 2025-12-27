@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { api } from '@/lib/services';
 import { FileSpreadsheet, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,10 +58,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const response = await fetch('/api/sources');
-        if (response.ok) {
-          const data = await response.json();
-          setSources(data.sources || []);
+        const result = await api.get<{ sources: Source[] }>('/api/sources');
+        if (result.data) {
+          setSources(result.data.sources || []);
         }
       } catch (error) {
         console.error('Failed to fetch sources:', error);
@@ -157,25 +157,20 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       });
       
       // Check for duplicates via API
-      const response = await fetch('/api/transactions/check-duplicates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactions: parsedRows
-            .filter(r => r.parsed.date && r.parsed.amount !== null)
-            .map(r => ({
-              date: r.parsed.date,
-              amount: r.parsed.amount,
-              description: r.parsed.description,
-              rowIndex: r.rowIndex,
-            })),
-        }),
+      const result = await api.post<{ duplicates: number[] }>('/api/transactions/check-duplicates', {
+        transactions: parsedRows
+          .filter(r => r.parsed.date && r.parsed.amount !== null)
+          .map(r => ({
+            date: r.parsed.date,
+            amount: r.parsed.amount,
+            description: r.parsed.description,
+            rowIndex: r.rowIndex,
+          })),
       });
-      
-      if (response.ok) {
-        const { duplicates } = await response.json();
-        const duplicateSet = new Set(duplicates as number[]);
-        
+
+      if (result.data) {
+        const duplicateSet = new Set(result.data.duplicates);
+
         for (const row of parsedRows) {
           if (duplicateSet.has(row.rowIndex)) {
             row.isDuplicate = true;
@@ -265,21 +260,18 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         source_id: selectedSourceId,
       }));
       
-      const response = await fetch('/api/transactions/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactions }),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Import failed');
+      const result = await api.post<ImportResult>('/api/transactions/import', { transactions });
+
+      if (result.error) {
+        throw new Error(result.error || 'Import failed');
       }
-      
-      const result = await response.json() as ImportResult;
-      setImportResult(result);
+
+      if (!result.data) {
+        throw new Error('Import failed - no response data');
+      }
+      setImportResult(result.data);
       setCurrentStep('complete');
-      onComplete?.(result);
+      onComplete?.(result.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed');
     } finally {

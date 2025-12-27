@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Loader2, Plus, Trash2, AlertTriangle, Split } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -166,40 +167,35 @@ export function SplitModal({
 
   const handleSubmit = async () => {
     if (!transaction) return;
-    
+
     // Validate
     const validSplits = splits.filter(s => parseFloat(s.amount) > 0);
     if (validSplits.length < 2) {
       setError('Please enter at least 2 split amounts');
       return;
     }
-    
+
     if (!isBalanced) {
       setError(`Split amounts must equal ${formatCurrency(originalAmount)}`);
       return;
     }
-    
+
     setIsSubmitting(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/transactions/${transaction.id}/split`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          splits: validSplits.map(s => ({
-            amount: parseFloat(s.amount),
-            sub_category_id: s.sub_category_id,
-            description: s.description || undefined,
-          })),
-        }),
+      const result = await api.post(`/api/transactions/${transaction.id}/split`, {
+        splits: validSplits.map(s => ({
+          amount: parseFloat(s.amount),
+          sub_category_id: s.sub_category_id,
+          description: s.description || undefined,
+        })),
       });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to split transaction');
+
+      if (result.error) {
+        throw new Error(result.error || 'Failed to split transaction');
       }
-      
+
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {

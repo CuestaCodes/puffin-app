@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -43,16 +44,13 @@ export function EntriesTable({ entries, onEdit, onDelete, isLoading }: EntriesTa
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      const response = await fetch(`/api/net-worth/${deleteEntry.id}`, {
-        method: 'DELETE',
-      });
+      const result = await api.delete(`/api/net-worth/${deleteEntry.id}`);
 
-      if (response.ok) {
+      if (result.data) {
         onDelete();
         setDeleteEntry(null);
       } else {
-        const data = await response.json().catch(() => ({}));
-        setDeleteError(data.error || 'Failed to delete entry. Please try again.');
+        setDeleteError(result.error || 'Failed to delete entry. Please try again.');
       }
     } catch (error) {
       console.error('Failed to delete entry:', error);

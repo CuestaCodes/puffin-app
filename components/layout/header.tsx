@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Menu, LogOut, Cloud, CloudOff } from 'lucide-react';
 
@@ -22,13 +23,12 @@ export function Header({ onToggleSidebar, onLogout }: HeaderProps) {
     // Fetch sync status on mount and every 60 seconds
     const fetchStatus = async () => {
       try {
-        const response = await fetch('/api/sync/config');
-        if (response.ok) {
-          const data = await response.json();
+        const result = await api.get<{ isConfigured: boolean; lastSyncedAt: string | null; folderName: string | null }>('/api/sync/config');
+        if (result.data) {
           setSyncStatus({
-            configured: data.isConfigured,
-            lastSyncedAt: data.lastSyncedAt,
-            folderName: data.folderName,
+            configured: result.data.isConfigured,
+            lastSyncedAt: result.data.lastSyncedAt,
+            folderName: result.data.folderName,
           });
         }
       } catch (error) {

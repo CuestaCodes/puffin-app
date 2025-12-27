@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -130,14 +131,12 @@ function MonthlyBudgetContent() {
         month: month.toString(),
         summary: 'true',
       });
-      
-      const response = await fetch(`/api/budgets?${params}`);
-      if (response.ok) {
-        const data: BudgetSummaryResponse = await response.json();
-        setBudgetData(data);
+
+      const result = await api.get<BudgetSummaryResponse>(`/api/budgets?${params}`);
+      if (result.data) {
+        setBudgetData(result.data);
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Failed to fetch budget summary - response not ok:', response.status, errorData);
+        console.error('Failed to fetch budget summary:', result.error);
         setBudgetData(null);
       }
     } catch (error) {
@@ -159,14 +158,12 @@ function MonthlyBudgetContent() {
         month: month.toString(),
         forEntry: 'true',
       });
-      
-      const response = await fetch(`/api/budgets?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAllCategories(data.categories || []);
+
+      const result = await api.get<{ categories: typeof allCategories }>(`/api/budgets?${params}`);
+      if (result.data) {
+        setAllCategories(result.data.categories || []);
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        console.error('Failed to fetch categories - response not ok:', response.status, errorData);
+        console.error('Failed to fetch categories:', result.error);
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error);
@@ -176,22 +173,15 @@ function MonthlyBudgetContent() {
   // Initialize $0 budgets for categories without budgets
   const initializeBudgets = useCallback(async () => {
     try {
-      const response = await fetch('/api/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'initialize',
-          year,
-          month,
-        }),
+      const result = await api.post<{ initializedCount: number }>('/api/budgets', {
+        action: 'initialize',
+        year,
+        month,
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.initializedCount > 0) {
-          // Refresh data to show the new budgets
-          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        }
+
+      if (result.data && result.data.initializedCount > 0) {
+        // Refresh data to show the new budgets
+        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
       }
     } catch (error) {
       console.error('Failed to initialize budgets:', error);
@@ -210,10 +200,9 @@ function MonthlyBudgetContent() {
 
   const fetchTemplates = useCallback(async () => {
     try {
-      const response = await fetch('/api/budgets/templates');
-      if (response.ok) {
-        const data = await response.json();
-        setTemplates(data.templates || []);
+      const result = await api.get<{ templates: BudgetTemplate[] }>('/api/budgets/templates');
+      if (result.data) {
+        setTemplates(result.data.templates || []);
       }
     } catch (error) {
       console.error('Failed to fetch templates:', error);
@@ -229,27 +218,22 @@ function MonthlyBudgetContent() {
       alert('Please enter a template name');
       return;
     }
-    
+
     setIsSavingTemplate(true);
     try {
-      const response = await fetch('/api/budgets/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: templateName.trim(),
-          year,
-          month,
-        }),
+      const result = await api.post<{ success: boolean }>('/api/budgets/templates', {
+        name: templateName.trim(),
+        year,
+        month,
       });
-      
-      if (response.ok) {
+
+      if (result.data) {
         setTemplateDialogOpen(false);
         setTemplateName('');
         await fetchTemplates();
         alert('Template saved successfully!');
       } else {
-        const error = await response.json();
-        alert('Failed to save template: ' + (error.error || 'Unknown error'));
+        alert('Failed to save template: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error saving template:', error);
@@ -262,24 +246,18 @@ function MonthlyBudgetContent() {
   const handleApplyTemplate = async (templateId: string) => {
     setIsApplyingTemplate(true);
     try {
-      const response = await fetch('/api/budgets/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'apply',
-          templateId,
-          year,
-          month,
-        }),
+      const result = await api.post<{ appliedCount: number }>('/api/budgets/templates', {
+        action: 'apply',
+        templateId,
+        year,
+        month,
       });
-      
-      if (response.ok) {
-        const data = await response.json();
+
+      if (result.data) {
         await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        alert(`Template applied to ${data.appliedCount} categories`);
+        alert(`Template applied to ${result.data.appliedCount} categories`);
       } else {
-        const error = await response.json();
-        alert('Failed to apply template: ' + (error.error || 'Unknown error'));
+        alert('Failed to apply template: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error applying template:', error);
@@ -292,31 +270,25 @@ function MonthlyBudgetContent() {
   const handleCopyFromPreviousMonth = async () => {
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
-    
+
     if (!confirm(`Copy budgets from ${prevMonth}/${prevYear} to ${month}/${year}?`)) {
       return;
     }
-    
+
     try {
-      const response = await fetch('/api/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'copy',
-          fromYear: prevYear,
-          fromMonth: prevMonth,
-          toYear: year,
-          toMonth: month,
-        }),
+      const result = await api.post<{ copiedCount: number }>('/api/budgets', {
+        action: 'copy',
+        fromYear: prevYear,
+        fromMonth: prevMonth,
+        toYear: year,
+        toMonth: month,
       });
-      
-      if (response.ok) {
-        const data = await response.json();
+
+      if (result.data) {
         await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        alert(`Copied ${data.copiedCount} budgets from previous month`);
+        alert(`Copied ${result.data.copiedCount} budgets from previous month`);
       } else {
-        const error = await response.json();
-        alert('Failed to copy budgets: ' + (error.error || 'Unknown error'));
+        alert('Failed to copy budgets: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error copying budgets:', error);
@@ -327,26 +299,20 @@ function MonthlyBudgetContent() {
     if (!confirm(`This will update all budget amounts based on 12-month spending averages. Continue?`)) {
       return;
     }
-    
+
     setIsApplyingTemplate(true);
     try {
-      const response = await fetch('/api/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'useAverage',
-          year,
-          month,
-        }),
+      const result = await api.post<{ updatedCount: number }>('/api/budgets', {
+        action: 'useAverage',
+        year,
+        month,
       });
-      
-      if (response.ok) {
-        const data = await response.json();
+
+      if (result.data) {
         await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        alert(`Updated ${data.updatedCount} budgets with 12-month averages`);
+        alert(`Updated ${result.data.updatedCount} budgets with 12-month averages`);
       } else {
-        const error = await response.json();
-        alert('Failed to apply averages: ' + (error.error || 'Unknown error'));
+        alert('Failed to apply averages: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error applying 12-month averages:', error);
@@ -445,66 +411,20 @@ function MonthlyBudgetContent() {
 
   const handleSaveBudget = async (subCategoryId: string, amount: number) => {
     try {
-      const requestBody = {
+      const result = await api.post<{ budget: unknown }>('/api/budgets', {
         sub_category_id: subCategoryId,
         year,
         month,
         amount,
-      };
-      
-      const response = await fetch('/api/budgets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
       });
-      
-      // Read response as text first (can only read once)
-      const responseText = await response.text();
-      
-      if (response.ok) {
-        try {
-          const _data = responseText ? JSON.parse(responseText) : {};
-          setEditingBudgetId(null);
-          setCreatingBudgetForCategory(null);
-          // Refetch both budget summary and categories to update the UI
-          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        } catch (parseError) {
-          console.error('Failed to parse success response:', parseError, 'Raw:', responseText);
-          // Even if parsing fails, try to refresh in case it was saved
-          alert('Budget may have been saved, but response was invalid. Please refresh the page.');
-          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        }
+
+      if (result.data) {
+        setEditingBudgetId(null);
+        setCreatingBudgetForCategory(null);
+        // Refetch both budget summary and categories to update the UI
+        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
       } else {
-        // Try to parse error response
-        let errorMessage = `Server error (${response.status}): ${response.statusText}`;
-        
-        if (responseText) {
-          try {
-            const error = JSON.parse(responseText);
-            console.error('Failed to save budget - API error:', {
-              status: response.status,
-              statusText: response.statusText,
-              responseText,
-              parsedError: error,
-              errorKeys: Object.keys(error),
-            });
-            
-            // Try multiple possible error message fields
-            errorMessage = error.error || 
-                          error.message || 
-                          (error.details?.fieldErrors ? JSON.stringify(error.details.fieldErrors) : null) ||
-                          (error.details ? JSON.stringify(error.details) : null) ||
-                          (Object.keys(error).length > 0 ? JSON.stringify(error) : null) ||
-                          errorMessage;
-          } catch (parseError) {
-            console.error('Failed to parse error response as JSON:', parseError, 'Raw text:', responseText);
-            errorMessage = `Server error (${response.status}): ${responseText || response.statusText}`;
-          }
-        } else {
-          console.error('Empty error response body');
-        }
-        
-        alert('Failed to save budget: ' + errorMessage);
+        alert('Failed to save budget: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error saving budget:', error);

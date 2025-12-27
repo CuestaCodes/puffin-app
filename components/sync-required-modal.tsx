@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/services';
 import {
   Dialog,
   DialogContent,
@@ -25,14 +26,13 @@ export function SyncRequiredModal({ isOpen, onSyncComplete: _onSyncComplete }: S
     setError(null);
 
     try {
-      const response = await fetch('/api/sync/pull', { method: 'POST' });
-      const result = await response.json();
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/pull', {});
 
-      if (result.success) {
+      if (result.data?.success) {
         // Sync complete - reload the page to pick up new data
         window.location.reload();
       } else {
-        setError(result.error || 'Failed to sync');
+        setError(result.data?.error || result.error || 'Failed to sync');
       }
     } catch (err) {
       console.error('Sync error:', err);

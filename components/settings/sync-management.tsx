@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,19 +66,17 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const [configRes, credRes] = await Promise.all([
-        fetch('/api/sync/config'),
-        fetch('/api/sync/credentials'),
+      const [configResult, credResult] = await Promise.all([
+        api.get<ExtendedSyncConfig>('/api/sync/config'),
+        api.get<PickerCredentials>('/api/sync/credentials'),
       ]);
-      
-      if (configRes.ok) {
-        const data = await configRes.json();
-        setConfig(data);
+
+      if (configResult.data) {
+        setConfig(configResult.data);
       }
-      
-      if (credRes.ok) {
-        const cred = await credRes.json();
-        setCredentials(cred);
+
+      if (credResult.data) {
+        setCredentials(credResult.data);
       }
     } catch (err) {
       console.error('Failed to fetch sync config:', err);
@@ -94,17 +93,13 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
     try {
       // Save the folder directly (picker already grants access)
-      const response = await fetch('/api/sync/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderId: folder.id, folderName: folder.name }),
-      });
+      const result = await api.post('/api/sync/config', { folderId: folder.id, folderName: folder.name });
 
-      if (response.ok) {
+      if (result.data) {
         setValidationSuccess(`Connected to folder: ${folder.name}`);
         fetchConfig();
       } else {
-        setValidationError('Failed to save folder configuration');
+        setValidationError(result.error || 'Failed to save folder configuration');
       }
     } catch (err) {
       console.error('Picker save error:', err);
@@ -122,21 +117,17 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
     try {
       // Save the file directly with isFileBasedSync=true
-      const response = await fetch('/api/sync/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          backupFileId: file.id,
-          fileName: file.name,
-          isFileBasedSync: true,
-        }),
+      const result = await api.post('/api/sync/config', {
+        backupFileId: file.id,
+        fileName: file.name,
+        isFileBasedSync: true,
       });
 
-      if (response.ok) {
+      if (result.data) {
         setValidationSuccess(`Connected to backup file: ${file.name}`);
         fetchConfig();
       } else {
-        setValidationError('Failed to save file configuration');
+        setValidationError(result.error || 'Failed to save file configuration');
       }
     } catch (err) {
       console.error('File picker save error:', err);
@@ -171,13 +162,11 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   // Handle OAuth authentication (standard scope for single-account)
   const handleAuthenticate = async () => {
     try {
-      const response = await fetch('/api/sync/oauth/url');
-      if (response.ok) {
-        const data = await response.json();
-        window.location.href = data.url;
+      const result = await api.get<{ url: string }>('/api/sync/oauth/url');
+      if (result.data?.url) {
+        window.location.href = result.data.url;
       } else {
-        const error = await response.json();
-        setValidationError(error.error || 'Failed to start authentication');
+        setValidationError(result.error || 'Failed to start authentication');
       }
     } catch (err) {
       console.error('Auth error:', err);
@@ -200,13 +189,11 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   const handleExtendedAuth = async () => {
     setShowMultiAccountWarning(false);
     try {
-      const response = await fetch('/api/sync/oauth/url?scopeLevel=extended');
-      if (response.ok) {
-        const data = await response.json();
-        window.location.href = data.url;
+      const result = await api.get<{ url: string }>('/api/sync/oauth/url?scopeLevel=extended');
+      if (result.data?.url) {
+        window.location.href = result.data.url;
       } else {
-        const error = await response.json();
-        setValidationError(error.error || 'Failed to start authentication');
+        setValidationError(result.error || 'Failed to start authentication');
       }
     } catch (err) {
       console.error('Auth error:', err);
@@ -216,8 +203,6 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   // Validate folder
   const handleValidateFolder = async () => {
-    console.log('[Validate] Button clicked, URL:', folderUrl);
-    
     if (!folderUrl.trim()) {
       setValidationError('Please enter a Google Drive folder URL');
       return;
@@ -228,23 +213,14 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     setValidationSuccess(null);
 
     try {
-      console.log('[Validate] Sending POST to /api/sync/validate...');
-      const response = await fetch('/api/sync/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folderUrl: folderUrl.trim() }),
-      });
+      const result = await api.post<{ success: boolean; folderName?: string; error?: string }>('/api/sync/validate', { folderUrl: folderUrl.trim() });
 
-      console.log('[Validate] Response status:', response.status);
-      const result = await response.json();
-      console.log('[Validate] Result:', result);
-
-      if (result.success) {
-        setValidationSuccess(`Connected to folder: ${result.folderName}`);
+      if (result.data?.success) {
+        setValidationSuccess(`Connected to folder: ${result.data.folderName}`);
         setFolderUrl('');
         fetchConfig();
       } else {
-        setValidationError(result.error || 'Failed to validate folder');
+        setValidationError(result.data?.error || result.error || 'Failed to validate folder');
       }
     } catch (err) {
       console.error('[Validate] Error:', err);
@@ -261,14 +237,13 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     setSyncSuccess(null);
 
     try {
-      const response = await fetch('/api/sync/push', { method: 'POST' });
-      const result = await response.json();
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/push', {});
 
-      if (result.success) {
+      if (result.data?.success) {
         setSyncSuccess('Database uploaded successfully');
         fetchConfig();
       } else {
-        setSyncError(result.error || 'Failed to upload database');
+        setSyncError(result.data?.error || result.error || 'Failed to upload database');
       }
     } catch (err) {
       console.error('Push error:', err);
@@ -286,14 +261,13 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     setSyncSuccess(null);
 
     try {
-      const response = await fetch('/api/sync/pull', { method: 'POST' });
-      const result = await response.json();
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/pull', {});
 
-      if (result.success) {
+      if (result.data?.success) {
         setSyncSuccess('Database downloaded successfully. Please refresh the page to see updated data.');
         fetchConfig();
       } else {
-        setSyncError(result.error || 'Failed to download database');
+        setSyncError(result.data?.error || result.error || 'Failed to download database');
       }
     } catch (err) {
       console.error('Pull error:', err);
@@ -308,10 +282,9 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     setIsDisconnecting(true);
 
     try {
-      const response = await fetch('/api/sync/disconnect', { method: 'POST' });
-      const result = await response.json();
+      const result = await api.post<{ success: boolean }>('/api/sync/disconnect', {});
 
-      if (result.success) {
+      if (result.data?.success) {
         setShowDisconnectDialog(false);
         setConfig({
           folderId: null,

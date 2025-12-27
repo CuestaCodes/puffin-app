@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { api } from '@/lib/services';
 import {
   Dialog,
   DialogContent,
@@ -9,11 +10,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { 
-  CloudDownload, 
-  CloudUpload, 
-  Loader2, 
-  AlertTriangle, 
+import {
+  CloudDownload,
+  CloudUpload,
+  Loader2,
+  AlertTriangle,
   RefreshCw,
   Cloud,
   HardDrive,
@@ -38,13 +39,12 @@ export function SyncConflictDialog({ isOpen, syncStatus, onResolved }: SyncConfl
     setError(null);
 
     try {
-      const response = await fetch('/api/sync/pull', { method: 'POST' });
-      const result = await response.json();
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/pull', {});
 
-      if (result.success) {
+      if (result.data?.success) {
         window.location.reload();
       } else {
-        setError(result.error || 'Failed to download from cloud');
+        setError(result.data?.error || result.error || 'Failed to download from cloud');
       }
     } catch (err) {
       console.error('Download error:', err);
@@ -61,13 +61,12 @@ export function SyncConflictDialog({ isOpen, syncStatus, onResolved }: SyncConfl
     setError(null);
 
     try {
-      const response = await fetch('/api/sync/push', { method: 'POST' });
-      const result = await response.json();
+      const result = await api.post<{ success: boolean; error?: string }>('/api/sync/push', {});
 
-      if (result.success) {
+      if (result.data?.success) {
         onResolved();
       } else {
-        setError(result.error || 'Failed to upload to cloud');
+        setError(result.data?.error || result.error || 'Failed to upload to cloud');
       }
     } catch (err) {
       console.error('Upload error:', err);

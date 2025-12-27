@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, PiggyBank, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -103,10 +104,9 @@ export function Dashboard() {
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/analytics/dashboard?year=${year}`);
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
+      const result = await api.get<DashboardData>(`/api/analytics/dashboard?year=${year}`);
+      if (result.data) {
+        setData(result.data);
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);

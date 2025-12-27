@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,12 +111,11 @@ function TransactionsPageContent() {
       if (filters.maxAmount !== null) params.set('maxAmount', filters.maxAmount.toString());
       if (filters.uncategorized) params.set('uncategorized', 'true');
 
-      const response = await fetch(`/api/transactions?${params}`);
-      if (response.ok) {
-        const data: TransactionListResponse = await response.json();
-        setTransactions(data.transactions);
-        setTotalPages(data.totalPages);
-        setTotal(data.total);
+      const result = await api.get<TransactionListResponse>(`/api/transactions?${params}`);
+      if (result.data) {
+        setTransactions(result.data.transactions);
+        setTotalPages(result.data.totalPages);
+        setTotal(result.data.total);
       }
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
@@ -188,20 +188,16 @@ function TransactionsPageContent() {
 
   const handleCategoryChange = async (txId: string, categoryId: string | null) => {
     // Optimistically update the UI first
-    setTransactions(prev => prev.map(tx => 
-      tx.id === txId 
+    setTransactions(prev => prev.map(tx =>
+      tx.id === txId
         ? { ...tx, sub_category_id: categoryId }
         : tx
     ));
-    
+
     try {
-      const response = await fetch(`/api/transactions/${txId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sub_category_id: categoryId }),
-      });
-      
-      if (!response.ok) {
+      const result = await api.patch(`/api/transactions/${txId}`, { sub_category_id: categoryId });
+
+      if (result.error) {
         // Revert on failure by refetching
         fetchTransactions();
       }
@@ -220,13 +216,11 @@ function TransactionsPageContent() {
 
   const handleUnsplitTransaction = async (tx: TransactionWithCategory) => {
     if (!tx.is_split) return;
-    
+
     try {
-      const response = await fetch(`/api/transactions/${tx.id}/split`, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
+      const result = await api.del(`/api/transactions/${tx.id}/split`);
+
+      if (result.data) {
         fetchTransactions();
       }
     } catch (error) {
@@ -262,15 +256,13 @@ function TransactionsPageContent() {
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    
+
     const confirmed = window.confirm(`Delete ${selectedIds.size} transaction(s)? The transactions will be removed from your view.`);
     if (!confirmed) return;
-    
+
     try {
       await Promise.all(
-        Array.from(selectedIds).map(id =>
-          fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-        )
+        Array.from(selectedIds).map(id => api.del(`/api/transactions/${id}`))
       );
       fetchTransactions();
     } catch (error) {

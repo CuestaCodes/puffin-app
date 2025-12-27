@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -82,8 +83,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const fetchStats = useCallback(async () => {
     setIsLoadingStats(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<DatabaseStats>('/api/data/stats');
+      const result = await api.get<DatabaseStats>('/api/data/stats');
       if (result.data) {
         setStats(result.data);
       }
@@ -98,8 +98,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const fetchBackups = useCallback(async () => {
     setIsLoadingBackups(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ backups: LocalBackup[]; message?: string }>('/api/data/backups');
+      const result = await api.get<{ backups: LocalBackup[]; message?: string }>('/api/data/backups');
       if (result.data) {
         setBackups(result.data.backups || []);
       }
@@ -147,8 +146,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const handleExportCSV = async () => {
     setIsExporting(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ csv: string; filename: string } | Blob>('/api/data/export/transactions');
+      const result = await api.get<{ csv: string; filename: string } | Blob>('/api/data/export/transactions');
 
       // Handle Tauri mode (returns data object) vs web mode (returns blob)
       if (result.data && 'csv' in result.data) {
@@ -193,8 +191,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const handleExportBackup = async () => {
     setIsExportingBackup(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ success: boolean; path?: string; cancelled?: boolean }>('/api/data/export/backup');
+      const result = await api.get<{ success: boolean; path?: string; cancelled?: boolean }>('/api/data/export/backup');
 
       if (result.data?.success) {
         showSuccess('Database backup exported successfully');
@@ -271,8 +268,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsClearing(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ success: boolean }>('/api/data/clear', { method: 'POST' });
+      const result = await api.post<{ success: boolean }>('/api/data/clear', {});
       if (result.data?.success) {
         showSuccess('All transactions cleared');
         setShowClearDialog(false);
@@ -295,8 +291,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsResetting(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ success: boolean }>('/api/data/reset', { method: 'POST' });
+      const result = await api.post<{ success: boolean }>('/api/data/reset', {});
       if (result.data?.success) {
         showSuccess('Database reset. Redirecting to setup...');
         setTimeout(() => window.location.href = '/', 1500);
@@ -323,10 +318,8 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsDeleting(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ success: boolean }>(
-        `/api/data/backups/${encodeURIComponent(selectedBackup)}`,
-        { method: 'DELETE' }
+      const result = await api.delete<{ success: boolean }>(
+        `/api/data/backups/${encodeURIComponent(selectedBackup)}`
       );
       if (result.data?.success) {
         showSuccess('Backup deleted');
@@ -356,10 +349,9 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsRestoring(true);
     try {
-      const { apiRequest } = await import('@/lib/services/api-client');
-      const result = await apiRequest<{ success: boolean }>(
+      const result = await api.post<{ success: boolean }>(
         `/api/data/backups/${encodeURIComponent(selectedBackup)}`,
-        { method: 'POST' }
+        {}
       );
       if (result.data?.success) {
         showSuccess('Restored from backup. Reloading...');
