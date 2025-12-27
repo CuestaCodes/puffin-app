@@ -13,8 +13,11 @@ interface HandlerContext {
   path: string;
 }
 
-// Sync config is stored in localStorage in Tauri mode
+// localStorage keys for sync state
 const SYNC_CONFIG_KEY = 'puffin_sync_config';
+const OAUTH_CONFIGURED_KEY = 'puffin_oauth_configured';
+const OAUTH_AUTHENTICATED_KEY = 'puffin_oauth_authenticated';
+const OAUTH_EXTENDED_SCOPE_KEY = 'puffin_oauth_extended_scope';
 
 interface SyncConfig {
   folderId: string | null;
@@ -97,9 +100,9 @@ async function getSyncConfigStatus(): Promise<SyncConfig & { isAuthenticated: bo
   const config = getSyncConfig();
 
   // In Tauri mode, OAuth state is also stored locally
-  const oauthConfigured = !!localStorage.getItem('puffin_oauth_configured');
-  const isAuthenticated = !!localStorage.getItem('puffin_oauth_authenticated');
-  const hasExtendedScope = !!localStorage.getItem('puffin_oauth_extended_scope');
+  const oauthConfigured = !!localStorage.getItem(OAUTH_CONFIGURED_KEY);
+  const isAuthenticated = !!localStorage.getItem(OAUTH_AUTHENTICATED_KEY);
+  const hasExtendedScope = !!localStorage.getItem(OAUTH_EXTENDED_SCOPE_KEY);
 
   return {
     ...config,
@@ -146,8 +149,9 @@ export async function handleSyncStatus(ctx: HandlerContext): Promise<unknown> {
 
 /**
  * Sync push handler - /api/sync/push
- * Note: In Tauri mode, actual sync is handled by browser-based OAuth flow.
- * This is a placeholder that would be called after OAuth is complete.
+ *
+ * In Tauri mode, sync operations require browser-based OAuth flow.
+ * This handler is not supported - use the web-based sync flow instead.
  */
 export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
@@ -156,21 +160,12 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // In Tauri mode, sync operations use the browser OAuth flow
-  // This handler updates the sync timestamp after successful sync
-  const config = getSyncConfig();
-
-  if (!config.isConfigured) {
-    throw new Error('Sync not configured');
-  }
-
-  // Update last synced timestamp
-  saveSyncConfig({
-    ...config,
-    lastSyncedAt: new Date().toISOString(),
-  });
-
-  return { success: true };
+  // Sync push is not supported in Tauri mode - requires browser OAuth flow
+  // The sync functionality should be triggered via the Settings > Sync page
+  // which handles OAuth authentication and Google Drive operations in browser context
+  throw new Error(
+    'Sync push not supported in desktop mode. Please use Settings > Sync to sync your data.'
+  );
 }
 
 /**
@@ -185,9 +180,9 @@ export async function handleSyncDisconnect(ctx: HandlerContext): Promise<unknown
 
   // Clear all sync-related localStorage
   localStorage.removeItem(SYNC_CONFIG_KEY);
-  localStorage.removeItem('puffin_oauth_configured');
-  localStorage.removeItem('puffin_oauth_authenticated');
-  localStorage.removeItem('puffin_oauth_extended_scope');
+  localStorage.removeItem(OAUTH_CONFIGURED_KEY);
+  localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
+  localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
 
   return { success: true };
 }

@@ -33,13 +33,16 @@ export function SyncBeforeCloseModal({
     setError(null);
 
     try {
-      const response = await fetch('/api/sync/push', { method: 'POST' });
-      const result = await response.json();
+      // Use apiRequest for consistent behavior in both web and Tauri modes
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ success: boolean; error?: string }>('/api/sync/push', {
+        method: 'POST',
+      });
 
-      if (result.success) {
+      if (result.data?.success) {
         onSyncComplete();
       } else {
-        setError(result.error || 'Failed to sync');
+        setError(result.data?.error || result.error || 'Failed to sync');
       }
     } catch (err) {
       console.error('Sync error:', err);

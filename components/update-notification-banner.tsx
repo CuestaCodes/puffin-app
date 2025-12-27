@@ -12,9 +12,15 @@ export function UpdateNotificationBanner() {
     return null;
   }
 
-  const handleDownload = () => {
-    // Open the release page in the default browser
-    window.open(updateAvailable.url, '_blank');
+  const handleDownload = async () => {
+    try {
+      // Use Tauri shell API to open URL in default browser (avoids popup blocker issues)
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open(updateAvailable.url);
+    } catch {
+      // Fallback to window.open if shell plugin not available
+      window.open(updateAvailable.url, '_blank');
+    }
   };
 
   return (
