@@ -120,7 +120,47 @@ export function initializeTauriHandlers(): void {
     return handleSyncDisconnect;
   });
 
+  // Data handlers
+  registerHandler('/api/data/stats', async () => {
+    const { handleStats } = await import('./data');
+    return handleStats;
+  });
+
+  registerHandler('/api/data/backups', async () => {
+    const { handleBackups } = await import('./data');
+    return handleBackups;
+  });
+
+  registerHandler('/api/data/backups/[filename]', async () => {
+    const { handleBackup } = await import('./data');
+    return handleBackup;
+  });
+
+  registerHandler('/api/data/clear', async () => {
+    const { handleClear } = await import('./data');
+    return handleClear;
+  });
+
+  registerHandler('/api/data/reset', async () => {
+    const { handleReset } = await import('./data');
+    return handleReset;
+  });
+
+  registerHandler('/api/data/export/transactions', async () => {
+    const { handleExportTransactions } = await import('./data');
+    return handleExportTransactions;
+  });
+
+  registerHandler('/api/data/export/backup', async () => {
+    const { handleExportBackup } = await import('./data');
+    return handleExportBackup;
+  });
+
+  registerHandler('/api/data/import/backup', async () => {
+    const { handleImportBackup } = await import('./data');
+    return handleImportBackup;
+  });
+
   // TODO: Add more handlers as needed:
-  // - /api/data/*
   // - /api/net-worth
 }

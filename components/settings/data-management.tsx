@@ -82,10 +82,10 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const fetchStats = useCallback(async () => {
     setIsLoadingStats(true);
     try {
-      const response = await fetch('/api/data/stats');
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<DatabaseStats>('/api/data/stats');
+      if (result.data) {
+        setStats(result.data);
       }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
@@ -98,10 +98,10 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const fetchBackups = useCallback(async () => {
     setIsLoadingBackups(true);
     try {
-      const response = await fetch('/api/data/backups');
-      if (response.ok) {
-        const data = await response.json();
-        setBackups(data.backups || []);
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ backups: LocalBackup[]; message?: string }>('/api/data/backups');
+      if (result.data) {
+        setBackups(result.data.backups || []);
       }
     } catch (error) {
       console.error('Failed to fetch backups:', error);
@@ -147,20 +147,39 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const handleExportCSV = async () => {
     setIsExporting(true);
     try {
-      const response = await fetch('/api/data/export/transactions');
-      if (response.ok) {
-        const blob = await response.blob();
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ csv: string; filename: string } | Blob>('/api/data/export/transactions');
+
+      // Handle Tauri mode (returns data object) vs web mode (returns blob)
+      if (result.data && 'csv' in result.data) {
+        // Tauri mode - create blob from CSV string
+        const blob = new Blob([result.data.csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `puffin-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = result.data.filename;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         showSuccess('Transactions exported successfully');
       } else {
-        showError('Failed to export transactions');
+        // Web mode fallback - direct fetch for blob
+        const response = await fetch('/api/data/export/transactions');
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `puffin-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          showSuccess('Transactions exported successfully');
+        } else {
+          showError('Failed to export transactions');
+        }
       }
     } catch (error) {
       console.error('Export error:', error);
@@ -174,20 +193,32 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const handleExportBackup = async () => {
     setIsExportingBackup(true);
     try {
-      const response = await fetch('/api/data/export/backup');
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `puffin-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ success: boolean; path?: string; cancelled?: boolean }>('/api/data/export/backup');
+
+      if (result.data?.success) {
         showSuccess('Database backup exported successfully');
+      } else if (result.data?.cancelled) {
+        // User cancelled the dialog
+      } else if (result.error) {
+        showError(result.error);
       } else {
-        showError('Failed to export backup');
+        // Web mode fallback
+        const response = await fetch('/api/data/export/backup');
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `puffin-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.db`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          showSuccess('Database backup exported successfully');
+        } else {
+          showError('Failed to export backup');
+        }
       }
     } catch (error) {
       console.error('Backup export error:', error);
@@ -240,14 +271,15 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsClearing(true);
     try {
-      const response = await fetch('/api/data/clear', { method: 'POST' });
-      if (response.ok) {
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ success: boolean }>('/api/data/clear', { method: 'POST' });
+      if (result.data?.success) {
         showSuccess('All transactions cleared');
         setShowClearDialog(false);
         setClearConfirmText('');
         fetchStats();
       } else {
-        showError('Failed to clear transactions');
+        showError(result.error || 'Failed to clear transactions');
       }
     } catch (error) {
       console.error('Clear error:', error);
@@ -263,12 +295,13 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsResetting(true);
     try {
-      const response = await fetch('/api/data/reset', { method: 'POST' });
-      if (response.ok) {
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ success: boolean }>('/api/data/reset', { method: 'POST' });
+      if (result.data?.success) {
         showSuccess('Database reset. Redirecting to setup...');
         setTimeout(() => window.location.href = '/', 1500);
       } else {
-        showError('Failed to reset database');
+        showError(result.error || 'Failed to reset database');
       }
     } catch (error) {
       console.error('Reset error:', error);
@@ -290,16 +323,18 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/data/backups/${encodeURIComponent(selectedBackup)}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ success: boolean }>(
+        `/api/data/backups/${encodeURIComponent(selectedBackup)}`,
+        { method: 'DELETE' }
+      );
+      if (result.data?.success) {
         showSuccess('Backup deleted');
         setShowDeleteDialog(false);
         setSelectedBackup(null);
         fetchBackups();
       } else {
-        showError('Failed to delete backup');
+        showError(result.error || 'Failed to delete backup');
       }
     } catch (error) {
       console.error('Delete backup error:', error);
@@ -321,16 +356,18 @@ export function DataManagement({ onBack }: DataManagementProps) {
 
     setIsRestoring(true);
     try {
-      const response = await fetch(`/api/data/backups/${encodeURIComponent(selectedBackup)}`, {
-        method: 'POST',
-      });
-      if (response.ok) {
+      const { apiRequest } = await import('@/lib/services/api-client');
+      const result = await apiRequest<{ success: boolean }>(
+        `/api/data/backups/${encodeURIComponent(selectedBackup)}`,
+        { method: 'POST' }
+      );
+      if (result.data?.success) {
         showSuccess('Restored from backup. Reloading...');
         setShowRestoreDialog(false);
         setSelectedBackup(null);
         setTimeout(() => window.location.reload(), 1500);
       } else {
-        showError('Failed to restore from backup');
+        showError(result.error || 'Failed to restore from backup');
       }
     } catch (error) {
       console.error('Restore error:', error);
