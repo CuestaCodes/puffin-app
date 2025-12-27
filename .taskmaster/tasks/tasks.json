@@ -1166,8 +1166,8 @@
             "title": "Clean Credentials from Repository",
             "description": "Remove any committed credentials from git history and establish secure credential handling",
             "dependencies": [],
-            "details": "PARTIALLY COMPLETED IN TASK 12: Credentials now loaded from encrypted files or env vars, never committed. User enters Google Cloud credentials via UI wizard (credentials-setup.tsx), stored encrypted. REMAINING: Audit git history for any old secrets, create .env.example template.",
-            "status": "pending",
+            "details": "COMPLETED: Credentials loaded from encrypted files or env vars, never committed. User enters Google Cloud credentials via UI wizard (credentials-setup.tsx), stored encrypted. Git history audited - only dev placeholder key found (not a real secret). Created .env.example template.",
+            "status": "done",
             "testStrategy": "Verify no secrets in git history using git log searches. Verify .env files are gitignored. Test application works with environment variables only."
           },
           {
@@ -1181,8 +1181,8 @@
               9,
               10
             ],
-            "details": "Document: 1) How encryption keys are derived and stored, 2) Required environment variables for Google OAuth, 3) File permission requirements, 4) Security considerations for multi-user systems, 5) How to rotate/revoke compromised tokens, 6) Backup security considerations. Add security section to README or create SECURITY.md.",
-            "status": "pending",
+            "details": "COMPLETED: Created SECURITY.md documenting encryption key derivation, OAuth credential storage, environment variables, file permissions, rate limiting, CSP, token rotation/revocation, multi-user considerations, and secure deployment checklist.",
+            "status": "done",
             "testStrategy": "Review documentation for completeness. Verify all security features are documented. Test that following docs results in secure setup."
           }
         ]
