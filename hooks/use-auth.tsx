@@ -14,7 +14,7 @@ interface AuthContextType extends AuthState {
   login: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setup: (pin: string, confirmPin: string) => Promise<boolean>;
-  reset: () => Promise<boolean>;
+  reset: (pin?: string) => Promise<boolean>;
   checkSession: () => Promise<void>;
 }
 
@@ -36,9 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkSession = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
-      console.log('[Auth] Checking session...');
       const result = await api.get<SessionResponse>('/api/auth/session');
-      console.log('[Auth] Session result:', result);
 
       if (result.data) {
         setState({
@@ -48,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           error: null,
         });
       } else {
-        console.log('[Auth] Session check failed:', result.error);
         setState(prev => ({
           ...prev,
           isLoading: false,
@@ -56,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }));
       }
     } catch (error) {
-      console.error('[Auth] Session check exception:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       setState(prev => ({
         ...prev,
@@ -152,11 +148,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const reset = useCallback(async (): Promise<boolean> => {
+  const reset = useCallback(async (pin?: string): Promise<boolean> => {
     try {
-      const result = await api.post<{ success: boolean }>('/api/auth/reset');
-      return result.data?.success ?? false;
-    } catch {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      const result = await api.post<{ success: boolean }>('/api/auth/reset', pin ? { pin } : undefined);
+
+      if (result.data?.success) {
+        setState({
+          isLoggedIn: false,
+          isSetup: false,
+          isLoading: false,
+          error: null,
+        });
+        return true;
+      } else {
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: result.error || 'Failed to reset app',
+        }));
+        return false;
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reset app';
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: errorMessage,
+      }));
       return false;
     }
   }, []);

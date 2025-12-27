@@ -39,7 +39,6 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   const isTauri = isTauriContext();
-  console.log('[API Client] Request:', endpoint, 'isTauri:', isTauri);
 
   // In Tauri mode, route to Tauri handlers
   if (isTauri) {
@@ -96,13 +95,10 @@ async function handleTauriRequest<T>(
   endpoint: string,
   options: RequestInit
 ): Promise<ApiResponse<T>> {
-  console.log('[Tauri API] Request:', endpoint, options.method || 'GET');
-
   // Ensure handlers are registered
   try {
     await ensureHandlersInitialized();
   } catch (initError) {
-    console.error('[Tauri API] Handler init failed:', initError);
     return { error: `Handler initialization failed: ${initError}`, status: 500 };
   }
 
@@ -127,16 +123,12 @@ async function handleTauriRequest<T>(
     // Route to appropriate handler based on path
     const handler = getHandler(path);
     if (!handler) {
-      console.error('[Tauri API] No handler for:', path);
       return { error: `No handler for ${path}`, status: 404 };
     }
 
-    console.log('[Tauri API] Calling handler for:', path);
     const result = await handler({ method, body, params, path });
-    console.log('[Tauri API] Handler result:', result);
     return { data: result as T, status: 200 };
   } catch (error) {
-    console.error(`[Tauri API] Handler error for ${path}:`, error);
     return {
       error: error instanceof Error ? error.message : 'Handler error',
       status: 500,

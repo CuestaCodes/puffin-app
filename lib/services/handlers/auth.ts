@@ -330,19 +330,37 @@ async function verifyPin(pin: string, storedHash: string): Promise<boolean> {
 /**
  * Reset handler - /api/auth/reset
  * Clears all data and resets the app to initial state.
+ *
+ * PIN verification is optional:
+ * - If PIN is provided, it must be valid (for in-app reset from settings)
+ * - If PIN is not provided, reset proceeds (for forgot-PIN flow from login page)
+ *
+ * The UI provides additional confirmation (typing "RESET") to prevent accidents.
  */
 export async function handleReset(ctx: HandlerContext): Promise<unknown> {
-  const { method } = ctx;
+  const { method, body } = ctx;
 
   if (method !== 'POST') {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // Clear all data by dropping and recreating tables
-  // This is a destructive operation - the user must confirm in the UI
+  const { pin } = (body as { pin?: string }) || {};
+
+  // If PIN is provided, verify it (for in-app reset when user is logged in)
+  if (pin && typeof pin === 'string') {
+    const user = await db.queryOne<LocalUser>('SELECT * FROM local_user LIMIT 1');
+    if (user) {
+      const isValid = await verifyPin(pin, user.password_hash);
+      if (!isValid) {
+        throw new Error('Invalid PIN');
+      }
+    }
+  }
+
+  // Clear all data - this is a destructive operation
   await db.exec(`
     DELETE FROM "transaction";
-    DELETE FROM sub_category WHERE id NOT IN (SELECT id FROM sub_category WHERE 1=0);
+    DELETE FROM sub_category;
     DELETE FROM budget;
     DELETE FROM auto_category_rule;
     DELETE FROM source;
