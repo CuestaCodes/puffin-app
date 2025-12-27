@@ -218,7 +218,7 @@ function TransactionsPageContent() {
     if (!tx.is_split) return;
 
     try {
-      const result = await api.del(`/api/transactions/${tx.id}/split`);
+      const result = await api.delete(`/api/transactions/${tx.id}/split`);
 
       if (result.data) {
         fetchTransactions();
@@ -262,7 +262,7 @@ function TransactionsPageContent() {
 
     try {
       await Promise.all(
-        Array.from(selectedIds).map(id => api.del(`/api/transactions/${id}`))
+        Array.from(selectedIds).map(id => api.delete(`/api/transactions/${id}`))
       );
       fetchTransactions();
     } catch (error) {
