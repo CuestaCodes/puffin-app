@@ -111,9 +111,11 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  const { pin } = body as { pin: string };
+  // Accept both 'password' (from validation schema) and 'pin' (legacy) field names
+  const { password, pin } = body as { password?: string; pin?: string };
+  const pinValue = password || pin;
 
-  if (!pin || typeof pin !== 'string') {
+  if (!pinValue || typeof pinValue !== 'string') {
     throw new Error('PIN is required');
   }
 
@@ -127,7 +129,7 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
   // Verify PIN using bcrypt
   // Note: bcrypt is not available in browser, so we use a simple comparison
   // In production, we should use a WebCrypto-based solution
-  const isValid = await verifyPin(pin, user.password_hash);
+  const isValid = await verifyPin(pinValue, user.password_hash);
 
   if (!isValid) {
     throw new Error('Invalid PIN');
@@ -161,9 +163,11 @@ export async function handleSetup(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  const { pin } = body as { pin: string };
+  // Accept both 'password' (from validation schema) and 'pin' (legacy) field names
+  const { password, pin } = body as { password?: string; pin?: string };
+  const pinValue = password || pin;
 
-  if (!pin || typeof pin !== 'string' || pin.length !== 6 || !/^\d+$/.test(pin)) {
+  if (!pinValue || typeof pinValue !== 'string' || pinValue.length !== 6 || !/^\d+$/.test(pinValue)) {
     throw new Error('PIN must be exactly 6 digits');
   }
 
@@ -174,7 +178,7 @@ export async function handleSetup(ctx: HandlerContext): Promise<unknown> {
   }
 
   // Hash the PIN
-  const passwordHash = await hashPin(pin);
+  const passwordHash = await hashPin(pinValue);
   const now = new Date().toISOString();
 
   await db.execute(
