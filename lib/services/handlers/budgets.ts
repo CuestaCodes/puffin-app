@@ -39,8 +39,58 @@ export async function handleBudgets(ctx: HandlerContext): Promise<unknown> {
   switch (method) {
     case 'GET':
       return getBudgets(params);
-    case 'POST':
-      return createOrUpdateBudget(body as { sub_category_id: string; year: number; month: number; amount: number });
+    case 'POST': {
+      const data = body as {
+        action?: string;
+        sub_category_id?: string;
+        year?: number;
+        month?: number;
+        amount?: number;
+        fromYear?: number;
+        fromMonth?: number;
+        toYear?: number;
+        toMonth?: number;
+      };
+
+      // Handle copy operation
+      if (data.action === 'copy') {
+        if (!data.fromYear || !data.fromMonth || !data.toYear || !data.toMonth) {
+          throw new Error('Missing required fields for copy operation');
+        }
+        const count = await copyBudgetsToMonth(data.fromYear, data.fromMonth, data.toYear, data.toMonth);
+        return { success: true, copiedCount: count, message: `Copied ${count} budgets` };
+      }
+
+      // Handle initialize operation
+      if (data.action === 'initialize') {
+        if (!data.year || !data.month) {
+          throw new Error('Missing required fields for initialize operation');
+        }
+        const count = await initializeMonthlyBudgets(data.year, data.month);
+        return { success: true, initializedCount: count, message: `Initialized ${count} budgets to $0` };
+      }
+
+      // Handle useAverage operation
+      if (data.action === 'useAverage') {
+        if (!data.year || !data.month) {
+          throw new Error('Missing required fields for useAverage operation');
+        }
+        const count = await createBudgetsFrom12MonthAverage(data.year, data.month);
+        return { success: true, updatedCount: count, message: `Updated ${count} budgets with 12-month averages` };
+      }
+
+      // Normal create/update
+      if (!data.sub_category_id || data.year === undefined || data.month === undefined || data.amount === undefined) {
+        throw new Error('sub_category_id, year, month, and amount are required');
+      }
+      const budget = await createOrUpdateBudget({
+        sub_category_id: data.sub_category_id,
+        year: data.year,
+        month: data.month,
+        amount: data.amount,
+      });
+      return { budget };
+    }
     case 'PUT':
       return createOrUpdateBudget(body as { sub_category_id: string; year: number; month: number; amount: number });
     default:
@@ -81,15 +131,39 @@ export async function handleBudgetTemplates(ctx: HandlerContext): Promise<unknow
  * Get budgets with optional summary data.
  */
 async function getBudgets(params: Record<string, string>): Promise<unknown> {
-  const year = parseInt(params.year || new Date().getFullYear().toString());
-  const month = parseInt(params.month || (new Date().getMonth() + 1).toString());
-  const includeSummary = params.includeSummary === 'true';
+  const now = new Date();
+  const year = parseInt(params.year || now.getFullYear().toString());
+  const month = parseInt(params.month || (now.getMonth() + 1).toString());
+  const withSummary = params.summary === 'true';
+  const forEntry = params.forEntry === 'true';
+  const categoryId = params.categoryId;
+  const averageMonths = params.averageMonths ? parseInt(params.averageMonths) : null;
 
-  if (includeSummary) {
-    return getBudgetSummary(year, month);
+  // Get category average if requested
+  if (categoryId && averageMonths) {
+    const average = await getCategoryAverage(categoryId, averageMonths);
+    return { average };
   }
 
-  return getBudgetsByMonth(year, month);
+  // Get carry-over if requested
+  if (categoryId && params.carryOver === 'true') {
+    const carryOver = await getBudgetCarryOver(categoryId, year, month);
+    return { carryOver };
+  }
+
+  // Get categories for budget entry interface
+  if (forEntry) {
+    const categories = await getCategoriesForBudgetEntry(year, month);
+    return { categories, year, month };
+  }
+
+  if (withSummary) {
+    const summary = await getBudgetSummary(year, month) as Record<string, unknown>;
+    return { ...summary, year, month };
+  }
+
+  const budgets = await getBudgetsByMonth(year, month);
+  return { budgets, year, month };
 }
 
 /**
@@ -125,7 +199,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
       uc.name as upper_category_name,
       uc.type as upper_category_type,
       COALESCE(ABS(SUM(
-        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split_parent = 0
         THEN t.amount ELSE 0 END
       )), 0) as actual_amount
     FROM budget b
@@ -147,7 +221,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     WHERE uc.type = 'income'
       AND t.date >= ? AND t.date <= ?
       AND t.is_deleted = 0
-      AND t.is_split = 0
+      AND t.is_split_parent = 0
   `, [startDate, endDate]);
 
   // Get income categories
@@ -164,7 +238,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
       uc.name as upper_category_name,
       uc.type as upper_category_type,
       COALESCE(SUM(
-        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split_parent = 0
         THEN t.amount ELSE 0 END
       ), 0) as actual_amount
     FROM sub_category sc
@@ -186,6 +260,100 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     totalIncome: incomeResult?.total_income || 0,
     incomeCategories,
   };
+}
+
+/**
+ * Get category average spending over N months.
+ */
+async function getCategoryAverage(categoryId: string, months: number): Promise<number> {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+
+  const result = await db.queryOne<{ average: number }>(`
+    SELECT COALESCE(AVG(monthly_total), 0) as average
+    FROM (
+      SELECT ABS(SUM(t.amount)) as monthly_total
+      FROM "transaction" t
+      WHERE t.sub_category_id = ?
+        AND t.date >= ?
+        AND t.date <= ?
+        AND t.is_deleted = 0
+        AND t.is_split_parent = 0
+      GROUP BY strftime('%Y-%m', t.date)
+    )
+  `, [categoryId, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
+
+  return result?.average || 0;
+}
+
+/**
+ * Get budget carry-over (remaining budget from previous month).
+ */
+async function getBudgetCarryOver(categoryId: string, year: number, month: number): Promise<number> {
+  // Get previous month
+  let prevYear = year;
+  let prevMonth = month - 1;
+  if (prevMonth < 1) {
+    prevMonth = 12;
+    prevYear = year - 1;
+  }
+
+  const startDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+  const lastDay = new Date(prevYear, prevMonth, 0).getDate();
+  const endDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  // Get previous month's budget
+  const budget = await db.queryOne<{ amount: number }>(
+    'SELECT amount FROM budget WHERE sub_category_id = ? AND year = ? AND month = ?',
+    [categoryId, prevYear, prevMonth]
+  );
+
+  if (!budget) return 0;
+
+  // Get previous month's spending
+  const spending = await db.queryOne<{ total: number }>(`
+    SELECT COALESCE(ABS(SUM(amount)), 0) as total
+    FROM "transaction"
+    WHERE sub_category_id = ?
+      AND date >= ? AND date <= ?
+      AND is_deleted = 0
+      AND is_split_parent = 0
+  `, [categoryId, startDate, endDate]);
+
+  // Carry-over is budget minus spending (positive means under budget)
+  return budget.amount - (spending?.total || 0);
+}
+
+/**
+ * Get categories with budget info for entry interface.
+ */
+async function getCategoriesForBudgetEntry(year: number, month: number): Promise<unknown[]> {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  return db.query(`
+    SELECT
+      sc.id as sub_category_id,
+      sc.name as sub_category_name,
+      uc.name as upper_category_name,
+      uc.type as upper_category_type,
+      b.id as budget_id,
+      b.amount as budget_amount,
+      COALESCE(ABS(SUM(
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split_parent = 0
+        THEN t.amount ELSE 0 END
+      )), 0) as actual_amount
+    FROM sub_category sc
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN budget b ON b.sub_category_id = sc.id AND b.year = ? AND b.month = ?
+    LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
+    WHERE sc.is_deleted = 0
+      AND uc.type NOT IN ('income', 'transfer')
+    GROUP BY sc.id
+    ORDER BY uc.sort_order ASC, sc.sort_order ASC
+  `, [startDate, endDate, year, month]);
 }
 
 /**
@@ -332,4 +500,105 @@ async function ensureTemplateTable(): Promise<void> {
       )
     `);
   }
+}
+
+/**
+ * Copy budgets from one month to another.
+ */
+async function copyBudgetsToMonth(
+  fromYear: number,
+  fromMonth: number,
+  toYear: number,
+  toMonth: number
+): Promise<number> {
+  const sourceBudgets = await getBudgetsByMonth(fromYear, fromMonth);
+  let copiedCount = 0;
+
+  for (const budget of sourceBudgets) {
+    await createOrUpdateBudget({
+      sub_category_id: budget.sub_category_id,
+      year: toYear,
+      month: toMonth,
+      amount: budget.amount,
+    });
+    copiedCount++;
+  }
+
+  return copiedCount;
+}
+
+/**
+ * Initialize monthly budgets with $0 for categories that don't have budgets.
+ */
+async function initializeMonthlyBudgets(year: number, month: number): Promise<number> {
+  // Get all expense/savings/bills categories that don't have a budget for this month
+  const categoriesWithoutBudget = await db.query<{ id: string }>(`
+    SELECT sc.id
+    FROM sub_category sc
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    LEFT JOIN budget b ON b.sub_category_id = sc.id AND b.year = ? AND b.month = ?
+    WHERE sc.is_deleted = 0
+      AND uc.type NOT IN ('income', 'transfer')
+      AND b.id IS NULL
+  `, [year, month]);
+
+  let initializedCount = 0;
+
+  for (const category of categoriesWithoutBudget) {
+    await createOrUpdateBudget({
+      sub_category_id: category.id,
+      year,
+      month,
+      amount: 0,
+    });
+    initializedCount++;
+  }
+
+  return initializedCount;
+}
+
+/**
+ * Create budgets based on 12-month average spending.
+ */
+async function createBudgetsFrom12MonthAverage(year: number, month: number): Promise<number> {
+  const endDate = new Date(year, month - 1, 1);
+  const startDate = new Date(year, month - 13, 1);
+
+  // Get average spending per category over the last 12 months
+  const averages = await db.query<{ sub_category_id: string; average: number }>(`
+    SELECT
+      t.sub_category_id,
+      AVG(monthly_total) as average
+    FROM (
+      SELECT
+        sub_category_id,
+        ABS(SUM(amount)) as monthly_total
+      FROM "transaction" t
+      JOIN sub_category sc ON t.sub_category_id = sc.id
+      JOIN upper_category uc ON sc.upper_category_id = uc.id
+      WHERE t.date >= ? AND t.date < ?
+        AND t.is_deleted = 0
+        AND t.is_split_parent = 0
+        AND uc.type NOT IN ('income', 'transfer')
+        AND t.sub_category_id IS NOT NULL
+      GROUP BY t.sub_category_id, strftime('%Y-%m', t.date)
+    ) sub
+    GROUP BY sub_category_id
+  `, [startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
+
+  let updatedCount = 0;
+
+  for (const avg of averages) {
+    if (avg.average > 0) {
+      await createOrUpdateBudget({
+        sub_category_id: avg.sub_category_id,
+        year,
+        month,
+        amount: Math.round(avg.average * 100) / 100,
+      });
+      updatedCount++;
+    }
+  }
+
+  return updatedCount;
 }

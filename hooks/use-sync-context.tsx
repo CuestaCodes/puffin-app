@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { api } from '@/lib/services';
 import type { SyncCheckResponse } from '@/types/sync';
 
 interface SyncContextValue {
@@ -20,15 +21,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const checkSyncStatus = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/sync/check');
-      if (!response.ok) {
-        console.error('Sync check failed');
+      const result = await api.get<SyncCheckResponse>('/api/sync/check');
+      if (result.data) {
+        setSyncStatus(result.data);
+      } else {
+        console.error('Sync check failed:', result.error);
         setSyncStatus(null);
-        return;
       }
-
-      const result: SyncCheckResponse = await response.json();
-      setSyncStatus(result);
     } catch (error) {
       console.error('Sync check error:', error);
       setSyncStatus(null);

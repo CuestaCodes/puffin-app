@@ -148,6 +148,53 @@ export async function handleSyncStatus(ctx: HandlerContext): Promise<unknown> {
 }
 
 /**
+ * Sync check handler - /api/sync/check
+ *
+ * In Tauri mode, returns basic sync status without cloud check.
+ * Full cloud-based sync check requires browser OAuth context.
+ */
+export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'GET') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const config = getSyncConfig();
+
+  // If sync is not configured, allow editing
+  if (!config.isConfigured) {
+    return {
+      syncRequired: false,
+      reason: 'not_configured',
+      canEdit: true,
+    };
+  }
+
+  // If configured but never synced, we can't check cloud status in Tauri
+  // Allow editing but note that sync hasn't happened
+  if (!config.lastSyncedAt) {
+    return {
+      syncRequired: false,
+      reason: 'not_configured',
+      canEdit: true,
+      message: 'Sync configured but not yet synced. Use Settings > Sync to sync.',
+    };
+  }
+
+  // Sync was configured and has been used - assume in sync
+  // Full cloud checking requires OAuth which happens in browser context
+  return {
+    syncRequired: false,
+    reason: 'in_sync',
+    canEdit: true,
+    hasLocalChanges: false,
+    hasCloudChanges: false,
+    lastSyncedAt: config.lastSyncedAt,
+  };
+}
+
+/**
  * Sync push handler - /api/sync/push
  *
  * In Tauri mode, sync operations require browser-based OAuth flow.

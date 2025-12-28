@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const result = await api.post<{ success: boolean }>('/api/auth/login', { pin });
+      const result = await api.post<{ success: boolean }>('/api/auth/login', { password: pin });
 
       if (result.data?.success) {
         setState(prev => ({
@@ -115,11 +115,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setup = useCallback(async (pin: string, _confirmPin: string): Promise<boolean> => {
+  const setup = useCallback(async (pin: string, confirmPin: string): Promise<boolean> => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const result = await api.post<{ success: boolean }>('/api/auth/setup', { pin });
+      const result = await api.post<{ success: boolean }>('/api/auth/setup', {
+        password: pin,
+        confirmPassword: confirmPin,
+      });
 
       if (result.data?.success) {
         setState(prev => ({

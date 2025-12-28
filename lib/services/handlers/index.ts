@@ -54,6 +54,21 @@ export function initializeTauriHandlers(): void {
     return handleTransaction;
   });
 
+  registerHandler('/api/transactions/[id]/split', async () => {
+    const { handleTransactionSplit } = await import('./transactions');
+    return handleTransactionSplit;
+  });
+
+  registerHandler('/api/transactions/import', async () => {
+    const { handleTransactionImport } = await import('./transactions');
+    return handleTransactionImport;
+  });
+
+  registerHandler('/api/transactions/check-duplicates', async () => {
+    const { handleCheckDuplicates } = await import('./transactions');
+    return handleCheckDuplicates;
+  });
+
   // Category handlers
   registerHandler('/api/categories', async () => {
     const { handleCategories } = await import('./categories');
@@ -105,6 +120,11 @@ export function initializeTauriHandlers(): void {
   });
 
   // Sync handlers
+  registerHandler('/api/sync/check', async () => {
+    const { handleSyncCheck } = await import('./sync');
+    return handleSyncCheck;
+  });
+
   registerHandler('/api/sync/config', async () => {
     const { handleSyncConfig } = await import('./sync');
     return handleSyncConfig;
@@ -166,6 +186,14 @@ export function initializeTauriHandlers(): void {
     return handleImportBackup;
   });
 
-  // TODO: Add more handlers as needed:
-  // - /api/net-worth
+  // Net worth handlers
+  registerHandler('/api/net-worth', async () => {
+    const { handleNetWorth } = await import('./net-worth');
+    return handleNetWorth;
+  });
+
+  registerHandler('/api/net-worth/[id]', async () => {
+    const { handleNetWorthEntry } = await import('./net-worth');
+    return handleNetWorthEntry;
+  });
 }
