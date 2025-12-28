@@ -368,9 +368,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
           </Button>
         )}
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Auto-Categorization Rules</h1>
+          <h1 className="text-2xl font-bold text-white">Auto-Categorisation Rules</h1>
           <p className="text-slate-400 mt-1">
-            Create rules to automatically categorize transactions during import
+            Create rules to automatically categorise transactions during import
           </p>
         </div>
         <Button
@@ -395,7 +395,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
             <div className="text-center py-12 text-slate-500">
               <Sparkles className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No rules yet</p>
-              <p className="text-sm mt-1">Create a rule to automatically categorize transactions</p>
+              <p className="text-sm mt-1">Create a rule to automatically categorise transactions</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -495,7 +495,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                 <li>Rules are applied during CSV import in priority order (drag to reorder)</li>
                 <li>First matching rule wins - the transaction gets that category</li>
                 <li>Rules use &quot;contains&quot; matching (case-insensitive)</li>
-                <li>Manually categorized transactions are not affected</li>
+                <li>Manually categorised transactions are not affected</li>
               </ul>
             </div>
           </div>
@@ -658,7 +658,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                 applyResult.success ? (
                   <span className="flex items-center gap-2 text-emerald-400">
                     <CheckCircle className="w-4 h-4" />
-                    Successfully categorized {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
+                    Successfully categorised {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
                   </span>
                 ) : (
                   <span className="text-red-400">Failed to apply rule. Please try again.</span>
@@ -667,7 +667,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                 <>
                   Found <span className="text-violet-400 font-semibold">{matchingCount}</span> uncategorized
                   transaction{matchingCount !== 1 ? 's' : ''} that match{matchingCount === 1 ? 'es' : ''} this rule.
-                  Would you like to categorize them now?
+                  Would you like to categorise them now?
                 </>
               )}
             </DialogDescription>

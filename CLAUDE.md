@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Puffin** (Personal Unified Finance Framework & Investment Navigator) is a locally-hosted personal budgeting application for tracking expenses, categorising transactions, and monitoring spending against budgets.
+**Puffin** (Personal Understanding & Forecasting of FINances) is a locally-hosted personal budgeting application for tracking expenses, categorising transactions, and monitoring spending against budgets.
 
 **Core Value Proposition:**
 - Full data ownership with local SQLite database

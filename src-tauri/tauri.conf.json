@@ -42,7 +42,7 @@
     "copyright": "Copyright © 2025 CuestaCodes",
     "category": "Finance",
     "shortDescription": "Personal budgeting application",
-    "longDescription": "Puffin is a locally-hosted personal budgeting application for tracking expenses, categorizing transactions, and monitoring spending against budgets.",
+    "longDescription": "Puffin — Personal Understanding & Forecasting of FINances. A locally-hosted personal budgeting application for tracking expenses, categorising transactions, and monitoring spending against budgets.",
     "linux": {
       "appimage": {
         "bundleMediaFramework": false

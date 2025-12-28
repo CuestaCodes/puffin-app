@@ -73,7 +73,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Auto-categorization Rules */}
+        {/* Auto-categorisation Rules */}
         <Card
           className="border-slate-800 bg-slate-900/50 hover:border-violet-700 transition-colors cursor-pointer"
           onClick={() => setCurrentView('rules')}
@@ -84,8 +84,8 @@ export function SettingsPage() {
                 <Sparkles className="w-6 h-6 text-violet-400" />
               </div>
               <div>
-                <CardTitle className="text-lg text-slate-100">Auto-Categorization</CardTitle>
-                <CardDescription className="text-slate-400">Set up rules to automatically categorize transactions</CardDescription>
+                <CardTitle className="text-lg text-slate-100">Auto-Categorisation</CardTitle>
+                <CardDescription className="text-slate-400">Set up rules to automatically categorise transactions</CardDescription>
               </div>
             </div>
           </CardHeader>

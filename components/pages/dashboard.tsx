@@ -640,8 +640,8 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="text-center py-12 text-slate-500">
-              <p>No categorized transactions yet</p>
-              <p className="text-sm mt-1">Categorize transactions to see monthly breakdown</p>
+              <p>No categorised transactions yet</p>
+              <p className="text-sm mt-1">Categorise transactions to see monthly breakdown</p>
             </div>
           )}
         </CardContent>
