@@ -64,6 +64,11 @@ function main() {
 
     // Move API folder out of the way for static build
     if (fs.existsSync(API_DIR)) {
+      // Remove stale backup if it exists (from previous interrupted build)
+      if (fs.existsSync(API_BACKUP_DIR)) {
+        console.log('Removing stale API backup...');
+        removeDir(API_BACKUP_DIR);
+      }
       console.log('Moving API routes for static build...');
       apiMoved = moveDir(API_DIR, API_BACKUP_DIR);
     }
