@@ -34,11 +34,15 @@ export function parsePastedText(text: string, options: ParseOptions = {}): CSVPa
   const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   // Split into lines and filter empty ones
-  const lines = normalizedText.split('\n').filter(line => line.trim() !== '');
+  let lines = normalizedText.split('\n').filter(line => line.trim() !== '');
 
   if (lines.length === 0) {
     throw new Error('No data found in pasted text');
   }
+
+  // Pre-process: Try to merge lines that belong to same transaction
+  // Many PDFs split transactions across lines (date+desc on one, amounts on next)
+  lines = preprocessMultiLineTransactions(lines);
 
   // Detect delimiter type
   const delimiter = detectDelimiter(lines);
@@ -77,6 +81,95 @@ export function parsePastedText(text: string, options: ParseOptions = {}): CSVPa
     totalRows: rows.length,
     encoding: 'UTF-8',
   };
+}
+
+/**
+ * Preprocess lines to merge multi-line transactions
+ * Many PDFs split transactions like:
+ *   "6 Dec 25 ACCOUNT TFR ADJUSTMENT"
+ *   "ADDITIONAL DESCRIPTION TEXT"
+ *   "52,243.23 52,243.23"
+ * This combines them into single lines
+ */
+function preprocessMultiLineTransactions(lines: string[]): string[] {
+  const result: string[] = [];
+  let currentLine = '';
+
+  // Check if a line starts with a date pattern
+  const startsWithDate = (line: string): boolean => {
+    const trimmed = line.trim();
+    return (
+      /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(trimmed) || // DD/MM/YYYY
+      /^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}/.test(trimmed) ||   // YYYY-MM-DD
+      /^\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}/.test(trimmed) ||     // 6 Dec 25
+      /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{2,4}/.test(trimmed)      // Dec 6, 25
+    );
+  };
+
+  // Check if a line looks like it's just amounts (end of transaction)
+  const isAmountOnlyLine = (line: string): boolean => {
+    const trimmed = line.trim();
+    // Line with mostly numbers/currency that looks like amounts
+    const cleaned = trimmed.replace(/[$£€¥₹,.\s\-()DR CR]/gi, '');
+    const isNumeric = /^\d+$/.test(cleaned);
+    const hasAmountPattern = /\d+[.,]\d{2}/.test(trimmed);
+    return isNumeric && hasAmountPattern && trimmed.length < 50;
+  };
+
+  // Check if line is a header or summary (to preserve separately)
+  const isHeaderOrSummary = (line: string): boolean => {
+    const lower = line.toLowerCase();
+    return (
+      /^(date|transaction|withdrawals|deposits|balance)/.test(lower) ||
+      /^opening\s+balance/.test(lower) ||
+      /^closing\s+balance/.test(lower) ||
+      /^transaction\s+total/.test(lower)
+    );
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (isHeaderOrSummary(line)) {
+      // Push any accumulated line first
+      if (currentLine) {
+        result.push(currentLine);
+        currentLine = '';
+      }
+      result.push(line);
+      continue;
+    }
+
+    if (startsWithDate(line)) {
+      // This starts a new transaction
+      if (currentLine) {
+        result.push(currentLine);
+      }
+      currentLine = line;
+    } else if (isAmountOnlyLine(line)) {
+      // This is the amounts line - append to current and finalize
+      if (currentLine) {
+        currentLine = currentLine + '  ' + line; // Use double space as delimiter
+        result.push(currentLine);
+        currentLine = '';
+      } else {
+        result.push(line);
+      }
+    } else if (currentLine) {
+      // Continuation of description - append
+      currentLine = currentLine + ' ' + line;
+    } else {
+      // Standalone line (might be description without date)
+      result.push(line);
+    }
+  }
+
+  // Don't forget the last line
+  if (currentLine) {
+    result.push(currentLine);
+  }
+
+  return result;
 }
 
 /**
@@ -224,15 +317,16 @@ function filterNonTransactionRows(rows: string[][]): string[][] {
     const hasDate = row.some(cell => isDateLike(cell));
     const hasAmount = row.some(cell => isAmountLike(cell));
 
-    // Filter out header rows (usually contain "Date", "Amount", etc.)
-    const lowerRow = row.map(c => c.toLowerCase());
-    const isHeader = lowerRow.some(c =>
-      ['date', 'description', 'amount', 'balance', 'debit', 'credit', 'transaction'].includes(c)
-    );
+    // Filter out header rows - check if cells are EXACTLY header words (not containing them)
+    const lowerRow = row.map(c => c.toLowerCase().trim());
+    const headerWords = ['date', 'description', 'amount', 'balance', 'debit', 'credit', 'transaction', 'withdrawals', 'deposits'];
+    const headerMatches = lowerRow.filter(c => headerWords.includes(c)).length;
+    const isHeader = headerMatches >= 2; // Need multiple header words to be a header row
 
-    // Filter out summary rows
+    // Filter out summary rows - be strict: only match if cell STARTS with summary words
+    // This avoids filtering "ESTABLISH TRANSFER BALANCE" as a summary
     const isSummary = lowerRow.some(c =>
-      c.includes('total') || c.includes('balance') || c.includes('opening') || c.includes('closing')
+      /^(opening\s+balance|closing\s+balance|transaction\s+total|total[s]?\s*[:/]?$|^balance\s+brought|^balance\s+carried)/i.test(c)
     );
 
     return (hasDate || hasAmount) && !isHeader && !isSummary;
