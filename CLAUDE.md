@@ -105,6 +105,13 @@ const result = await api.get('/api/transactions');
 2. Register in `lib/services/handlers/index.ts`
 3. Use `tauri-db` functions instead of `lib/db/` imports
 
+**Handler-API Parity Checklist:**
+- [ ] Response shape matches API route exactly (same field names, nesting)
+- [ ] Query param names match (e.g., `summary` not `includeSummary`)
+- [ ] Column names match schema (e.g., `is_split_parent` not `is_split`)
+- [ ] Pagination responses include: `total`, `page`, `limit`, `totalPages`
+- [ ] Test both dev mode (API routes) and Tauri mode (handlers) with same inputs
+
 ### Database Connection Management
 - `getDatabase()` - Get the current database connection
 - `closeDatabase()` - Close connection only (keeps initialization state)
@@ -133,6 +140,27 @@ cleanupWalFiles(dbPath); // Removes .db-wal and .db-shm files
 | SyncLog | Google Drive sync history |
 
 **Note:** Authentication uses a 6-digit numeric PIN (not passwords). Validation schemas use PIN terminology (`setupPinSchema`, `loginPinSchema`) with backward-compatible aliases (`setupPasswordSchema`, `loginSchema`).
+
+### Auth API Field Names
+
+The validation schemas use legacy field names for backward compatibility:
+
+| UI Concept | API Field Name | Notes |
+|------------|----------------|-------|
+| PIN | `password` | 6-digit numeric string |
+| Confirm PIN | `confirmPassword` | Must match `password` |
+| Current PIN | `currentPin` OR `currentPassword` | change-password accepts both |
+| New PIN | `newPin` OR `newPassword` | change-password accepts both |
+
+**Example - Setup endpoint expects this field name:**
+```typescript
+{ password: "123456", confirmPassword: "123456" }  // ✅ Correct field names
+```
+
+**Common mistake:**
+```typescript
+{ pin: "123456" }  // ❌ Wrong field name - causes 400 validation error
+```
 
 ### Transaction Table Key Columns
 | Column | Purpose |
