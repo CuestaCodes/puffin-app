@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Puffin — Personal Budgeting",
+        "title": "Puffin — Personal Understanding & Forecasting of FINances",
         "label": "main",
         "width": 1280,
         "height": 800,
