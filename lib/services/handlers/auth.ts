@@ -362,15 +362,14 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   }
 
   // Clear all data - this is a destructive operation
-  await db.exec(`
-    DELETE FROM "transaction";
-    DELETE FROM sub_category;
-    DELETE FROM budget;
-    DELETE FROM auto_category_rule;
-    DELETE FROM source;
-    DELETE FROM local_user;
-    DELETE FROM sync_log;
-  `);
+  // Note: tauri-db doesn't support multi-statement exec, run each separately
+  await db.execute('DELETE FROM "transaction"');
+  await db.execute('DELETE FROM sub_category');
+  await db.execute('DELETE FROM budget');
+  await db.execute('DELETE FROM auto_category_rule');
+  await db.execute('DELETE FROM source');
+  await db.execute('DELETE FROM local_user');
+  await db.execute('DELETE FROM sync_log');
 
   // Clear session
   setAuthState(false);

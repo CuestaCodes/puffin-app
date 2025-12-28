@@ -65,8 +65,9 @@ export async function handleSource(ctx: HandlerContext): Promise<unknown> {
 /**
  * Get all sources.
  */
-async function getSources(): Promise<Source[]> {
-  return db.query<Source>('SELECT * FROM source ORDER BY sort_order');
+async function getSources(): Promise<{ sources: Source[] }> {
+  const sources = await db.query<Source>('SELECT * FROM source ORDER BY sort_order');
+  return { sources };
 }
 
 /**
@@ -79,7 +80,7 @@ async function getSourceById(id: string): Promise<Source | null> {
 /**
  * Create a new source.
  */
-async function createSource(data: { name: string }): Promise<Source> {
+async function createSource(data: { name: string }): Promise<{ source: Source }> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
@@ -97,7 +98,7 @@ async function createSource(data: { name: string }): Promise<Source> {
   if (!source) {
     throw new Error('Failed to create source');
   }
-  return source;
+  return { source };
 }
 
 /**
