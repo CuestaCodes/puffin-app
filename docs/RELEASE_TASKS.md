@@ -6,8 +6,9 @@ Track progress for the first public release. Check off items as completed.
 
 ## Phase 1: Bug Fixes
 
-- [ ] **Auto-categorisation rules** - Troubleshoot and verify rules apply correctly in Tauri mode
-- [ ] **Google Drive sync** - Troubleshoot OAuth flow and push/pull in Tauri mode
+- [x] **Auto-categorisation rules** - Fixed: rules now apply on manual transaction creation and import
+- [x] **Dashboard graphs** - Fixed: renamed `monthlyTrends` to `trends` to match frontend expectations
+- [x] **Google Drive sync** - Fixed: OAuth loopback server, push/pull handlers, extended scope detection
 
 ---
 
