@@ -68,7 +68,18 @@ Transactions use `is_deleted` flag for soft delete, allowing recovery.
 - `better-sqlite3` for development (synchronous, fast iteration)
 - `tauri-plugin-sql` for packaged app (native Tauri integration)
 
-Runtime detection via `window.__TAURI__`.
+Runtime detection via `window.__TAURI__` or `window.__TAURI_INTERNALS__`.
+
+**Tauri Version Detection:**
+```typescript
+// ✅ CORRECT - Works with both Tauri 1.x and 2.x
+const isTauri = typeof window !== 'undefined' &&
+  (window.__TAURI__ || window.__TAURI_INTERNALS__);
+
+// ❌ WRONG - Only works with Tauri 1.x
+const isTauri = !!window.__TAURI__;
+```
+Tauri 2.x uses `__TAURI_INTERNALS__` instead of `__TAURI__`. Always check for both to ensure compatibility.
 
 ### Tauri Service Layer
 
@@ -128,6 +139,19 @@ When accessing files outside AppData (e.g., user-selected backups from Downloads
 
 **CSP Configuration:**
 The Content Security Policy in `src-tauri/tauri.conf.json` must include `ipc: http://ipc.localhost` for Tauri IPC to work.
+
+When integrating external APIs (e.g., Google Picker), update CSP directives:
+```json
+"security": {
+  "csp": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://accounts.google.com https://*.googleapis.com; frame-src https://docs.google.com https://drive.google.com"
+}
+```
+
+| Directive | Purpose |
+|-----------|---------|
+| `script-src` | External JavaScript (e.g., Google API loader) |
+| `connect-src` | XHR/fetch destinations (e.g., OAuth endpoints) |
+| `frame-src` | Embedded iframes (e.g., Google Picker UI) |
 
 **Handler-API Parity Checklist:**
 - [ ] Response shape matches API route exactly (same field names, nesting)
@@ -217,6 +241,12 @@ Sync state uses encrypted JSON files (not SQLite) for portability:
 - `drive.file`: Standard scope for single-account sync
 - `drive`: Extended scope required for multi-account sync (access shared files)
 
+**OAuth Loopback Server (Tauri Desktop):**
+- In Tauri mode, OAuth uses a temporary local HTTP server for the callback
+- The `start_oauth_flow` Tauri command starts a server on `http://127.0.0.1:<port>` (dynamic port)
+- OAuth flow: App starts local server → Opens browser → User authenticates → Google redirects to localhost → Server receives code → App exchanges code for tokens
+- **Google Cloud Console Setup Required**: Add `http://127.0.0.1` as an authorized redirect URI in your OAuth client settings (no port needed - Google allows any port with loopback addresses)
+
 ## Key Commands
 
 ```bash
@@ -288,6 +318,20 @@ npm run build:static   # Build static export for Tauri (moves API routes tempora
 - Test scope detection with exact string matching (not substring)
 - Test retry logic with simulated error sequences
 - Test URL/ID sanitization against injection attempts
+
+**OAuth Scope Matching:**
+When checking granted OAuth scopes, use exact array matching, not substring matching:
+```typescript
+// ✅ CORRECT - Exact match prevents false positives
+const grantedScopes = (tokens.scope || '').split(' ');
+const hasFullDrive = grantedScopes.includes('https://www.googleapis.com/auth/drive');
+
+// ❌ WRONG - 'drive.file' would match 'drive' substring
+const hasFullDrive = tokens.scope.includes('drive');
+
+// ❌ WRONG - Trailing space is fragile
+const hasFullDrive = tokens.scope.includes('https://www.googleapis.com/auth/drive ');
+```
 
 ## Important Notes
 
