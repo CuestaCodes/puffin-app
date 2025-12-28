@@ -30,9 +30,12 @@ const CURRENT_SCHEMA_VERSION = 3;
  */
 async function getDatabasePath(): Promise<string> {
   // Dynamic import to avoid bundling issues
-  const { appDataDir } = await import('@tauri-apps/api/path');
+  const { appDataDir, sep } = await import('@tauri-apps/api/path');
   const dataDir = await appDataDir();
-  return `${dataDir}puffin.db`;
+  // Ensure proper path separator
+  const separator = sep || (dataDir.includes('\\') ? '\\' : '/');
+  const normalizedDir = dataDir.endsWith(separator) ? dataDir : dataDir + separator;
+  return `${normalizedDir}puffin.db`;
 }
 
 /**

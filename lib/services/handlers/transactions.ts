@@ -16,7 +16,7 @@ interface Transaction {
   source_id: string | null;
   notes: string | null;
   is_deleted: number;
-  is_split_parent: number;
+  is_split: number;
   parent_transaction_id: string | null;
   created_at: string;
   updated_at: string;
@@ -103,7 +103,7 @@ async function getTransactions(params: Record<string, string>): Promise<{
   const sortColumn = sortColumnMap[sortBy] || 't.date';
 
   // Build WHERE clause
-  const conditions: string[] = ['t.is_deleted = 0', 't.is_split_parent = 0'];
+  const conditions: string[] = ['t.is_deleted = 0', 't.is_split = 0'];
   const queryParams: unknown[] = [];
 
   if (params.startDate) {
@@ -321,7 +321,7 @@ async function getSplitChildren(parentId: string): Promise<{
     throw new Error('Transaction not found');
   }
 
-  if (!parent.is_split_parent) {
+  if (!parent.is_split) {
     throw new Error('Transaction is not split');
   }
 
@@ -357,7 +357,7 @@ async function splitTransaction(
     throw new Error('Transaction not found');
   }
 
-  if (parent.is_split_parent) {
+  if (parent.is_split) {
     throw new Error('Transaction is already split');
   }
 
@@ -388,7 +388,7 @@ async function splitTransaction(
 
   // Mark parent as split
   await db.execute(
-    `UPDATE "transaction" SET is_split_parent = 1, updated_at = ? WHERE id = ?`,
+    `UPDATE "transaction" SET is_split = 1, updated_at = ? WHERE id = ?`,
     [now, parentId]
   );
 
@@ -400,7 +400,7 @@ async function splitTransaction(
     await db.execute(
       `INSERT INTO "transaction" (
         id, date, description, amount, sub_category_id, source_id, notes,
-        is_deleted, is_split_parent, parent_transaction_id, created_at, updated_at
+        is_deleted, is_split, parent_transaction_id, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`,
       [
         childId,
@@ -431,7 +431,7 @@ async function unsplitTransaction(parentId: string): Promise<{ success: boolean;
     throw new Error('Transaction not found');
   }
 
-  if (!parent.is_split_parent) {
+  if (!parent.is_split) {
     throw new Error('Transaction is not split');
   }
 
@@ -445,7 +445,7 @@ async function unsplitTransaction(parentId: string): Promise<{ success: boolean;
 
   // Unmark parent as split
   await db.execute(
-    `UPDATE "transaction" SET is_split_parent = 0, updated_at = ? WHERE id = ?`,
+    `UPDATE "transaction" SET is_split = 0, updated_at = ? WHERE id = ?`,
     [now, parentId]
   );
 
@@ -602,7 +602,7 @@ async function importTransactions(data: {
       await db.execute(
         `INSERT INTO "transaction" (
           id, date, description, amount, notes, sub_category_id, source_id,
-          is_split_parent, parent_transaction_id, is_deleted, created_at, updated_at
+          is_split, parent_transaction_id, is_deleted, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?, ?)`,
         [
           id,

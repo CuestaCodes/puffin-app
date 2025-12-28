@@ -199,7 +199,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
       uc.name as upper_category_name,
       uc.type as upper_category_type,
       COALESCE(ABS(SUM(
-        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split_parent = 0
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
         THEN t.amount ELSE 0 END
       )), 0) as actual_amount
     FROM budget b
@@ -221,7 +221,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     WHERE uc.type = 'income'
       AND t.date >= ? AND t.date <= ?
       AND t.is_deleted = 0
-      AND t.is_split_parent = 0
+      AND t.is_split = 0
   `, [startDate, endDate]);
 
   // Get income categories
@@ -238,7 +238,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
       uc.name as upper_category_name,
       uc.type as upper_category_type,
       COALESCE(SUM(
-        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split_parent = 0
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
         THEN t.amount ELSE 0 END
       ), 0) as actual_amount
     FROM sub_category sc
@@ -279,7 +279,7 @@ async function getCategoryAverage(categoryId: string, months: number): Promise<n
         AND t.date >= ?
         AND t.date <= ?
         AND t.is_deleted = 0
-        AND t.is_split_parent = 0
+        AND t.is_split = 0
       GROUP BY strftime('%Y-%m', t.date)
     )
   `, [categoryId, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
@@ -318,7 +318,7 @@ async function getBudgetCarryOver(categoryId: string, year: number, month: numbe
     WHERE sub_category_id = ?
       AND date >= ? AND date <= ?
       AND is_deleted = 0
-      AND is_split_parent = 0
+      AND is_split = 0
   `, [categoryId, startDate, endDate]);
 
   // Carry-over is budget minus spending (positive means under budget)
@@ -342,7 +342,7 @@ async function getCategoriesForBudgetEntry(year: number, month: number): Promise
       b.id as budget_id,
       b.amount as budget_amount,
       COALESCE(ABS(SUM(
-        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split_parent = 0
+        CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
         THEN t.amount ELSE 0 END
       )), 0) as actual_amount
     FROM sub_category sc
@@ -578,7 +578,7 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
       JOIN upper_category uc ON sc.upper_category_id = uc.id
       WHERE t.date >= ? AND t.date < ?
         AND t.is_deleted = 0
-        AND t.is_split_parent = 0
+        AND t.is_split = 0
         AND uc.type NOT IN ('income', 'transfer')
         AND t.sub_category_id IS NOT NULL
       GROUP BY t.sub_category_id, strftime('%Y-%m', t.date)

@@ -107,8 +107,12 @@ export async function handleClear(ctx: HandlerContext): Promise<unknown> {
   // Delete all transactions (hard delete since we're clearing everything)
   await db.execute('DELETE FROM "transaction"');
 
-  // Reset auto-increment
-  await db.execute('DELETE FROM sqlite_sequence WHERE name = "transaction"');
+  // Reset auto-increment (only if table exists)
+  try {
+    await db.execute('DELETE FROM sqlite_sequence WHERE name = "transaction"');
+  } catch {
+    // sqlite_sequence doesn't exist if AUTOINCREMENT isn't used
+  }
 
   return { success: true };
 }
@@ -146,8 +150,12 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   await db.execute('DELETE FROM local_user');
   await db.execute('DELETE FROM sync_log');
 
-  // Reset auto-increment sequences
-  await db.execute('DELETE FROM sqlite_sequence');
+  // Reset auto-increment sequences (only if table exists)
+  try {
+    await db.execute('DELETE FROM sqlite_sequence');
+  } catch {
+    // sqlite_sequence doesn't exist if no AUTOINCREMENT columns are used
+  }
 
   // Clear sync-related localStorage
   if (typeof localStorage !== 'undefined') {
@@ -322,7 +330,7 @@ export async function handleExportTransactions(ctx: HandlerContext): Promise<unk
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN source s ON t.source_id = s.id
-    WHERE t.is_deleted = 0 AND t.is_split_parent = 0
+    WHERE t.is_deleted = 0 AND t.is_split = 0
     ORDER BY t.date DESC, t.id DESC
   `);
 
