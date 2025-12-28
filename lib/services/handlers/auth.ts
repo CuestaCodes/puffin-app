@@ -11,7 +11,7 @@
 import * as db from '../tauri-db';
 
 interface LocalUser {
-  id: number;
+  id: string;
   password_hash: string;
   created_at: string;
   updated_at: string;
@@ -180,10 +180,11 @@ export async function handleSetup(ctx: HandlerContext): Promise<unknown> {
   // Hash the PIN
   const passwordHash = await hashPin(pinValue);
   const now = new Date().toISOString();
+  const userId = crypto.randomUUID();
 
   await db.execute(
-    'INSERT INTO local_user (password_hash, created_at, updated_at) VALUES (?, ?, ?)',
-    [passwordHash, now, now]
+    'INSERT INTO local_user (id, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)',
+    [userId, passwordHash, now, now]
   );
 
   setAuthState(true);
@@ -226,11 +227,23 @@ export async function handleChangePin(ctx: HandlerContext): Promise<unknown> {
   }
 
   // Update PIN
+  // Use simple update since there's only ever one user - avoids issues with NULL id in legacy data
   const newHash = await hashPin(newPin);
-  await db.execute(
-    'UPDATE local_user SET password_hash = ?, updated_at = ? WHERE id = ?',
-    [newHash, new Date().toISOString(), user.id]
-  );
+  const now = new Date().toISOString();
+
+  // If user has a valid id, use it; otherwise update the single row
+  if (user.id) {
+    await db.execute(
+      'UPDATE local_user SET password_hash = ?, updated_at = ? WHERE id = ?',
+      [newHash, now, user.id]
+    );
+  } else {
+    // Legacy row without id - update the single user row
+    await db.execute(
+      'UPDATE local_user SET password_hash = ?, updated_at = ?',
+      [newHash, now]
+    );
+  }
 
   return { success: true };
 }
@@ -370,6 +383,7 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   await db.execute('DELETE FROM source');
   await db.execute('DELETE FROM local_user');
   await db.execute('DELETE FROM sync_log');
+  await db.execute('DELETE FROM net_worth_entry');
 
   // Clear session
   setAuthState(false);

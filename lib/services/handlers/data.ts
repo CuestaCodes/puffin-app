@@ -149,6 +149,7 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   await db.execute('DELETE FROM source');
   await db.execute('DELETE FROM local_user');
   await db.execute('DELETE FROM sync_log');
+  await db.execute('DELETE FROM net_worth_entry');
 
   // Reset auto-increment sequences (only if table exists)
   try {
@@ -405,9 +406,113 @@ export async function handleImportBackup(ctx: HandlerContext): Promise<unknown> 
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // In Tauri mode, direct file replacement isn't safe while app is running
-  throw new Error(
-    'Backup restore in desktop mode requires manual file replacement. ' +
-    'Close the app, copy your backup to %APPDATA%/Puffin/puffin.db, then restart.'
-  );
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { copyFile, exists, remove, readFile } = await import('@tauri-apps/plugin-fs');
+    const { resetDatabaseConnection, closeDatabase } = await import('../tauri-db');
+
+    console.log('[Import] Opening file picker...');
+
+    // Open file picker to select backup
+    const selectedPath = await open({
+      title: 'Select Backup to Restore',
+      filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+      multiple: false,
+    });
+
+    console.log('[Import] Selected path:', selectedPath);
+
+    if (!selectedPath || typeof selectedPath !== 'string') {
+      console.log('[Import] No file selected, cancelled');
+      return { success: false, cancelled: true };
+    }
+
+    // Verify source file exists and is readable
+    const sourceExists = await exists(selectedPath);
+    console.log('[Import] Source file exists:', sourceExists);
+    if (!sourceExists) {
+      throw new Error(`Source backup file does not exist: ${selectedPath}`);
+    }
+
+    // Get current database path
+    const dbPath = await getDatabasePath();
+    console.log('[Import] Target database path:', dbPath);
+
+    // Create a backup of current database before replacing
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
+    const preRestoreBackup = dbPath.replace('puffin.db', `puffin-pre-restore-${timestamp}.db`);
+
+    try {
+      // Check if current db exists before backing up
+      const dbExists = await exists(dbPath);
+      console.log('[Import] Current DB exists:', dbExists);
+      if (dbExists) {
+        await copyFile(dbPath, preRestoreBackup);
+        console.log('[Import] Created pre-restore backup:', preRestoreBackup);
+      }
+    } catch (err) {
+      console.warn('[Import] Failed to create pre-restore backup:', err);
+      // Continue with restore anyway
+    }
+
+    // Close current database connection properly
+    console.log('[Import] Closing database connection...');
+    await closeDatabase();
+    await resetDatabaseConnection();
+    console.log('[Import] Database connection closed and reset');
+
+    // Remove WAL files if they exist
+    try {
+      const walPath = dbPath + '-wal';
+      const shmPath = dbPath + '-shm';
+      if (await exists(walPath)) {
+        await remove(walPath);
+        console.log('[Import] Removed WAL file');
+      }
+      if (await exists(shmPath)) {
+        await remove(shmPath);
+        console.log('[Import] Removed SHM file');
+      }
+    } catch (walErr) {
+      console.warn('[Import] WAL cleanup error:', walErr);
+    }
+
+    // Remove current database file before copying
+    try {
+      if (await exists(dbPath)) {
+        await remove(dbPath);
+        console.log('[Import] Removed current database');
+      }
+    } catch (removeErr) {
+      console.error('[Import] Failed to remove current database:', removeErr);
+      throw new Error(`Failed to remove current database: ${removeErr}`);
+    }
+
+    // Copy backup to database location
+    console.log('[Import] Copying backup file...');
+    await copyFile(selectedPath, dbPath);
+    console.log('[Import] Copy complete');
+
+    // Verify the copy worked
+    const newDbExists = await exists(dbPath);
+    console.log('[Import] New database exists:', newDbExists);
+    if (!newDbExists) {
+      throw new Error('Database file was not created after copy');
+    }
+
+    console.log('[Import] SUCCESS - Restore complete');
+
+    // Force page reload to pick up new database
+    if (typeof window !== 'undefined') {
+      console.log('[Import] Reloading page...');
+      setTimeout(() => window.location.reload(), 500);
+    }
+
+    return { success: true, restoredFrom: selectedPath };
+  } catch (err) {
+    console.error('[Import] Import backup failed:', err);
+    throw new Error(
+      `Failed to import backup: ${err instanceof Error ? err.message : 'Unknown error'}`
+    );
+  }
 }

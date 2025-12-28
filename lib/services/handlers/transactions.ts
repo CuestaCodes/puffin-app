@@ -542,8 +542,8 @@ async function importTransactions(data: {
   const importedFingerprints = new Set<string>();
 
   // Get auto-categorization rules
-  const rules = await db.query<{ pattern: string; sub_category_id: string; match_type: string }>(
-    `SELECT pattern, sub_category_id, match_type FROM auto_category_rule
+  const rules = await db.query<{ match_text: string; sub_category_id: string }>(
+    `SELECT match_text, sub_category_id FROM auto_category_rule
      WHERE is_active = 1 ORDER BY priority ASC`
   );
 
@@ -567,27 +567,10 @@ async function importTransactions(data: {
       let wasAutoCategorized = false;
 
       if (!finalSubCategoryId && rules.length > 0) {
+        const descLower = tx.description.toLowerCase();
         for (const rule of rules) {
-          const desc = tx.description.toLowerCase();
-          const pattern = rule.pattern.toLowerCase();
-          let matched = false;
-
-          switch (rule.match_type) {
-            case 'contains':
-              matched = desc.includes(pattern);
-              break;
-            case 'exact':
-              matched = desc === pattern;
-              break;
-            case 'starts_with':
-              matched = desc.startsWith(pattern);
-              break;
-            case 'ends_with':
-              matched = desc.endsWith(pattern);
-              break;
-          }
-
-          if (matched) {
+          // Simple contains matching (consistent with findMatchingRule in rules.ts)
+          if (descLower.includes(rule.match_text.toLowerCase())) {
             finalSubCategoryId = rule.sub_category_id;
             wasAutoCategorized = true;
             break;

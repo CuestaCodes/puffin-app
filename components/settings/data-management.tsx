@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/services';
+import { api, isTauriContext } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -225,7 +225,36 @@ export function DataManagement({ onBack }: DataManagementProps) {
     }
   };
 
-  // Restore from backup file
+  // Tauri mode: restore using native file picker
+  const handleTauriRestore = async () => {
+    setIsRestoring(true);
+    try {
+      console.log('[Restore] Calling import backup API...');
+      const result = await api.post<{ success: boolean; cancelled?: boolean; restoredFrom?: string }>(
+        '/api/data/import/backup',
+        {}
+      );
+      console.log('[Restore] Result:', result);
+      if (result.data?.cancelled) {
+        // User cancelled file picker
+        console.log('[Restore] User cancelled');
+        return;
+      }
+      if (result.data?.success) {
+        showSuccess('Database restored successfully. Reloading...');
+        // Page reload is handled by the handler
+      } else {
+        showError(result.error || 'Failed to restore backup');
+      }
+    } catch (error) {
+      console.error('[Restore] Error:', error);
+      showError('Failed to restore backup');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  // Dev mode: restore from backup file input
   const handleRestoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -257,7 +286,6 @@ export function DataManagement({ onBack }: DataManagementProps) {
       showError('Failed to restore backup');
     } finally {
       setIsRestoring(false);
-      // Reset file input
       event.target.value = '';
     }
   };
@@ -517,22 +545,40 @@ export function DataManagement({ onBack }: DataManagementProps) {
         </CardHeader>
         <CardContent>
           <div className="p-4 rounded-lg border-2 border-dashed border-slate-700 hover:border-cyan-600 transition-colors">
-            <label className="flex flex-col items-center cursor-pointer">
-              <FileUp className="w-8 h-8 text-slate-400 mb-2" />
-              <span className="text-sm text-slate-300">
-                {isRestoring ? 'Restoring...' : 'Click to upload a .db backup file'}
-              </span>
-              <span className="text-xs text-slate-500 mt-1">
-                This will replace your current database
-              </span>
-              <input
-                type="file"
-                accept=".db"
-                onChange={handleRestoreBackup}
+            {isTauriContext() ? (
+              // Tauri mode: button that opens native file picker
+              <button
+                onClick={handleTauriRestore}
                 disabled={isRestoring}
-                className="hidden"
-              />
-            </label>
+                className="flex flex-col items-center cursor-pointer w-full"
+              >
+                <FileUp className="w-8 h-8 text-slate-400 mb-2" />
+                <span className="text-sm text-slate-300">
+                  {isRestoring ? 'Restoring...' : 'Click to select a .db backup file'}
+                </span>
+                <span className="text-xs text-slate-500 mt-1">
+                  This will replace your current database
+                </span>
+              </button>
+            ) : (
+              // Dev mode: file input
+              <label className="flex flex-col items-center cursor-pointer">
+                <FileUp className="w-8 h-8 text-slate-400 mb-2" />
+                <span className="text-sm text-slate-300">
+                  {isRestoring ? 'Restoring...' : 'Click to upload a .db backup file'}
+                </span>
+                <span className="text-xs text-slate-500 mt-1">
+                  This will replace your current database
+                </span>
+                <input
+                  type="file"
+                  accept=".db"
+                  onChange={handleRestoreBackup}
+                  disabled={isRestoring}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
         </CardContent>
       </Card>

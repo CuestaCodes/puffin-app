@@ -21,7 +21,20 @@
     "fs:allow-mkdir",
     "fs:allow-remove",
     "fs:allow-read-dir",
+    "fs:allow-copy-file",
     "fs:scope-appdata-recursive",
+    {
+      "identifier": "fs:allow-read",
+      "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }]
+    },
+    {
+      "identifier": "fs:allow-copy-file",
+      "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }, { "path": "$APPDATA/**" }]
+    },
     "dialog:default",
     "dialog:allow-save",
     "dialog:allow-open",
