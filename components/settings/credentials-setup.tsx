@@ -165,26 +165,19 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
               <h4 className="font-medium text-slate-200 mb-2">Step 4: Create OAuth Client ID</h4>
               <ol className="space-y-1 text-slate-400 list-decimal list-inside">
                 <li>Go to &quot;Credentials&quot; → &quot;Create Credentials&quot; → &quot;OAuth client ID&quot;</li>
-                <li>Application type: <strong>Web application</strong></li>
-                <li>Name: &quot;Puffin Web&quot;</li>
-                <li>Add Authorized redirect URI:</li>
+                <li>Application type: <strong>Desktop app</strong></li>
+                <li>Name: &quot;Puffin Desktop&quot;</li>
+                <li>Click Create</li>
               </ol>
-              <div className="mt-2 flex items-center gap-2">
-                <code className="flex-1 px-3 py-1.5 bg-slate-900 rounded text-cyan-400 text-xs">
-                  http://localhost:3000/api/sync/oauth/callback
-                </code>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCopy('http://localhost:3000/api/sync/oauth/callback', 'redirect')}
-                  className="text-slate-400 hover:text-white"
-                >
-                  {copied === 'redirect' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
               <p className="text-xs text-slate-500 mt-2">
                 Copy your <strong>Client ID</strong> and <strong>Client Secret</strong>
               </p>
+              <div className="mt-3 p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                <p className="text-xs text-blue-300">
+                  <strong>Note:</strong> Desktop apps use a secure loopback address (127.0.0.1) for OAuth.
+                  No redirect URI configuration is needed.
+                </p>
+              </div>
             </div>
 
             <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
