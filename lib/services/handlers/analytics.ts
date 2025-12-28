@@ -79,7 +79,7 @@ export async function handleDashboard(ctx: HandlerContext): Promise<unknown> {
   const prevStartDate = `${year - 1}-01-01`;
   const prevEndDate = `${year - 1}-12-31`;
 
-  const [summary, monthlyTrends, upperCategoryBreakdown, expenseBreakdown, monthlyCategoryTotals] = await Promise.all([
+  const [summary, trends, upperCategoryBreakdown, expenseBreakdown, monthlyCategoryTotals] = await Promise.all([
     getDashboardSummary(startDate, endDate, prevStartDate, prevEndDate),
     getMonthlyTrendsByYear(year),
     getUpperCategoryBreakdown(year),
@@ -89,7 +89,7 @@ export async function handleDashboard(ctx: HandlerContext): Promise<unknown> {
 
   return {
     summary,
-    monthlyTrends,
+    trends,
     upperCategoryBreakdown,
     expenseBreakdown,
     monthlyCategoryTotals,

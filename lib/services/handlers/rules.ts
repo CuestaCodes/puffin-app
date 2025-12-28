@@ -35,10 +35,24 @@ interface HandlerContext {
  * Main rules handler - /api/rules
  */
 export async function handleRules(ctx: HandlerContext): Promise<unknown> {
-  const { method, body } = ctx;
+  const { method, body, params } = ctx;
 
   switch (method) {
     case 'GET':
+      // Handle action-based queries
+      if (params.action === 'test') {
+        if (!params.matchText) {
+          throw new Error('matchText is required for testing');
+        }
+        const limit = parseInt(params.limit || '10');
+        return { matches: await testRule(params.matchText, limit) };
+      }
+      if (params.action === 'count') {
+        if (!params.matchText) {
+          throw new Error('matchText is required for counting');
+        }
+        return { count: await countMatchingTransactions(params.matchText) };
+      }
       return getAllRules();
     case 'POST':
       return createRule(body as { match_text: string; sub_category_id: string });
@@ -63,6 +77,9 @@ export async function handleRule(ctx: HandlerContext): Promise<unknown> {
   switch (method) {
     case 'GET':
       return getRuleById(id);
+    case 'POST':
+      // Apply rule to existing uncategorized transactions
+      return applyRuleToExistingTransactions(id);
     case 'PUT':
     case 'PATCH':
       return updateRule(id, body as { match_text?: string; sub_category_id?: string; is_active?: boolean });
@@ -272,4 +289,86 @@ export async function findMatchingRule(description: string): Promise<string | nu
   }
 
   return null;
+}
+
+/**
+ * Test a rule against existing uncategorized transactions.
+ */
+async function testRule(
+  matchText: string,
+  limit: number = 10
+): Promise<Array<{ id: string; description: string; date: string; amount: number }>> {
+  return db.query<{ id: string; description: string; date: string; amount: number }>(`
+    SELECT id, description, date, amount
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+    ORDER BY date DESC
+    LIMIT ?
+  `, [matchText.trim(), limit]);
+}
+
+/**
+ * Count uncategorized transactions matching a pattern.
+ */
+async function countMatchingTransactions(matchText: string): Promise<number> {
+  const result = await db.queryOne<{ count: number }>(`
+    SELECT COUNT(*) as count
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+  `, [matchText.trim()]);
+
+  return result?.count ?? 0;
+}
+
+/**
+ * Apply a rule to existing uncategorized transactions.
+ */
+async function applyRuleToExistingTransactions(ruleId: string): Promise<{
+  success: boolean;
+  updatedCount: number;
+  message: string;
+}> {
+  const now = new Date().toISOString();
+
+  // Get the rule
+  const rule = await db.queryOne<{ match_text: string; sub_category_id: string }>(
+    'SELECT match_text, sub_category_id FROM auto_category_rule WHERE id = ?',
+    [ruleId]
+  );
+
+  if (!rule) {
+    throw new Error('Rule not found');
+  }
+
+  // Update matching uncategorized transactions
+  const result = await db.execute(`
+    UPDATE "transaction"
+    SET sub_category_id = ?, updated_at = ?
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+  `, [rule.sub_category_id, now, rule.match_text]);
+
+  const updatedCount = result.changes;
+
+  // Update the rule's match count
+  if (updatedCount > 0) {
+    await db.execute(
+      'UPDATE auto_category_rule SET match_count = match_count + ?, updated_at = ? WHERE id = ?',
+      [updatedCount, now, ruleId]
+    );
+  }
+
+  return {
+    success: true,
+    updatedCount,
+    message: `Applied rule to ${updatedCount} transaction${updatedCount !== 1 ? 's' : ''}`,
+  };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/services';
 
 // Simplified type declarations
 interface PickerResult {
@@ -51,14 +52,13 @@ export function useGooglePicker({ clientId, apiKey, mode = 'folder', onSelect, o
     try {
       // Step 1: Get access token from backend
       console.log('[Picker] Fetching access token...');
-      const tokenResponse = await fetch('/api/sync/token');
+      const tokenResult = await api.get<{ accessToken: string }>('/api/sync/token');
 
-      if (!tokenResponse.ok) {
-        const err = await tokenResponse.json();
-        throw new Error(err.error || 'Failed to get access token');
+      if (tokenResult.error) {
+        throw new Error(tokenResult.error);
       }
 
-      const { accessToken } = await tokenResponse.json();
+      const accessToken = tokenResult.data?.accessToken;
       console.log('[Picker] Got access token');
 
       if (!accessToken) {

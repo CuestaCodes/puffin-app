@@ -15,9 +15,16 @@ interface HandlerContext {
 
 // localStorage keys for sync state
 const SYNC_CONFIG_KEY = 'puffin_sync_config';
+const SYNC_CREDENTIALS_KEY = 'puffin_sync_credentials';
 const OAUTH_CONFIGURED_KEY = 'puffin_oauth_configured';
 const OAUTH_AUTHENTICATED_KEY = 'puffin_oauth_authenticated';
 const OAUTH_EXTENDED_SCOPE_KEY = 'puffin_oauth_extended_scope';
+
+interface SyncCredentials {
+  clientId: string;
+  clientSecret: string;
+  apiKey: string;
+}
 
 interface SyncConfig {
   folderId: string | null;
@@ -196,9 +203,7 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
 
 /**
  * Sync push handler - /api/sync/push
- *
- * In Tauri mode, sync operations require browser-based OAuth flow.
- * This handler is not supported - use the web-based sync flow instead.
+ * Uploads the database to Google Drive
  */
 export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
@@ -207,12 +212,163 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // Sync push is not supported in Tauri mode - requires browser OAuth flow
-  // The sync functionality should be triggered via the Settings > Sync page
-  // which handles OAuth authentication and Google Drive operations in browser context
-  throw new Error(
-    'Sync push not supported in desktop mode. Please use Settings > Sync to sync your data.'
-  );
+  // Get stored tokens
+  const tokensStored = localStorage.getItem('puffin_oauth_tokens');
+  if (!tokensStored) {
+    throw new Error('Not authenticated. Please sign in with Google first.');
+  }
+
+  const tokens = JSON.parse(tokensStored);
+  const accessToken = tokens.access_token;
+
+  if (!accessToken) {
+    throw new Error('No access token available. Please sign in again.');
+  }
+
+  // Get sync config
+  const config = getSyncConfig();
+  if (!config.folderId && !config.backupFileId) {
+    throw new Error('Sync not configured. Please select a folder or file first.');
+  }
+
+  try {
+    // Import Tauri filesystem and path APIs
+    const { readFile } = await import('@tauri-apps/plugin-fs');
+    const { appDataDir, join } = await import('@tauri-apps/api/path');
+
+    // Create a backup first
+    const dataDir = await appDataDir();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
+    const backupPath = await join(dataDir, 'backups', `pre-sync-${timestamp}.db`);
+
+    // Ensure backups directory exists
+    const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
+    const backupsDir = await join(dataDir, 'backups');
+    if (!await exists(backupsDir)) {
+      await mkdir(backupsDir, { recursive: true });
+    }
+
+    // Create backup using VACUUM INTO
+    const { getDatabase } = await import('../tauri-db');
+    const db = await getDatabase();
+    await db.execute(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+
+    // Checkpoint WAL to ensure all data is in main file
+    await db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+
+    // Read the database file
+    const dbPath = await join(dataDir, 'puffin.db');
+    const fileData = await readFile(dbPath);
+
+    // Upload to Google Drive
+    const fileName = 'puffin-backup.db';
+
+    if (config.isFileBasedSync && config.backupFileId) {
+      // Update existing file
+      const updateResponse = await fetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${config.backupFileId}?uploadType=media`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/octet-stream',
+          },
+          body: fileData,
+        }
+      );
+
+      if (!updateResponse.ok) {
+        const err = await updateResponse.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Failed to upload file');
+      }
+    } else if (config.folderId) {
+      // Check if file already exists in folder
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${config.folderId}'+in+parents+and+name='${fileName}'+and+trashed=false&fields=files(id,name)`,
+        {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!searchResponse.ok) {
+        throw new Error('Failed to search for existing backup');
+      }
+
+      const searchData = await searchResponse.json();
+      const existingFile = searchData.files?.[0];
+
+      if (existingFile) {
+        // Update existing file
+        const updateResponse = await fetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/octet-stream',
+            },
+            body: fileData,
+          }
+        );
+
+        if (!updateResponse.ok) {
+          const err = await updateResponse.json().catch(() => ({}));
+          throw new Error(err.error?.message || 'Failed to update file');
+        }
+      } else {
+        // Create new file with multipart upload
+        const metadata = {
+          name: fileName,
+          parents: [config.folderId],
+        };
+
+        const boundary = '-------314159265358979323846';
+        const delimiter = '\r\n--' + boundary + '\r\n';
+        const closeDelimiter = '\r\n--' + boundary + '--';
+
+        // Convert Uint8Array to base64
+        const base64Data = btoa(String.fromCharCode(...fileData));
+
+        const multipartBody =
+          delimiter +
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+          JSON.stringify(metadata) +
+          delimiter +
+          'Content-Type: application/octet-stream\r\n' +
+          'Content-Transfer-Encoding: base64\r\n\r\n' +
+          base64Data +
+          closeDelimiter;
+
+        const createResponse = await fetch(
+          'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': `multipart/related; boundary=${boundary}`,
+            },
+            body: multipartBody,
+          }
+        );
+
+        if (!createResponse.ok) {
+          const err = await createResponse.json().catch(() => ({}));
+          throw new Error(err.error?.message || 'Failed to create file');
+        }
+      }
+    }
+
+    // Update sync config
+    saveSyncConfig({
+      ...config,
+      lastSyncedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Sync push error:', error);
+    throw error;
+  }
 }
 
 /**
@@ -227,9 +383,401 @@ export async function handleSyncDisconnect(ctx: HandlerContext): Promise<unknown
 
   // Clear all sync-related localStorage
   localStorage.removeItem(SYNC_CONFIG_KEY);
+  localStorage.removeItem(SYNC_CREDENTIALS_KEY);
   localStorage.removeItem(OAUTH_CONFIGURED_KEY);
   localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
   localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
 
   return { success: true };
+}
+
+/**
+ * Sync credentials handler - /api/sync/credentials
+ */
+export async function handleSyncCredentials(ctx: HandlerContext): Promise<unknown> {
+  const { method, body } = ctx;
+
+  switch (method) {
+    case 'GET':
+      return getCredentials();
+    case 'POST':
+      return saveCredentials(body as Partial<SyncCredentials>);
+    case 'DELETE':
+      return clearCredentials();
+    default:
+      throw new Error(`Method ${method} not allowed`);
+  }
+}
+
+function getCredentials(): { clientId: string; apiKey: string; configured: boolean; hasApiKey: boolean } {
+  try {
+    const stored = localStorage.getItem(SYNC_CREDENTIALS_KEY);
+    if (stored) {
+      const creds = JSON.parse(stored) as SyncCredentials;
+      return {
+        clientId: creds.clientId || '',
+        apiKey: creds.apiKey || '',
+        configured: !!(creds.clientId && creds.clientSecret),
+        hasApiKey: !!creds.apiKey,
+      };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  return {
+    clientId: '',
+    apiKey: '',
+    configured: false,
+    hasApiKey: false,
+  };
+}
+
+function saveCredentials(data: Partial<SyncCredentials>): { success: boolean } {
+  if (!data.clientId || !data.clientSecret) {
+    throw new Error('Client ID and Client Secret are required');
+  }
+
+  if (!data.clientId.includes('.apps.googleusercontent.com')) {
+    throw new Error('Invalid Client ID format. It should end with .apps.googleusercontent.com');
+  }
+
+  const creds: SyncCredentials = {
+    clientId: data.clientId.trim(),
+    clientSecret: data.clientSecret.trim(),
+    apiKey: (data.apiKey || '').trim(),
+  };
+
+  localStorage.setItem(SYNC_CREDENTIALS_KEY, JSON.stringify(creds));
+  localStorage.setItem(OAUTH_CONFIGURED_KEY, 'true');
+
+  return { success: true };
+}
+
+function clearCredentials(): { success: boolean } {
+  localStorage.removeItem(SYNC_CREDENTIALS_KEY);
+  localStorage.removeItem(SYNC_CONFIG_KEY);
+  localStorage.removeItem(OAUTH_CONFIGURED_KEY);
+  localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
+  localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
+
+  return { success: true };
+}
+
+/**
+ * OAuth URL handler - /api/sync/oauth/url
+ *
+ * NOTE: In Tauri mode, OAuth is handled by the start_oauth_flow Tauri command
+ * which starts a local callback server. This handler is kept for dev mode fallback
+ * but should throw an error in Tauri mode to ensure the correct flow is used.
+ */
+export async function handleOAuthUrl(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'GET') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  // In Tauri mode, OAuth should be handled by the start_oauth_flow command
+  // This handler should not be called - the frontend should use invoke() directly
+  throw new Error(
+    'OAuth in desktop mode uses the native flow. ' +
+    'Please ensure you are using the latest version of the app.'
+  );
+}
+
+/**
+ * Sync validate handler - /api/sync/validate
+ */
+export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  // Folder validation requires OAuth token - not fully supported in Tauri mode yet
+  throw new Error('Folder validation requires OAuth authentication. Please complete OAuth setup first.');
+}
+
+/**
+ * Sync pull handler - /api/sync/pull
+ * Downloads the database from Google Drive
+ */
+export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  // Get stored tokens
+  const tokensStored = localStorage.getItem('puffin_oauth_tokens');
+  if (!tokensStored) {
+    throw new Error('Not authenticated. Please sign in with Google first.');
+  }
+
+  const tokens = JSON.parse(tokensStored);
+  const accessToken = tokens.access_token;
+
+  if (!accessToken) {
+    throw new Error('No access token available. Please sign in again.');
+  }
+
+  // Get sync config
+  const config = getSyncConfig();
+  if (!config.folderId && !config.backupFileId) {
+    throw new Error('Sync not configured. Please select a folder or file first.');
+  }
+
+  try {
+    // Import Tauri filesystem and path APIs
+    const { writeFile } = await import('@tauri-apps/plugin-fs');
+    const { appDataDir, join } = await import('@tauri-apps/api/path');
+
+    // Create a backup first
+    const dataDir = await appDataDir();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
+    const backupPath = await join(dataDir, 'backups', `pre-pull-${timestamp}.db`);
+
+    // Ensure backups directory exists
+    const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
+    const backupsDir = await join(dataDir, 'backups');
+    if (!await exists(backupsDir)) {
+      await mkdir(backupsDir, { recursive: true });
+    }
+
+    // Create backup of current database
+    const { getDatabase, resetDatabaseConnection } = await import('../tauri-db');
+    const db = await getDatabase();
+    await db.execute(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+
+    // Find the file to download
+    let fileId: string | null = null;
+
+    if (config.isFileBasedSync && config.backupFileId) {
+      fileId = config.backupFileId;
+    } else if (config.folderId) {
+      // Search for puffin-backup.db in folder
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${config.folderId}'+in+parents+and+name='puffin-backup.db'+and+trashed=false&fields=files(id,name)`,
+        {
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!searchResponse.ok) {
+        throw new Error('Failed to search for backup file');
+      }
+
+      const searchData = await searchResponse.json();
+      fileId = searchData.files?.[0]?.id;
+
+      if (!fileId) {
+        throw new Error('No backup file found in the sync folder');
+      }
+    }
+
+    if (!fileId) {
+      throw new Error('No backup file configured');
+    }
+
+    // Download the file
+    const downloadResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      }
+    );
+
+    if (!downloadResponse.ok) {
+      const err = await downloadResponse.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'Failed to download backup file');
+    }
+
+    const fileData = new Uint8Array(await downloadResponse.arrayBuffer());
+
+    // Close the current database connection
+    await resetDatabaseConnection();
+
+    // Write the downloaded file
+    const dbPath = await join(dataDir, 'puffin.db');
+    await writeFile(dbPath, fileData);
+
+    // Clean up any stale WAL files
+    const { remove } = await import('@tauri-apps/plugin-fs');
+    const walPath = dbPath + '-wal';
+    const shmPath = dbPath + '-shm';
+
+    if (await exists(walPath)) {
+      try {
+        await remove(walPath);
+      } catch {
+        // Ignore removal errors
+      }
+    }
+    if (await exists(shmPath)) {
+      try {
+        await remove(shmPath);
+      } catch {
+        // Ignore removal errors
+      }
+    }
+
+    // Update sync config
+    saveSyncConfig({
+      ...config,
+      lastSyncedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Sync pull error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Access token handler - /api/sync/token
+ * Returns the stored OAuth access token for the Google Picker
+ */
+export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'GET') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  // Get stored tokens from localStorage
+  const stored = localStorage.getItem('puffin_oauth_tokens');
+  if (!stored) {
+    throw new Error('Not authenticated. Please sign in with Google first.');
+  }
+
+  try {
+    const tokens = JSON.parse(stored);
+
+    // Check if token is expired
+    if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
+      // Token expired - need to refresh
+      // For now, just return error - user needs to re-authenticate
+      throw new Error('Access token expired. Please sign in again.');
+    }
+
+    return { accessToken: tokens.access_token };
+  } catch (e) {
+    if (e instanceof Error) throw e;
+    throw new Error('Invalid token data');
+  }
+}
+
+/**
+ * OAuth token exchange handler - /api/sync/oauth/token
+ * Exchanges authorization code for access tokens in Tauri mode
+ */
+export async function handleOAuthToken(ctx: HandlerContext): Promise<unknown> {
+  const { method, body } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const { code, state, redirectUri } = body as { code: string; state?: string; redirectUri?: string };
+
+  if (!code) {
+    throw new Error('Authorization code is required');
+  }
+
+  // Get stored credentials
+  const stored = localStorage.getItem(SYNC_CREDENTIALS_KEY);
+  if (!stored) {
+    throw new Error('OAuth credentials not found');
+  }
+
+  const credentials = JSON.parse(stored) as SyncCredentials;
+
+  // Use the provided redirect URI or fall back to localhost
+  // The redirect URI must match what was used in the authorization request
+  const finalRedirectUri = redirectUri || 'http://127.0.0.1';
+
+  // Exchange code for tokens via Google's token endpoint
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      code,
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      redirect_uri: finalRedirectUri,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  if (!tokenResponse.ok) {
+    const errorData = await tokenResponse.json().catch(() => ({}));
+    throw new Error(errorData.error_description || errorData.error || 'Failed to exchange authorization code');
+  }
+
+  const tokens = await tokenResponse.json();
+
+  if (!tokens.access_token) {
+    throw new Error('No access token received from Google');
+  }
+
+  // Parse state to get scope level
+  let scopeLevel = 'standard';
+  if (state) {
+    try {
+      const stateData = JSON.parse(atob(state));
+      scopeLevel = stateData.scopeLevel || 'standard';
+    } catch {
+      // Ignore parse errors
+    }
+  }
+
+  // Store tokens in localStorage
+  const tokenData = {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    expiry_date: Date.now() + (tokens.expires_in * 1000),
+    token_type: tokens.token_type || 'Bearer',
+    scope: tokens.scope || '',
+  };
+
+  localStorage.setItem('puffin_oauth_tokens', JSON.stringify(tokenData));
+  localStorage.setItem(OAUTH_AUTHENTICATED_KEY, 'true');
+
+  // Check if we have extended scope (full drive access, not just drive.file)
+  // Split by space and check for exact match to avoid matching drive.file
+  const grantedScopes = (tokens.scope || '').split(' ');
+  const hasFullDriveAccess = grantedScopes.includes('https://www.googleapis.com/auth/drive');
+  if (hasFullDriveAccess) {
+    localStorage.setItem(OAUTH_EXTENDED_SCOPE_KEY, 'true');
+  } else {
+    // Clear extended scope flag if we got standard scope
+    localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
+  }
+
+  // Fetch user email
+  try {
+    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+      },
+    });
+
+    if (userInfoResponse.ok) {
+      const userInfo = await userInfoResponse.json();
+      if (userInfo.email) {
+        const config = getSyncConfig();
+        saveSyncConfig({ ...config, userEmail: userInfo.email });
+      }
+    }
+  } catch {
+    // Non-fatal error, continue without email
+  }
+
+  return { success: true, scopeLevel };
 }

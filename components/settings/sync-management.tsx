@@ -155,22 +155,98 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     onError: (error) => setValidationError(error),
   });
 
+  // Track if OAuth is in progress
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
 
   // Handle OAuth authentication (standard scope for single-account)
   const handleAuthenticate = async () => {
-    try {
-      const result = await api.get<{ url: string }>('/api/sync/oauth/url');
-      if (result.data?.url) {
-        window.location.href = result.data.url;
-      } else {
-        setValidationError(result.error || 'Failed to start authentication');
+    await startOAuthFlow('standard');
+  };
+
+  // Start OAuth flow - handles both Tauri and dev modes
+  const startOAuthFlow = async (scopeLevel: 'standard' | 'extended') => {
+    setValidationError(null);
+    setValidationSuccess(null);
+
+    // In Tauri mode, use the native OAuth flow with local callback server
+    // Check for both __TAURI__ (Tauri 1.x) and __TAURI_INTERNALS__ (Tauri 2.x)
+    const isTauri = typeof window !== 'undefined' &&
+      (window.__TAURI__ || window.__TAURI_INTERNALS__);
+
+    if (isTauri) {
+      try {
+        setIsAuthenticating(true);
+
+        // Get credentials from localStorage
+        const stored = localStorage.getItem('puffin_sync_credentials');
+        if (!stored) {
+          setValidationError('OAuth credentials not found. Please configure your Google Cloud credentials first.');
+          return;
+        }
+
+        const creds = JSON.parse(stored);
+        const scopes = scopeLevel === 'extended'
+          ? 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email'
+          : 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email';
+
+        const stateData = JSON.stringify({ scopeLevel });
+        const state = btoa(stateData);
+
+        // Call the Tauri command to start OAuth flow
+        const { invoke } = await import('@tauri-apps/api/core');
+        const result = await invoke<{ code?: string; state?: string; error?: string; redirect_uri?: string }>('start_oauth_flow', {
+          authUrlBase: 'https://accounts.google.com/o/oauth2/v2/auth',
+          clientId: creds.clientId,
+          scope: scopes,
+          state,
+        });
+
+        if (result.error) {
+          setValidationError(`Authentication failed: ${result.error}`);
+          return;
+        }
+
+        if (!result.code) {
+          setValidationError('No authorization code received');
+          return;
+        }
+
+        // Exchange the code for tokens
+        const tokenResult = await api.post<{ success: boolean; error?: string }>('/api/sync/oauth/token', {
+          code: result.code,
+          state: result.state,
+          redirectUri: result.redirect_uri,
+        });
+
+        if (tokenResult.data?.success) {
+          setValidationSuccess('Successfully connected to Google');
+          fetchConfig();
+        } else {
+          setValidationError(tokenResult.error || 'Failed to complete authentication');
+        }
+      } catch (err) {
+        console.error('OAuth error:', err);
+        setValidationError(`Authentication failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      } finally {
+        setIsAuthenticating(false);
       }
-    } catch (err) {
-      console.error('Auth error:', err);
-      setValidationError('Failed to start authentication');
+    } else {
+      // In dev mode, use the API route which redirects
+      try {
+        const result = await api.get<{ url: string }>(`/api/sync/oauth/url?scopeLevel=${scopeLevel}`);
+        if (result.data?.url) {
+          window.location.href = result.data.url;
+        } else {
+          setValidationError(result.error || 'Failed to start authentication');
+        }
+      } catch (err) {
+        console.error('Auth error:', err);
+        setValidationError('Failed to start authentication');
+      }
     }
   };
 
@@ -188,17 +264,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   // Handle extended scope authentication (for multi-account sync)
   const handleExtendedAuth = async () => {
     setShowMultiAccountWarning(false);
-    try {
-      const result = await api.get<{ url: string }>('/api/sync/oauth/url?scopeLevel=extended');
-      if (result.data?.url) {
-        window.location.href = result.data.url;
-      } else {
-        setValidationError(result.error || 'Failed to start authentication');
-      }
-    } catch (err) {
-      console.error('Auth error:', err);
-      setValidationError('Failed to start authentication');
-    }
+    await startOAuthFlow('extended');
   };
 
   // Validate folder
@@ -441,12 +507,17 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <Button 
+            <Button
               onClick={handleAuthenticate}
+              disabled={isAuthenticating}
               className="bg-emerald-600 hover:bg-emerald-500"
             >
-              <Cloud className="w-4 h-4 mr-2" />
-              Sign in with Google
+              {isAuthenticating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Cloud className="w-4 h-4 mr-2" />
+              )}
+              {isAuthenticating ? 'Authenticating...' : 'Sign in with Google'}
             </Button>
           </CardContent>
         </Card>

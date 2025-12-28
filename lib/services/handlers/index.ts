@@ -135,14 +135,44 @@ export function initializeTauriHandlers(): void {
     return handleSyncStatus;
   });
 
+  registerHandler('/api/sync/credentials', async () => {
+    const { handleSyncCredentials } = await import('./sync');
+    return handleSyncCredentials;
+  });
+
+  registerHandler('/api/sync/oauth/url', async () => {
+    const { handleOAuthUrl } = await import('./sync');
+    return handleOAuthUrl;
+  });
+
+  registerHandler('/api/sync/token', async () => {
+    const { handleSyncToken } = await import('./sync');
+    return handleSyncToken;
+  });
+
+  registerHandler('/api/sync/validate', async () => {
+    const { handleSyncValidate } = await import('./sync');
+    return handleSyncValidate;
+  });
+
   registerHandler('/api/sync/push', async () => {
     const { handleSyncPush } = await import('./sync');
     return handleSyncPush;
   });
 
+  registerHandler('/api/sync/pull', async () => {
+    const { handleSyncPull } = await import('./sync');
+    return handleSyncPull;
+  });
+
   registerHandler('/api/sync/disconnect', async () => {
     const { handleSyncDisconnect } = await import('./sync');
     return handleSyncDisconnect;
+  });
+
+  registerHandler('/api/sync/oauth/token', async () => {
+    const { handleOAuthToken } = await import('./sync');
+    return handleOAuthToken;
   });
 
   // Data handlers

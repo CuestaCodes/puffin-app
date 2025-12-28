@@ -197,6 +197,12 @@ async function createTransaction(data: Partial<Transaction>): Promise<Transactio
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
+  // Apply auto-categorization if no category provided
+  let subCategoryId = data.sub_category_id || null;
+  if (!subCategoryId && data.description) {
+    subCategoryId = await applyAutoCategorizationRules(data.description);
+  }
+
   await db.execute(
     `INSERT INTO "transaction" (id, date, description, amount, sub_category_id, source_id, notes, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -205,7 +211,7 @@ async function createTransaction(data: Partial<Transaction>): Promise<Transactio
       data.date,
       data.description,
       data.amount,
-      data.sub_category_id || null,
+      subCategoryId,
       data.source_id || null,
       data.notes || null,
       now,
@@ -218,6 +224,26 @@ async function createTransaction(data: Partial<Transaction>): Promise<Transactio
     throw new Error('Failed to create transaction');
   }
   return transaction;
+}
+
+/**
+ * Apply auto-categorization rules to a description.
+ * Returns matching sub_category_id or null.
+ */
+async function applyAutoCategorizationRules(description: string): Promise<string | null> {
+  const rules = await db.query<{ match_text: string; sub_category_id: string }>(
+    `SELECT match_text, sub_category_id FROM auto_category_rule
+     WHERE is_active = 1 ORDER BY priority ASC`
+  );
+
+  const descLower = description.toLowerCase();
+  for (const rule of rules) {
+    if (descLower.includes(rule.match_text.toLowerCase())) {
+      return rule.sub_category_id;
+    }
+  }
+
+  return null;
 }
 
 /**
