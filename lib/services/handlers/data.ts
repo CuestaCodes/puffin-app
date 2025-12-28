@@ -94,7 +94,8 @@ export async function handleClear(ctx: HandlerContext): Promise<unknown> {
   try {
     const dbPath = await getDatabasePath();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const backupPath = dbPath.replace('puffin.db', `backups/pre-clear-${timestamp}.db`);
+    const separator = dbPath.includes('\\') ? '\\' : '/';
+    const backupPath = dbPath.replace('puffin.db', `backups${separator}pre-clear-${timestamp}.db`);
 
     // Ensure backups directory exists via parent path
     await vacuumBackup(backupPath);
@@ -128,7 +129,9 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   try {
     const dbPath = await getDatabasePath();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const backupPath = dbPath.replace('puffin.db', `backups/pre-reset-${timestamp}.db`);
+    // Use path separator appropriate for the platform
+    const separator = dbPath.includes('\\') ? '\\' : '/';
+    const backupPath = dbPath.replace('puffin.db', `backups${separator}pre-reset-${timestamp}.db`);
     await vacuumBackup(backupPath);
   } catch (err) {
     console.warn('Failed to create pre-reset backup:', err);

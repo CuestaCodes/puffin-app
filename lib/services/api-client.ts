@@ -129,8 +129,20 @@ async function handleTauriRequest<T>(
     const result = await handler({ method, body, params, path });
     return { data: result as T, status: 200 };
   } catch (error) {
+    // Improve error surfacing for debugging
+    let errorMessage = 'Handler error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (error && typeof error === 'object' && 'message' in error) {
+      errorMessage = String((error as { message: unknown }).message);
+    } else {
+      errorMessage = `Handler error: ${JSON.stringify(error)}`;
+    }
+    console.error(`API handler error for ${path}:`, error);
     return {
-      error: error instanceof Error ? error.message : 'Handler error',
+      error: errorMessage,
       status: 500,
     };
   }
