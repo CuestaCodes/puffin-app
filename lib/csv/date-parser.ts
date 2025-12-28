@@ -148,6 +148,70 @@ function detectAndParseDate(dateStr: string): DateParseResult {
     }
   }
   
+  // Try text-based date formats (common in PDF statements)
+  // "01 Jan 2024", "01 January 2024", "1 Jan 24"
+  const textDayFirst = dateStr.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{2,4})$/);
+  if (textDayFirst) {
+    const [, dayStr, monthStr, yearStr] = textDayFirst;
+    const month = parseMonthName(monthStr);
+    if (month !== null) {
+      const day = parseInt(dayStr, 10);
+      let year = parseInt(yearStr, 10);
+      if (year < 100) {
+        year = year > 50 ? 1900 + year : 2000 + year;
+      }
+      if (isValidDate(year, month, day)) {
+        return {
+          date: formatToISO(year, month, day),
+          format: 'auto',
+          confidence: 0.85,
+        };
+      }
+    }
+  }
+
+  // "Jan 01, 2024", "January 1, 2024"
+  const textMonthFirst = dateStr.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{2,4})$/);
+  if (textMonthFirst) {
+    const [, monthStr, dayStr, yearStr] = textMonthFirst;
+    const month = parseMonthName(monthStr);
+    if (month !== null) {
+      const day = parseInt(dayStr, 10);
+      let year = parseInt(yearStr, 10);
+      if (year < 100) {
+        year = year > 50 ? 1900 + year : 2000 + year;
+      }
+      if (isValidDate(year, month, day)) {
+        return {
+          date: formatToISO(year, month, day),
+          format: 'auto',
+          confidence: 0.85,
+        };
+      }
+    }
+  }
+
+  // "01Jan2024" or "01Jan24" (no spaces)
+  const compactDate = dateStr.match(/^(\d{1,2})([A-Za-z]{3})(\d{2,4})$/);
+  if (compactDate) {
+    const [, dayStr, monthStr, yearStr] = compactDate;
+    const month = parseMonthName(monthStr);
+    if (month !== null) {
+      const day = parseInt(dayStr, 10);
+      let year = parseInt(yearStr, 10);
+      if (year < 100) {
+        year = year > 50 ? 1900 + year : 2000 + year;
+      }
+      if (isValidDate(year, month, day)) {
+        return {
+          date: formatToISO(year, month, day),
+          format: 'auto',
+          confidence: 0.8,
+        };
+      }
+    }
+  }
+
   // Try parsing with JavaScript Date as last resort
   const jsDate = new Date(dateStr);
   if (!isNaN(jsDate.getTime())) {
@@ -157,12 +221,33 @@ function detectAndParseDate(dateStr: string): DateParseResult {
       confidence: 0.4,
     };
   }
-  
+
   return {
     date: null,
     format: 'auto',
     confidence: 0,
   };
+}
+
+/**
+ * Parse month name to number (1-12)
+ */
+function parseMonthName(monthStr: string): number | null {
+  const months: Record<string, number> = {
+    jan: 1, january: 1,
+    feb: 2, february: 2,
+    mar: 3, march: 3,
+    apr: 4, april: 4,
+    may: 5,
+    jun: 6, june: 6,
+    jul: 7, july: 7,
+    aug: 8, august: 8,
+    sep: 9, sept: 9, september: 9,
+    oct: 10, october: 10,
+    nov: 11, november: 11,
+    dec: 12, december: 12,
+  };
+  return months[monthStr.toLowerCase()] ?? null;
 }
 
 /**

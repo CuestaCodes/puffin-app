@@ -11,7 +11,9 @@ import {
   Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2,
   CloudOff
 } from 'lucide-react';
-import { ImportWizard } from '@/components/import';
+import { ImportWizard, PasteImport } from '@/components/import';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileSpreadsheet, ClipboardPaste } from 'lucide-react';
 import { 
   TransactionForm, 
   DeleteDialog, 
@@ -640,10 +642,30 @@ function TransactionsPageContent() {
             >
               <X className="w-6 h-6" />
             </Button>
-            <ImportWizard
-              onComplete={handleImportComplete}
-              onCancel={() => setShowImport(false)}
-            />
+            <Tabs defaultValue="csv" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-slate-800/50 mb-4">
+                <TabsTrigger value="csv" className="gap-2 data-[state=active]:bg-slate-700">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  CSV File
+                </TabsTrigger>
+                <TabsTrigger value="paste" className="gap-2 data-[state=active]:bg-slate-700">
+                  <ClipboardPaste className="w-4 h-4" />
+                  Paste from PDF
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="csv">
+                <ImportWizard
+                  onComplete={handleImportComplete}
+                  onCancel={() => setShowImport(false)}
+                />
+              </TabsContent>
+              <TabsContent value="paste">
+                <PasteImport
+                  onComplete={handleImportComplete}
+                  onCancel={() => setShowImport(false)}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       )}
