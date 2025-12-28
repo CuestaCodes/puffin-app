@@ -119,6 +119,7 @@ export async function handleClear(ctx: HandlerContext): Promise<unknown> {
 
 /**
  * Full reset handler - /api/data/reset
+ * Matches API behavior: deletes database file, all backups, and clears sync config
  */
 export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
@@ -127,47 +128,70 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  const db = await getDatabase();
-
-  // Create a backup before reset
   try {
-    const dbPath = await getDatabasePath();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    // Use path separator appropriate for the platform
-    const separator = dbPath.includes('\\') ? '\\' : '/';
-    const backupPath = dbPath.replace('puffin.db', `backups${separator}pre-reset-${timestamp}.db`);
-    await vacuumBackup(backupPath);
-  } catch (err) {
-    console.warn('Failed to create pre-reset backup:', err);
+    const { remove, exists, readDir } = await import('@tauri-apps/plugin-fs');
+    const { appDataDir, join } = await import('@tauri-apps/api/path');
+    const { resetDatabaseConnection } = await import('../tauri-db');
+
+    const dataDir = await appDataDir();
+    const dbPath = await join(dataDir, 'puffin.db');
+    const backupsDir = await join(dataDir, 'backups');
+
+    // Close database connection and reset initialization flag
+    await resetDatabaseConnection();
+
+    // Delete the database file
+    if (await exists(dbPath)) {
+      await remove(dbPath);
+    }
+
+    // Delete WAL files
+    const walPath = dbPath + '-wal';
+    const shmPath = dbPath + '-shm';
+    if (await exists(walPath)) {
+      try { await remove(walPath); } catch { /* ignore */ }
+    }
+    if (await exists(shmPath)) {
+      try { await remove(shmPath); } catch { /* ignore */ }
+    }
+
+    // Delete all local backups (full reset means starting completely fresh)
+    if (await exists(backupsDir)) {
+      try {
+        const entries = await readDir(backupsDir);
+        for (const entry of entries) {
+          if (entry.name?.endsWith('.db')) {
+            try {
+              await remove(await join(backupsDir, entry.name));
+            } catch (err) {
+              console.warn(`Failed to delete backup ${entry.name}:`, err);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to clear backups directory:', err);
+      }
+    }
+
+    // Clear sync-related localStorage
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('puffin_sync_config');
+      localStorage.removeItem('puffin_sync_credentials');
+      localStorage.removeItem('puffin_oauth_tokens');
+      localStorage.removeItem('puffin_oauth_configured');
+      localStorage.removeItem('puffin_oauth_authenticated');
+      localStorage.removeItem('puffin_oauth_extended_scope');
+      localStorage.removeItem('puffin_session');
+    }
+
+    return {
+      success: true,
+      message: 'App reset successfully. Please refresh and set up your PIN again.',
+    };
+  } catch (error) {
+    console.error('Reset error:', error);
+    throw new Error('Failed to reset app');
   }
-
-  // Delete all data from all tables
-  await db.execute('DELETE FROM "transaction"');
-  await db.execute('DELETE FROM budget');
-  await db.execute('DELETE FROM auto_category_rule');
-  await db.execute('DELETE FROM sub_category');
-  await db.execute('DELETE FROM source');
-  await db.execute('DELETE FROM local_user');
-  await db.execute('DELETE FROM sync_log');
-  await db.execute('DELETE FROM net_worth_entry');
-
-  // Reset auto-increment sequences (only if table exists)
-  try {
-    await db.execute('DELETE FROM sqlite_sequence');
-  } catch {
-    // sqlite_sequence doesn't exist if no AUTOINCREMENT columns are used
-  }
-
-  // Clear sync-related localStorage
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem('puffin_sync_config');
-    localStorage.removeItem('puffin_oauth_configured');
-    localStorage.removeItem('puffin_oauth_authenticated');
-    localStorage.removeItem('puffin_oauth_extended_scope');
-    localStorage.removeItem('puffin_session');
-  }
-
-  return { success: true };
 }
 
 /**

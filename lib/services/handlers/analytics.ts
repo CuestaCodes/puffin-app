@@ -62,6 +62,12 @@ interface MonthlyCategoryTotal {
   yearTotal: number;
 }
 
+interface MonthlyIncomeBySubcategory {
+  month: string;
+  monthLabel: string;
+  subcategories: Record<string, number>;
+}
+
 /**
  * Dashboard handler - /api/analytics/dashboard
  */
@@ -79,11 +85,12 @@ export async function handleDashboard(ctx: HandlerContext): Promise<unknown> {
   const prevStartDate = `${year - 1}-01-01`;
   const prevEndDate = `${year - 1}-12-31`;
 
-  const [summary, trends, upperCategoryBreakdown, expenseBreakdown, monthlyCategoryTotals] = await Promise.all([
+  const [summary, trends, upperCategoryBreakdown, expenseBreakdown, incomeTrends, monthlyCategoryTotals] = await Promise.all([
     getDashboardSummary(startDate, endDate, prevStartDate, prevEndDate),
     getMonthlyTrendsByYear(year),
     getUpperCategoryBreakdown(year),
     getExpenseBreakdown(year),
+    getMonthlyIncomeTrendsBySubcategory(year),
     getMonthlyCategoryTotals(year),
   ]);
 
@@ -92,6 +99,7 @@ export async function handleDashboard(ctx: HandlerContext): Promise<unknown> {
     trends,
     upperCategoryBreakdown,
     expenseBreakdown,
+    incomeTrends,
     monthlyCategoryTotals,
   };
 }
@@ -394,4 +402,52 @@ async function getMonthlyCategoryTotals(year: number): Promise<MonthlyCategoryTo
   }
 
   return Array.from(categoryMap.values());
+}
+
+/**
+ * Get monthly income trends by subcategory for a specific year.
+ */
+async function getMonthlyIncomeTrendsBySubcategory(year: number): Promise<MonthlyIncomeBySubcategory[]> {
+  const yearStr = year.toString();
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const results = await db.query<{
+    month_num: number;
+    subcategory_name: string;
+    amount: number;
+  }>(`
+    SELECT
+      CAST(strftime('%m', t.date) AS INTEGER) as month_num,
+      sc.name as subcategory_name,
+      COALESCE(SUM(t.amount), 0) as amount
+    FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE strftime('%Y', t.date) = ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+      AND uc.type = 'income'
+    GROUP BY month_num, sc.name
+    HAVING SUM(t.amount) > 0
+    ORDER BY month_num ASC, amount DESC
+  `, [yearStr]);
+
+  // Initialize all 12 months with empty subcategories
+  const monthlyData: MonthlyIncomeBySubcategory[] = [];
+  for (let i = 1; i <= 12; i++) {
+    monthlyData.push({
+      month: `${year}-${String(i).padStart(2, '0')}`,
+      monthLabel: monthNames[i - 1],
+      subcategories: {},
+    });
+  }
+
+  // Populate with income data
+  for (const row of results) {
+    if (row.subcategory_name && row.amount > 0) {
+      monthlyData[row.month_num - 1].subcategories[row.subcategory_name] = row.amount;
+    }
+  }
+
+  return monthlyData;
 }

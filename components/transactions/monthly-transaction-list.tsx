@@ -58,12 +58,27 @@ function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: Sort
     : <ArrowDown className="w-3 h-3 text-cyan-400" />;
 }
 
-export function MonthlyTransactionList({ 
-  year, 
-  month, 
-  categoryFilter, 
+// Calculate default date for new transactions
+function getDefaultTransactionDate(year: number, month: number): string {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1; // 1-indexed
+
+  if (year === currentYear && month === currentMonth) {
+    // Current month: use today's date
+    return `${year}-${String(month).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  } else {
+    // Past or future month: use day 15 as a reasonable default
+    return `${year}-${String(month).padStart(2, '0')}-15`;
+  }
+}
+
+export function MonthlyTransactionList({
+  year,
+  month,
+  categoryFilter,
   onClearCategoryFilter,
-  onCategoryChange 
+  onCategoryChange
 }: MonthlyTransactionListProps) {
   // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -657,7 +672,7 @@ export function MonthlyTransactionList({
         onOpenChange={setShowTransactionForm}
         transaction={editingTransaction}
         onSuccess={handleTransactionSaved}
-        defaultDate={editingTransaction?.date || `${year}-${String(month).padStart(2, '0')}-15`}
+        defaultDate={editingTransaction?.date || getDefaultTransactionDate(year, month)}
       />
 
       {/* Delete Confirmation Dialog */}

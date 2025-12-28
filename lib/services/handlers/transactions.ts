@@ -45,8 +45,10 @@ export async function handleTransactions(ctx: HandlerContext): Promise<unknown> 
   switch (method) {
     case 'GET':
       return getTransactions(params);
-    case 'POST':
-      return createTransaction(body as Partial<Transaction>);
+    case 'POST': {
+      const transaction = await createTransaction(body as Partial<Transaction>);
+      return { transaction };
+    }
     default:
       throw new Error(`Method ${method} not allowed`);
   }
@@ -64,13 +66,19 @@ export async function handleTransaction(ctx: HandlerContext): Promise<unknown> {
   }
 
   switch (method) {
-    case 'GET':
-      return getTransactionById(id);
+    case 'GET': {
+      const transaction = await getTransactionById(id);
+      return { transaction };
+    }
     case 'PUT':
-    case 'PATCH':
-      return updateTransaction(id, body as Partial<Transaction>);
-    case 'DELETE':
-      return deleteTransaction(id);
+    case 'PATCH': {
+      const transaction = await updateTransaction(id, body as Partial<Transaction>);
+      return { transaction };
+    }
+    case 'DELETE': {
+      await deleteTransaction(id);
+      return { success: true };
+    }
     default:
       throw new Error(`Method ${method} not allowed`);
   }
