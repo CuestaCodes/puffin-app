@@ -196,6 +196,60 @@ function detectDelimiter(lines: string[]): 'tab' | 'spaces' | 'pipe' | 'mixed' {
 }
 
 /**
+ * Extract date from the beginning of first cell if it contains both date and text
+ * e.g., "6 Dec 25 ACCOUNT TFR" → ["6 Dec 25", "ACCOUNT TFR"]
+ */
+function extractDateFromFirstCell(parts: string[]): string[] {
+  if (parts.length === 0) return parts;
+
+  const first = parts[0].trim();
+
+  // Date patterns that might be at the start of a cell
+  const datePatterns = [
+    /^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+(.+)$/,     // DD/MM/YYYY ...
+    /^(\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2})\s+(.+)$/,       // YYYY-MM-DD ...
+    /^(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4})\s+(.+)$/,         // 6 Dec 25 ...
+    /^([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{2,4})\s+(.+)$/,       // Dec 6, 25 ...
+    /^(\d{1,2}[A-Za-z]{3}\d{2,4})\s+(.+)$/,                 // 06Dec25 ...
+  ];
+
+  for (const pattern of datePatterns) {
+    const match = first.match(pattern);
+    if (match) {
+      // Found a date at the start - split it out
+      return [match[1], match[2], ...parts.slice(1)];
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * Split amounts in the last cell if it contains multiple space-separated amounts
+ * e.g., "52,243.23 52,243.23" → ["52,243.23", "52,243.23"]
+ */
+function splitAmountsInLastCell(parts: string[]): string[] {
+  if (parts.length === 0) return parts;
+
+  const last = parts[parts.length - 1].trim();
+
+  // Check if last cell looks like multiple amounts
+  // Pattern: amount followed by space followed by amount(s)
+  const multiAmountPattern = /^([$£€¥₹]?[\d,]+\.?\d*)\s+([$£€¥₹]?[\d,]+\.?\d*(?:\s+[$£€¥₹]?[\d,]+\.?\d*)*)$/;
+  const match = last.match(multiAmountPattern);
+
+  if (match) {
+    // Split all amounts
+    const amounts = last.split(/\s+/).filter(a => /^[$£€¥₹]?[\d,]+\.?\d*$/.test(a));
+    if (amounts.length > 1) {
+      return [...parts.slice(0, -1), ...amounts];
+    }
+  }
+
+  return parts;
+}
+
+/**
  * Split a line into columns based on detected delimiter
  */
 function splitLine(line: string, delimiter: 'tab' | 'spaces' | 'pipe' | 'mixed', minSpaces: number): string[] {
@@ -220,6 +274,16 @@ function splitLine(line: string, delimiter: 'tab' | 'spaces' | 'pipe' | 'mixed',
       } else {
         parts = line.split(new RegExp(`\\s{${minSpaces},}`));
       }
+  }
+
+  // Post-process: if first cell contains a date at the start, extract it
+  if (parts.length > 0) {
+    parts = extractDateFromFirstCell(parts);
+  }
+
+  // Post-process: if last cell contains multiple amounts, split them
+  if (parts.length > 0) {
+    parts = splitAmountsInLastCell(parts);
   }
 
   return parts.map(p => p.trim()).filter((p, i, arr) => {
