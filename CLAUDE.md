@@ -105,10 +105,34 @@ const result = await api.get('/api/transactions');
 2. Register in `lib/services/handlers/index.ts`
 3. Use `tauri-db` functions instead of `lib/db/` imports
 
+### Tauri Capabilities
+
+Permissions are configured in `src-tauri/capabilities/default.json`. Key permissions:
+
+| Permission | Purpose |
+|------------|---------|
+| `sql:*` | Database operations via tauri-plugin-sql |
+| `fs:allow-copy-file` | Copy files (needed for backup restore) |
+| `fs:scope-appdata-recursive` | Access to app data directory |
+| `dialog:allow-open` | Native file picker dialogs |
+| `dialog:allow-save` | Native save dialogs |
+
+**Extended Scopes for User Files:**
+When accessing files outside AppData (e.g., user-selected backups from Downloads), add scoped permissions:
+```json
+{
+  "identifier": "fs:allow-copy-file",
+  "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }]
+}
+```
+
+**CSP Configuration:**
+The Content Security Policy in `src-tauri/tauri.conf.json` must include `ipc: http://ipc.localhost` for Tauri IPC to work.
+
 **Handler-API Parity Checklist:**
 - [ ] Response shape matches API route exactly (same field names, nesting)
 - [ ] Query param names match (e.g., `summary` not `includeSummary`)
-- [ ] Column names match schema (e.g., `is_split_parent` not `is_split`)
+- [ ] Column names match schema (e.g., `is_split` not `is_split_parent`)
 - [ ] Pagination responses include: `total`, `page`, `limit`, `totalPages`
 - [ ] Test both dev mode (API routes) and Tauri mode (handlers) with same inputs
 
@@ -137,7 +161,11 @@ cleanupWalFiles(dbPath); // Removes .db-wal and .db-shm files
 | SubCategory | User-defined categories under upper categories |
 | Budget | Monthly budget amounts per sub-category |
 | AutoCategoryRule | Rules for automatic transaction categorisation |
+| NetWorthEntry | Point-in-time snapshots of assets, liabilities, and net worth |
 | SyncLog | Google Drive sync history |
+
+**Primary Key Convention:**
+All tables use `TEXT PRIMARY KEY` with UUID values (generated via `crypto.randomUUID()`), not auto-increment integers. TypeScript interfaces must use `id: string`.
 
 **Note:** Authentication uses a 6-digit numeric PIN (not passwords). Validation schemas use PIN terminology (`setupPinSchema`, `loginPinSchema`) with backward-compatible aliases (`setupPasswordSchema`, `loginSchema`).
 
@@ -167,7 +195,7 @@ The validation schemas use legacy field names for backward compatibility:
 |--------|---------|
 | `sub_category_id` | FK to sub_category (not `category_id`) |
 | `parent_transaction_id` | FK to parent for split children (not `split_from`) |
-| `is_split_parent` | Boolean flag for split parent transactions |
+| `is_split` | Boolean flag for split parent transactions (1 = is a split parent) |
 | `is_deleted` | Soft delete flag (0 = active, 1 = deleted) |
 | `source_id` | FK to source (bank/account origin) |
 
@@ -270,17 +298,23 @@ npm run build:static   # Build static export for Tauri (moves API routes tempora
 
 ### Logging Practices
 
-- **Never commit debug `console.log` statements** to production code
-- Use conditional logging or remove before committing:
+- **Debug logs**: Remove before committing
   ```typescript
-  // ❌ BAD - pollutes production logs
-  console.log('[Debug] Request:', endpoint);
+  // ❌ Remove before commit
+  console.log('Request:', endpoint);
+  ```
 
-  // ✅ OK - error logging for unexpected failures
+- **Error logging**: Keep for unexpected failures
+  ```typescript
+  // ✅ Keep - helps diagnose production issues
   console.error('Handler failed:', error);
   ```
-- Keep error-level logging (`console.error`) for genuine failures that need visibility
-- Remove all debug logs before committing; they add noise and were flagged in code review
+
+- **Operational logs for complex flows**: Acceptable during stabilization of new features (e.g., backup restore, sync). Use `[Module]` prefix and remove once the feature is stable:
+  ```typescript
+  // ⚠️ OK temporarily - remove once feature is stable
+  console.log('[Import] Copying backup file...');
+  ```
 
 ## UI Safety Patterns
 
