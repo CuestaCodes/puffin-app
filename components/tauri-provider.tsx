@@ -112,23 +112,21 @@ export function TauriProvider({ children }: TauriProviderProps) {
     };
   }, []);
 
-  // Handle sync complete
+  // Handle sync complete - always close since modal only shows on close request
   const handleSyncComplete = useCallback(async () => {
     setShowSyncModal(false);
-    if (pendingClose) {
-      await closeWindow();
-    }
-  }, [pendingClose]);
+    setPendingClose(false);
+    await closeWindow();
+  }, []);
 
-  // Handle skip sync
+  // Handle skip sync - always close since modal only shows on close request
   const handleSkipSync = useCallback(async () => {
     setShowSyncModal(false);
-    if (pendingClose) {
-      await closeWindow();
-    }
-  }, [pendingClose]);
+    setPendingClose(false);
+    await closeWindow();
+  }, []);
 
-  // Handle cancel close
+  // Handle cancel close - stay in app
   const handleCancelClose = useCallback(() => {
     setShowSyncModal(false);
     setPendingClose(false);
