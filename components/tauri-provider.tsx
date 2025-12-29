@@ -58,14 +58,27 @@ async function checkSyncConfigured(): Promise<boolean> {
   }
 }
 
+// Flag to track if we're in the process of closing (to avoid infinite loop)
+let isClosingConfirmed = false;
+
 // Close the window
 async function closeWindow(): Promise<void> {
+  // Set flag to prevent close handler from blocking
+  isClosingConfirmed = true;
+
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     const currentWindow = getCurrentWindow();
-    await currentWindow.destroy();
+    await currentWindow.close();
   } catch (err) {
     console.error('Failed to close window:', err);
+    // Last resort: try to exit the process
+    try {
+      const { exit } = await import('@tauri-apps/plugin-process');
+      await exit(0);
+    } catch {
+      console.error('All close methods failed');
+    }
   }
 }
 
@@ -174,6 +187,11 @@ async function setupWindowCloseHandler(
 
     // Listen for close requested event
     const unlisten = await currentWindow.onCloseRequested(async (event) => {
+      // If we've already confirmed closing, allow it through
+      if (isClosingConfirmed) {
+        return;
+      }
+
       const isSyncConfigured = await checkSyncConfigured();
 
       if (isSyncConfigured) {
