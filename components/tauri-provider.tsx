@@ -79,7 +79,9 @@ export function TauriProvider({ children }: TauriProviderProps) {
   // Initialize Tauri-specific features
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const isTauriEnv = typeof window !== 'undefined' && !!(window as any).__TAURI__;
+    const w = window as any;
+    // Check for both Tauri 1.x (__TAURI__) and Tauri 2.x (__TAURI_INTERNALS__)
+    const isTauriEnv = typeof window !== 'undefined' && !!(w.__TAURI__ || w.__TAURI_INTERNALS__);
     setIsTauri(isTauriEnv);
 
     if (!isTauriEnv) return;

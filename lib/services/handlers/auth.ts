@@ -33,6 +33,95 @@ interface SessionData {
   expiresAt: number;
 }
 
+// Rate limiting configuration (in-memory for Tauri)
+const RATE_LIMIT_KEY = 'puffin_rate_limit';
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+interface RateLimitData {
+  attempts: number;
+  firstAttemptAt: number;
+  lockedUntil: number | null;
+}
+
+function getRateLimitState(): RateLimitData {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { attempts: 0, firstAttemptAt: 0, lockedUntil: null };
+  }
+  try {
+    const stored = localStorage.getItem(RATE_LIMIT_KEY);
+    if (!stored) return { attempts: 0, firstAttemptAt: 0, lockedUntil: null };
+    return JSON.parse(stored);
+  } catch {
+    return { attempts: 0, firstAttemptAt: 0, lockedUntil: null };
+  }
+}
+
+function setRateLimitState(state: RateLimitData): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(state));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function clearRateLimitState(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    localStorage.removeItem(RATE_LIMIT_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function checkRateLimit(): { allowed: boolean; message?: string; retryAfterMs?: number } {
+  const state = getRateLimitState();
+  const now = Date.now();
+
+  // Check if locked out
+  if (state.lockedUntil && now < state.lockedUntil) {
+    const retryAfterMs = state.lockedUntil - now;
+    const minutes = Math.ceil(retryAfterMs / 60000);
+    return {
+      allowed: false,
+      message: `Too many failed attempts. Try again in ${minutes} minute${minutes > 1 ? 's' : ''}.`,
+      retryAfterMs,
+    };
+  }
+
+  // Reset if lockout expired
+  if (state.lockedUntil && now >= state.lockedUntil) {
+    clearRateLimitState();
+  }
+
+  return { allowed: true };
+}
+
+function recordFailedAttempt(): void {
+  const state = getRateLimitState();
+  const now = Date.now();
+
+  // Reset if window expired (15 minutes since first attempt)
+  if (state.firstAttemptAt && now - state.firstAttemptAt > LOCKOUT_DURATION_MS) {
+    state.attempts = 1;
+    state.firstAttemptAt = now;
+    state.lockedUntil = null;
+  } else {
+    state.attempts++;
+    if (!state.firstAttemptAt) {
+      state.firstAttemptAt = now;
+    }
+  }
+
+  // Lock out after max attempts
+  if (state.attempts >= MAX_LOGIN_ATTEMPTS) {
+    state.lockedUntil = now + LOCKOUT_DURATION_MS;
+  }
+
+  setRateLimitState(state);
+}
+
 /**
  * Get authentication state from sessionStorage.
  * Falls back to in-memory state if sessionStorage is unavailable.
@@ -111,6 +200,12 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
+  // Check rate limit before processing
+  const rateLimit = checkRateLimit();
+  if (!rateLimit.allowed) {
+    throw new Error(rateLimit.message || 'Too many failed attempts');
+  }
+
   // Accept both 'password' (from validation schema) and 'pin' (legacy) field names
   const { password, pin } = body as { password?: string; pin?: string };
   const pinValue = password || pin;
@@ -132,9 +227,12 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
   const isValid = await verifyPin(pinValue, user.password_hash);
 
   if (!isValid) {
+    recordFailedAttempt();
     throw new Error('Invalid PIN');
   }
 
+  // Clear rate limit on successful login
+  clearRateLimitState();
   setAuthState(true);
   return { success: true };
 }
@@ -388,8 +486,9 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   await db.execute('DELETE FROM sync_log');
   await db.execute('DELETE FROM net_worth_entry');
 
-  // Clear session
+  // Clear session and rate limit
   setAuthState(false);
+  clearRateLimitState();
 
   return { success: true };
 }
