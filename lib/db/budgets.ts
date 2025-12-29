@@ -407,26 +407,28 @@ export function getCategoryAverage(
   const endDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 0); // Last day of previous month
   
   // Exclude split parent transactions from averages (they are represented by children)
+  // Use SUM/months instead of AVG to get true average over the full period
+  // (AVG only divides by months with data, not the total period)
   const result = db.prepare(`
-    SELECT AVG(monthly_total) as average FROM (
-      SELECT 
+    SELECT SUM(monthly_total) as total FROM (
+      SELECT
         strftime('%Y-%m', date) as month,
         ABS(SUM(amount)) as monthly_total
       FROM "transaction"
-      WHERE sub_category_id = ? 
-        AND date >= ? 
+      WHERE sub_category_id = ?
+        AND date >= ?
         AND date <= ?
         AND is_deleted = 0
         AND is_split = 0
       GROUP BY strftime('%Y-%m', date)
     )
   `).get(
-    subCategoryId, 
+    subCategoryId,
     startDate.toISOString().split('T')[0],
     endDate.toISOString().split('T')[0]
-  ) as { average: number | null };
-  
-  return result.average || 0;
+  ) as { total: number | null };
+
+  return (result.total || 0) / months;
 }
 
 /**

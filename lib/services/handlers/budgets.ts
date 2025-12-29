@@ -566,10 +566,12 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
   const startDate = new Date(year, month - 13, 1);
 
   // Get average spending per category over the last 12 months
+  // Use SUM / 12.0 instead of AVG to properly average over 12 months
+  // (AVG only divides by months with data, not the full 12 months)
   const averages = await db.query<{ sub_category_id: string; average: number }>(`
     SELECT
       sub.sub_category_id,
-      AVG(sub.monthly_total) as average
+      SUM(sub.monthly_total) / 12.0 as average
     FROM (
       SELECT
         t.sub_category_id,
