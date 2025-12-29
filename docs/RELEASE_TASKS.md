@@ -34,9 +34,9 @@ Track progress for the first public release. Check off items as completed.
 
 ### Build Checklist
 
-- [ ] Clean build completes without errors (`npm run tauri:build`)
-- [ ] Portable `.exe` created at `src-tauri/target/release/Puffin.exe`
-- [ ] NSIS installer created at `src-tauri/target/release/bundle/nsis/Puffin_*_x64-setup.exe`
+- [x] Clean build completes without errors (`npm run tauri:build`)
+- [x] Portable `.exe` created at `src-tauri/target/release/Puffin.exe`
+- [x] NSIS installer created at `src-tauri/target/release/bundle/nsis/Puffin_*_x64-setup.exe`
 
 ### Quick Build Script (Windows)
 
@@ -55,55 +55,55 @@ Test-Path "src-tauri\target\release\Puffin.exe"
 
 ### Smoke Tests (First Run)
 
-- [ ] App window opens without crash
-- [ ] PIN setup screen appears (first run)
-- [ ] Can create 6-digit PIN
-- [ ] Dashboard loads after login
-- [ ] Settings page shows correct version number
-- [ ] Close app cleanly (no hang)
+- [x] App window opens without crash
+- [x] PIN setup screen appears (first run)
+- [x] Can create 6-digit PIN
+- [x] Dashboard loads after login
+- [x] Settings page shows correct version number
+- [x] Close app cleanly (no hang)
 
 ### Database Operations
 
 | Test | Steps | Expected | Status |
 |------|-------|----------|--------|
-| PIN Setup | Enter 6-digit PIN twice | User created, redirected to dashboard | [ ] |
-| Login | Enter correct PIN | Session created, dashboard shown | [ ] |
-| Wrong PIN | Enter wrong PIN 5 times | Rate limited for 15 minutes | [ ] |
-| Change PIN | Settings > Security > Change PIN | New PIN works after lock | [ ] |
-| Create Transaction | Add manual transaction | Transaction appears in list | [ ] |
-| Edit Transaction | Modify amount/description | Changes saved | [ ] |
-| Delete Transaction | Soft delete transaction | Transaction hidden (recoverable) | [ ] |
-| Create Category | Add sub-category | Category available in dropdown | [ ] |
-| Create Budget | Set budget amount | Budget shown in budget view | [ ] |
-| Net Worth Entry | Add asset/liability | Entry appears in net worth view | [ ] |
+| PIN Setup | Enter 6-digit PIN twice | User created, redirected to dashboard | [x] |
+| Login | Enter correct PIN | Session created, dashboard shown | [x] |
+| Wrong PIN | Enter wrong PIN 5 times | Rate limited for 15 minutes | [x] |
+| Change PIN | Settings > Security > Change PIN | New PIN works after lock | [x] |
+| Create Transaction | Add manual transaction | Transaction appears in list | [x] |
+| Edit Transaction | Modify amount/description | Changes saved | [x] |
+| Delete Transaction | Soft delete transaction | Transaction hidden (recoverable) | [x] |
+| Create Category | Add sub-category | Category available in dropdown | [x] |
+| Create Budget | Set budget amount | Budget shown in budget view | [x] |
+| Net Worth Entry | Add asset/liability | Entry appears in net worth view | [x] |
 
 ### Data Management
 
 | Test | Steps | Expected | Status |
 |------|-------|----------|--------|
-| Create Backup | Settings > Data > Create Backup | Backup file downloaded | [ ] |
-| Restore Backup | Settings > Data > Restore | Database restored, app refreshes | [ ] |
-| Export CSV | Settings > Data > Export Transactions | CSV file downloaded | [ ] |
-| Import CSV | Transactions > Import | Transactions added | [ ] |
-| Clear Data | Settings > Data > Clear All | Transactions deleted, categories kept | [ ] |
-| Reset App | Settings > Data > Reset | Full reset, PIN setup required | [ ] |
+| Create Backup | Settings > Data > Create Backup | Backup file downloaded | [x] |
+| Restore Backup | Settings > Data > Restore | Database restored, app refreshes | [x] |
+| Export CSV | Settings > Data > Export Transactions | CSV file downloaded | [x] |
+| Import CSV | Transactions > Import | Transactions added | [x] |
+| Clear Data | Settings > Data > Clear All | Transactions deleted, categories kept | [x] |
+| Reset App | Settings > Data > Reset | Full reset, PIN setup required | [x] |
 
 ### Auto-Categorisation
 
 | Test | Steps | Expected | Status |
 |------|-------|----------|--------|
-| Create Rule | Settings > Rules > Add rule | Rule saved | [ ] |
-| Rule Applies | Import transaction matching rule | Category auto-assigned | [ ] |
-| Priority Order | Multiple rules match | Highest priority wins | [ ] |
+| Create Rule | Settings > Rules > Add rule | Rule saved | [x] |
+| Rule Applies | Import transaction matching rule | Category auto-assigned | [x] |
+| Priority Order | Multiple rules match | Highest priority wins | [-] |
 
 ### Google Drive Sync
 
 | Test | Steps | Expected | Status |
 |------|-------|----------|--------|
-| Connect | Settings > Sync > Connect | OAuth flow completes | [ ] |
-| Push | Settings > Sync > Push | Database uploaded to Drive | [ ] |
-| Pull | Settings > Sync > Pull | Database downloaded from Drive | [ ] |
-| Disconnect | Settings > Sync > Disconnect | Tokens cleared | [ ] |
+| Connect | Settings > Sync > Connect | OAuth flow completes | [x] |
+| Push | Settings > Sync > Push | Database uploaded to Drive | [x] |
+| Pull | Settings > Sync > Pull | Database downloaded from Drive | [x] |
+| Disconnect | Settings > Sync > Disconnect | Tokens cleared | [x] |
 
 ---
 
