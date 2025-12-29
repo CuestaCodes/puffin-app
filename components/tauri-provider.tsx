@@ -61,15 +61,13 @@ async function checkSyncConfigured(): Promise<boolean> {
 // Flag to track if we're in the process of closing (to avoid infinite loop)
 let isClosingConfirmed = false;
 
-// Close the window
+// Close the window - use destroy() to bypass close event handler
 async function closeWindow(): Promise<void> {
-  // Set flag to prevent close handler from blocking
-  isClosingConfirmed = true;
-
   try {
     const { getCurrentWindow } = await import('@tauri-apps/api/window');
     const currentWindow = getCurrentWindow();
-    await currentWindow.close();
+    // destroy() forcefully closes without triggering onCloseRequested
+    await currentWindow.destroy();
   } catch (err) {
     console.error('Failed to close window:', err);
   }
