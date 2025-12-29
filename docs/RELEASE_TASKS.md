@@ -16,6 +16,10 @@ Track progress for the first public release. Check off items as completed.
 - [x] **Budget template responses** - Fixed: handler response formats to match API routes
 - [x] **Budget confirmations** - Fixed: replaced window.confirm with AlertDialog (Tauri compatible)
 - [x] **12-month average calculation** - Fixed: now divides by 12 months, not just months with data
+- [x] **Auth reset FK constraint** - Fixed: delete tables in correct order respecting foreign keys
+- [x] **Tauri detection** - Fixed: check for both `__TAURI__` and `__TAURI_INTERNALS__` (Tauri 2.x)
+- [x] **Tauri rate limiting** - Fixed: added localStorage-based rate limiting for login attempts
+- [x] **Sync modal close** - Fixed: added `core:window:allow-destroy` permission for programmatic window close
 
 ---
 
@@ -109,11 +113,12 @@ Test-Path "src-tauri\target\release\Puffin.exe"
 
 ## Phase 4: Clean Machine Test
 
-- [ ] Copy installer to a different Windows PC (no Node.js, no Rust)
-- [ ] Run installer - installs successfully
-- [ ] SmartScreen warning appears (expected for unsigned) - can click through
-- [ ] App launches and works correctly
-- [ ] Database created in `%APPDATA%\Puffin\`
+- [x] Copy installer to a different Windows PC (no Node.js, no Rust)
+- [x] Run installer - installs successfully
+- [x] SmartScreen warning appears (expected for unsigned) - can click through
+- [x] App launches and works correctly
+- [x] Database created in `%APPDATA%\Puffin\`
+- [x] Sync modal close works (required `core:window:allow-destroy` permission fix)
 
 ### File System Paths
 
