@@ -38,23 +38,20 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'Puffin v__VERSION__'
           releaseBody: |
-            ## Changes in this Release
+            First public release of Puffin - a privacy-first desktop budgeting app.
 
-            See the [changelog](https://github.com/CuestaCodes/puffin-app/blob/main/CHANGELOG.md) for details.
+            ## Quick Start
+            1. Download the installer for your platform below
+            2. Run the installer (click through SmartScreen warning on Windows)
+            3. Set up a 6-digit PIN
+            4. Start tracking your finances!
 
-            ## Installation
+            ## Documentation
+            See the [README](https://github.com/CuestaCodes/puffin-app#readme) for full documentation, features, and FAQ.
 
-            Download the appropriate installer for your system:
-            - **Windows**: `Puffin_x.x.x_x64-setup.exe` (recommended) or `Puffin_x.x.x_x64_en-US.msi`
-
-            ### First Run
-            1. Run the installer
-            2. Set up a 6-digit PIN for local authentication
-            3. Optionally configure Google Drive sync for backups
-
-            ## System Requirements
-            - Windows 10 or later (64-bit)
-            - WebView2 runtime (bundled with installer)
+            ## Notes
+            - Windows SmartScreen may show a warning - click "More info" → "Run anyway"
+            - macOS users: Right-click and select "Open" the first time
           releaseDraft: true
           prerelease: false
           includeDebug: false
