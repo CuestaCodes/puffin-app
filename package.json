@@ -14,6 +14,7 @@
     "test:ui": "vitest --ui",
     "precommit": "npm run lint && npm test",
     "prepare": "husky",
+    "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "cross-env TAURI_ENV=1 tauri build"
   },
