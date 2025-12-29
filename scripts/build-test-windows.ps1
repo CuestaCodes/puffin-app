@@ -13,6 +13,8 @@ Write-Host "`n[1/5] Cleaning previous builds..." -ForegroundColor Yellow
 Remove-Item -Recurse -Force src-tauri\target -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force out -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:APPDATA\Puffin" -ErrorAction SilentlyContinue
+Write-Host "  Cleared app data folder" -ForegroundColor Gray
 
 # Step 2: Install
 Write-Host "`n[2/5] Installing dependencies..." -ForegroundColor Yellow
