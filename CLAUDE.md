@@ -127,6 +127,10 @@ Permissions are configured in `src-tauri/capabilities/default.json`. Key permiss
 | `fs:scope-appdata-recursive` | Access to app data directory |
 | `dialog:allow-open` | Native file picker dialogs |
 | `dialog:allow-save` | Native save dialogs |
+| `core:window:allow-destroy` | Programmatic window close (for sync modal) |
+
+**Debugging Permission Errors:**
+If a Tauri API call fails with "not allowed" error, check `src-tauri/capabilities/default.json` for the required permission. The error message includes the permission identifier needed.
 
 **Extended Scopes for User Files:**
 When accessing files outside AppData (e.g., user-selected backups from Downloads), add scoped permissions:
@@ -222,6 +226,21 @@ The validation schemas use legacy field names for backward compatibility:
 | `is_split` | Boolean flag for split parent transactions (1 = is a split parent) |
 | `is_deleted` | Soft delete flag (0 = active, 1 = deleted) |
 | `source_id` | FK to source (bank/account origin) |
+
+### Database Delete Order (Foreign Keys)
+When deleting all data (reset), tables must be deleted in order respecting FK constraints:
+```typescript
+// ✅ CORRECT ORDER - delete referencing tables first
+await db.execute('DELETE FROM "transaction"');     // references sub_category, source
+await db.execute('DELETE FROM budget');            // references sub_category
+await db.execute('DELETE FROM auto_category_rule'); // references sub_category
+await db.execute('DELETE FROM sub_category');      // now safe
+await db.execute('DELETE FROM source');            // now safe
+await db.execute('DELETE FROM local_user');
+await db.execute('DELETE FROM sync_log');
+await db.execute('DELETE FROM net_worth_entry');
+```
+**Common mistake:** Deleting `sub_category` before `budget` or `auto_category_rule` causes FK constraint error.
 
 ### Sync Configuration Storage
 
@@ -402,6 +421,8 @@ For destructive operations (delete, restore, reset, clear):
 - Include the item name/details in the confirmation message
 - Use destructive variant styling for delete buttons
 
+**CRITICAL - Tauri Mode:** Never use `window.confirm()` or `window.alert()` in Tauri. These don't block execution properly in the webview, causing actions to execute immediately without waiting for user response. Always use React-based dialogs (AlertDialog).
+
 ### Modal Completion
 Success callbacks (`onComplete`, `onSuccess`) should ALWAYS close the modal:
 ```typescript
@@ -427,6 +448,25 @@ const handleDeleteRow = (item: Item) => {
 };
 ```
 This prevents user confusion when they select multiple items then click an action on one of them.
+
+### React Callback Closures
+When callbacks depend on state that changes during async flows, they may capture stale values:
+```typescript
+// ❌ WRONG - pendingClose may be stale when callback executes
+const handleComplete = useCallback(async () => {
+  setShowModal(false);
+  if (pendingClose) {  // May still be false due to closure
+    await closeWindow();
+  }
+}, [pendingClose]);
+
+// ✅ CORRECT - Don't depend on state that changes during the flow
+const handleComplete = useCallback(async () => {
+  setShowModal(false);
+  await closeWindow();  // Always close - modal only shows when close was requested
+}, []);
+```
+**Rule of thumb:** If a modal/dialog only appears in response to a specific action, the completion handler should always perform that action rather than checking state.
 
 For file uploads:
 - Enforce size limits (e.g., `MAX_BACKUP_SIZE = 100MB` in `lib/data/utils.ts`)
@@ -483,3 +523,11 @@ clearAttempts(rateLimitKey);  // On success
 ```
 
 **Note:** Rate limit state is in-memory and resets on server restart. For production with multiple instances, consider Redis.
+
+**Tauri Mode Rate Limiting:**
+Server-side rate limiting doesn't work in Tauri (no server). The Tauri auth handler (`lib/services/handlers/auth.ts`) uses localStorage-based rate limiting instead:
+```typescript
+const RATE_LIMIT_KEY = 'puffin_rate_limit';
+// Stores: { attempts: number, firstAttemptAt: number, lockedUntil: number | null }
+```
+This persists across app restarts but can be cleared by the user (acceptable trade-off for local-only app).
