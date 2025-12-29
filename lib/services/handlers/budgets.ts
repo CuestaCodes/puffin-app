@@ -567,12 +567,12 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
   // Get average spending per category over the last 12 months
   const averages = await db.query<{ sub_category_id: string; average: number }>(`
     SELECT
-      t.sub_category_id,
-      AVG(monthly_total) as average
+      sub.sub_category_id,
+      AVG(sub.monthly_total) as average
     FROM (
       SELECT
-        sub_category_id,
-        ABS(SUM(amount)) as monthly_total
+        t.sub_category_id,
+        ABS(SUM(t.amount)) as monthly_total
       FROM "transaction" t
       JOIN sub_category sc ON t.sub_category_id = sc.id
       JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -583,7 +583,7 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
         AND t.sub_category_id IS NOT NULL
       GROUP BY t.sub_category_id, strftime('%Y-%m', t.date)
     ) sub
-    GROUP BY sub_category_id
+    GROUP BY sub.sub_category_id
   `, [startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
 
   let updatedCount = 0;
