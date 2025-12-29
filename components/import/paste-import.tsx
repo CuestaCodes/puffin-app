@@ -56,8 +56,12 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
     date: -1,
     description: -1,
     amount: -1,
+    debit: undefined,
+    credit: undefined,
     ignore: [],
   });
+  // Track if we're using debit/credit mode vs single amount
+  const useDebitCreditMode = columnMapping.debit !== undefined || columnMapping.credit !== undefined;
   const [dateFormat, setDateFormat] = useState<DateFormat>('auto');
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +69,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
+  const [treatAsExpenses, setTreatAsExpenses] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch sources on mount
@@ -126,6 +131,8 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
 
     setIsLoading(true);
     setError(null);
+    // Reset to treating as expenses by default
+    setTreatAsExpenses(true);
 
     try {
       // Parse rows with mapping
@@ -135,7 +142,6 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
         // Extract values based on mapping
         const rawDate = columnMapping.date >= 0 ? row[columnMapping.date] : '';
         const rawDesc = columnMapping.description >= 0 ? row[columnMapping.description] : '';
-        const rawAmount = columnMapping.amount >= 0 ? row[columnMapping.amount] : '';
 
         // Parse date
         let parsedDate: string | null = null;
@@ -150,15 +156,44 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
           errors.push('Missing date');
         }
 
-        // Parse amount
+        // Parse amount - handle both single amount and debit/credit modes
         let parsedAmount: number | null = null;
-        if (rawAmount) {
-          parsedAmount = parseAmount(rawAmount);
-          if (parsedAmount === null) {
-            errors.push(`Invalid amount: ${rawAmount}`);
+
+        if (columnMapping.debit !== undefined || columnMapping.credit !== undefined) {
+          // Debit/Credit mode: combine both columns
+          const rawDebit = columnMapping.debit !== undefined ? row[columnMapping.debit] : '';
+          const rawCredit = columnMapping.credit !== undefined ? row[columnMapping.credit] : '';
+
+          const debitAmount = rawDebit ? parseAmount(rawDebit) : null;
+          const creditAmount = rawCredit ? parseAmount(rawCredit) : null;
+
+          if (debitAmount !== null && debitAmount !== 0) {
+            // Debit/withdrawal - make negative (expense)
+            parsedAmount = -Math.abs(debitAmount);
+          } else if (creditAmount !== null && creditAmount !== 0) {
+            // Credit/deposit - keep positive (income)
+            parsedAmount = Math.abs(creditAmount);
+          } else if (!rawDebit && !rawCredit) {
+            errors.push('Missing amount in both debit and credit columns');
+          } else if (rawDebit && debitAmount === null) {
+            errors.push(`Invalid debit amount: ${rawDebit}`);
+          } else if (rawCredit && creditAmount === null) {
+            errors.push(`Invalid credit amount: ${rawCredit}`);
           }
         } else {
-          errors.push('Missing amount');
+          // Single amount mode
+          const rawAmount = columnMapping.amount >= 0 ? row[columnMapping.amount] : '';
+          if (rawAmount) {
+            parsedAmount = parseAmount(rawAmount);
+            if (parsedAmount === null) {
+              errors.push(`Invalid amount: ${rawAmount}`);
+            } else {
+              // Default: treat as expense (negative)
+              parsedAmount = -Math.abs(parsedAmount);
+            }
+          } else {
+            errors.push('Missing amount');
+          }
         }
 
         // Handle description
@@ -309,12 +344,96 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
     });
   };
 
+  // Toggle between treating amounts as expenses or income (global)
+  const toggleExpenseIncomeMode = () => {
+    if (!preview) return;
+
+    setTreatAsExpenses(!treatAsExpenses);
+    setPreview({
+      ...preview,
+      rows: preview.rows.map(row => ({
+        ...row,
+        parsed: {
+          ...row.parsed,
+          amount: row.parsed.amount !== null ? -row.parsed.amount : null,
+        },
+      })),
+    });
+  };
+
+  // Toggle individual row amount sign
+  const toggleRowAmountSign = (rowIndex: number) => {
+    if (!preview) return;
+
+    setPreview({
+      ...preview,
+      rows: preview.rows.map(row =>
+        row.rowIndex === rowIndex
+          ? {
+              ...row,
+              parsed: {
+                ...row.parsed,
+                amount: row.parsed.amount !== null ? -row.parsed.amount : null,
+              },
+            }
+          : row
+      ),
+    });
+  };
+
   // Handle column mapping change
-  const handleMappingChange = (field: 'date' | 'description' | 'amount', colIndex: number) => {
-    setColumnMapping(prev => ({
-      ...prev,
-      [field]: colIndex,
-    }));
+  const handleMappingChange = (field: 'date' | 'description' | 'amount' | 'debit' | 'credit', colIndex: number) => {
+    setColumnMapping(prev => {
+      const updated = { ...prev, [field]: colIndex === -1 ? undefined : colIndex };
+
+      // If switching to debit/credit mode, clear single amount
+      if ((field === 'debit' || field === 'credit') && colIndex !== -1) {
+        updated.amount = -1;
+      }
+      // If switching to single amount mode, clear debit/credit
+      if (field === 'amount' && colIndex !== -1) {
+        updated.debit = undefined;
+        updated.credit = undefined;
+      }
+
+      return updated;
+    });
+  };
+
+  // Toggle between single amount and debit/credit mode
+  const toggleAmountMode = () => {
+    if (useDebitCreditMode) {
+      // Switch to single amount - use first available amount column
+      const amountCols = parseResult?.headers
+        .map((h, i) => ({ header: h, index: i }))
+        .filter(({ header }) =>
+          /amount|withdraw|deposit|debit|credit/i.test(header)
+        );
+      setColumnMapping(prev => ({
+        ...prev,
+        amount: amountCols?.[0]?.index ?? -1,
+        debit: undefined,
+        credit: undefined,
+      }));
+    } else {
+      // Switch to debit/credit mode - try to auto-detect
+      const headers = parseResult?.headers || [];
+      let debitIdx: number | undefined;
+      let creditIdx: number | undefined;
+
+      headers.forEach((h, i) => {
+        const lower = h.toLowerCase();
+        if (/withdraw|debit/i.test(lower)) debitIdx = i;
+        if (/deposit|credit/i.test(lower)) creditIdx = i;
+      });
+
+      setColumnMapping(prev => ({
+        ...prev,
+        amount: -1,
+        debit: debitIdx,
+        credit: creditIdx,
+      }));
+    }
   };
 
   // Reset to start
@@ -517,7 +636,7 @@ Example:
             </div>
 
             {/* Inline Column Mapping */}
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-slate-300">Date Column</Label>
                 <Select
@@ -557,26 +676,94 @@ Example:
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">Amount Column</Label>
-                <Select
-                  value={columnMapping.amount.toString()}
-                  onValueChange={(v) => handleMappingChange('amount', parseInt(v))}
+            {/* Amount Mode Toggle */}
+            <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="font-medium text-slate-200">Amount Columns</h4>
+                  <p className="text-sm text-slate-400">
+                    {useDebitCreditMode
+                      ? 'Separate withdrawal/deposit columns (for tabbed data)'
+                      : 'Single amount column (toggle expense/income in preview)'}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleAmountMode}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
                 >
-                  <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
-                    <SelectValue placeholder="Select column" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    <SelectItem value="-1">Not mapped</SelectItem>
-                    {parseResult.headers.map((header, idx) => (
-                      <SelectItem key={idx} value={idx.toString()}>
-                        {header} (Col {idx + 1})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {useDebitCreditMode ? 'Use Single Column' : 'Use Separate Columns'}
+                </Button>
               </div>
+
+              {useDebitCreditMode ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Withdrawals (Debits)</Label>
+                    <Select
+                      value={(columnMapping.debit ?? -1).toString()}
+                      onValueChange={(v) => handleMappingChange('debit', parseInt(v))}
+                    >
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                        <SelectValue placeholder="Select column" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="-1">Not mapped</SelectItem>
+                        {parseResult.headers.map((header, idx) => (
+                          <SelectItem key={idx} value={idx.toString()}>
+                            {header} (Col {idx + 1})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">Values will be stored as negative (expenses)</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Deposits (Credits)</Label>
+                    <Select
+                      value={(columnMapping.credit ?? -1).toString()}
+                      onValueChange={(v) => handleMappingChange('credit', parseInt(v))}
+                    >
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                        <SelectValue placeholder="Select column" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="-1">Not mapped</SelectItem>
+                        {parseResult.headers.map((header, idx) => (
+                          <SelectItem key={idx} value={idx.toString()}>
+                            {header} (Col {idx + 1})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">Values will be stored as positive (income)</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Amount Column</Label>
+                  <Select
+                    value={columnMapping.amount.toString()}
+                    onValueChange={(v) => handleMappingChange('amount', parseInt(v))}
+                  >
+                    <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                      <SelectValue placeholder="Select column" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      <SelectItem value="-1">Not mapped</SelectItem>
+                      {parseResult.headers.map((header, idx) => (
+                        <SelectItem key={idx} value={idx.toString()}>
+                          {header} (Col {idx + 1})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Date format selection */}
@@ -631,7 +818,8 @@ Example:
                 disabled={
                   isLoading ||
                   columnMapping.date === -1 ||
-                  columnMapping.amount === -1
+                  (!useDebitCreditMode && columnMapping.amount === -1) ||
+                  (useDebitCreditMode && columnMapping.debit === undefined && columnMapping.credit === undefined)
                 }
                 className="bg-cyan-600 hover:bg-cyan-500"
               >
@@ -649,20 +837,38 @@ Example:
         {/* Step 3: Preview */}
         {currentStep === 'preview' && preview && (
           <div className="space-y-4">
-            {/* Summary badges */}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="text-emerald-400 border-emerald-400/50">
-                {preview.validCount} valid
-              </Badge>
-              {preview.duplicateCount > 0 && (
-                <Badge variant="outline" className="text-amber-400 border-amber-400/50">
-                  {preview.duplicateCount} duplicates
+            {/* Summary badges and amount type toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-emerald-400 border-emerald-400/50">
+                  {preview.validCount} valid
                 </Badge>
-              )}
-              {preview.errorCount > 0 && (
-                <Badge variant="outline" className="text-red-400 border-red-400/50">
-                  {preview.errorCount} errors
-                </Badge>
+                {preview.duplicateCount > 0 && (
+                  <Badge variant="outline" className="text-amber-400 border-amber-400/50">
+                    {preview.duplicateCount} duplicates
+                  </Badge>
+                )}
+                {preview.errorCount > 0 && (
+                  <Badge variant="outline" className="text-red-400 border-red-400/50">
+                    {preview.errorCount} errors
+                  </Badge>
+                )}
+              </div>
+              {!useDebitCreditMode && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Click amounts to toggle individually</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleExpenseIncomeMode}
+                    className={cn(
+                      'border-slate-600 hover:bg-slate-700',
+                      treatAsExpenses ? 'text-red-400' : 'text-emerald-400'
+                    )}
+                  >
+                    {treatAsExpenses ? 'All Expenses' : 'All Income'}
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -730,7 +936,17 @@ Example:
                             ? 'text-red-400'
                             : 'text-emerald-400'
                       )}>
-                        {formatCurrency(row.parsed.amount)}
+                        {!useDebitCreditMode && row.parsed.amount !== null && row.errors.length === 0 ? (
+                          <button
+                            onClick={() => toggleRowAmountSign(row.rowIndex)}
+                            className="hover:bg-slate-700/50 px-2 py-0.5 rounded transition-colors"
+                            title="Click to toggle expense/income"
+                          >
+                            {formatCurrency(row.parsed.amount)}
+                          </button>
+                        ) : (
+                          formatCurrency(row.parsed.amount)
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         {row.errors.length > 0 ? (

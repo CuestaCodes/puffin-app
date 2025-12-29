@@ -20,8 +20,12 @@ interface ParseOptions {
 interface ColumnAnalysis {
   index: number;
   type: 'date' | 'amount' | 'text' | 'unknown';
+  /** For amount columns: 'debit', 'credit', 'balance', or 'single' */
+  amountRole?: 'debit' | 'credit' | 'balance' | 'single';
   confidence: number;
   samples: string[];
+  /** Original header name if detected from paste */
+  headerHint?: string;
 }
 
 /**
@@ -64,16 +68,19 @@ export function parsePastedText(text: string, options: ParseOptions = {}): CSVPa
     rows = mergeMultiLineRows(rows);
   }
 
-  // Filter out header rows and summary rows
-  rows = filterNonTransactionRows(rows);
+  // Extract header row before filtering (if present)
+  const { headerRow, dataRows } = extractHeaderRow(rows);
+
+  // Filter out summary rows from data
+  rows = filterNonTransactionRows(dataRows);
 
   if (rows.length === 0) {
     throw new Error('No transaction data found. Make sure you copied a transaction table.');
   }
 
-  // Generate synthetic headers based on detected column types
-  const columnAnalysis = analyzeColumns(rows);
-  const headers = generateHeaders(columnAnalysis);
+  // Generate headers based on detected column types and original headers
+  const columnAnalysis = analyzeColumns(rows, headerRow);
+  const headers = generateHeaders(columnAnalysis, headerRow);
 
   return {
     headers,
@@ -225,24 +232,35 @@ function extractDateFromFirstCell(parts: string[]): string[] {
 }
 
 /**
- * Split amounts in the last cell if it contains multiple space-separated amounts
- * e.g., "52,243.23 52,243.23" → ["52,243.23", "52,243.23"]
+ * Split amounts from the last cell if it contains trailing amounts
+ * Handles both:
+ * - Pure amounts: "52,243.23 52,243.23" → ["52,243.23", "52,243.23"]
+ * - Text + amounts: "TRANSFER 0064897267WL01 1,427.00 52,243.23" → ["TRANSFER 0064897267WL01", "1,427.00", "52,243.23"]
  */
 function splitAmountsInLastCell(parts: string[]): string[] {
   if (parts.length === 0) return parts;
 
   const last = parts[parts.length - 1].trim();
 
-  // Check if last cell looks like multiple amounts
-  // Pattern: amount followed by space followed by amount(s)
-  const multiAmountPattern = /^([$£€¥₹]?[\d,]+\.?\d*)\s+([$£€¥₹]?[\d,]+\.?\d*(?:\s+[$£€¥₹]?[\d,]+\.?\d*)*)$/;
-  const match = last.match(multiAmountPattern);
+  // Pattern to match amounts (with optional currency, commas, decimals)
+  const amountPattern = /[$£€¥₹]?[\d,]+\.\d{2}(?:\s*(?:DR|CR))?/gi;
 
-  if (match) {
-    // Split all amounts
-    const amounts = last.split(/\s+/).filter(a => /^[$£€¥₹]?[\d,]+\.?\d*$/.test(a));
-    if (amounts.length > 1) {
-      return [...parts.slice(0, -1), ...amounts];
+  // Find all amounts in the last cell
+  const amounts = last.match(amountPattern);
+
+  if (amounts && amounts.length >= 1) {
+    // Find where the first amount starts
+    const firstAmountIndex = last.search(amountPattern);
+
+    if (firstAmountIndex > 0) {
+      // There's text before the amounts - extract it as description
+      const textPart = last.substring(0, firstAmountIndex).trim();
+      if (textPart) {
+        return [...parts.slice(0, -1), textPart, ...amounts.map(a => a.trim())];
+      }
+    } else if (amounts.length > 1) {
+      // Starts with amounts and has multiple - split them
+      return [...parts.slice(0, -1), ...amounts.map(a => a.trim())];
     }
   }
 
@@ -369,7 +387,40 @@ function findDescriptionColumn(row: string[]): number {
 }
 
 /**
- * Filter out rows that don't look like transactions
+ * Extract header row from data if present
+ * Returns the header row (if found) and remaining data rows
+ */
+function extractHeaderRow(rows: string[][]): { headerRow: string[] | null; dataRows: string[][] } {
+  if (rows.length === 0) {
+    return { headerRow: null, dataRows: rows };
+  }
+
+  const headerWords = ['date', 'description', 'amount', 'balance', 'debit', 'credit', 'transaction', 'withdrawals', 'deposits', 'details', 'particulars'];
+
+  // Check first few rows for header pattern
+  for (let i = 0; i < Math.min(3, rows.length); i++) {
+    const row = rows[i];
+    const lowerRow = row.map(c => c.toLowerCase().trim());
+    const headerMatches = lowerRow.filter(c => headerWords.includes(c)).length;
+
+    // Also check for partial matches (e.g., "Transaction Date" contains "date")
+    const partialMatches = lowerRow.filter(c =>
+      headerWords.some(hw => c.includes(hw))
+    ).length;
+
+    if (headerMatches >= 2 || partialMatches >= 2) {
+      return {
+        headerRow: row,
+        dataRows: [...rows.slice(0, i), ...rows.slice(i + 1)],
+      };
+    }
+  }
+
+  return { headerRow: null, dataRows: rows };
+}
+
+/**
+ * Filter out rows that don't look like transactions (excluding headers, already extracted)
  */
 function filterNonTransactionRows(rows: string[][]): string[][] {
   return rows.filter(row => {
@@ -381,26 +432,21 @@ function filterNonTransactionRows(rows: string[][]): string[][] {
     const hasDate = row.some(cell => isDateLike(cell));
     const hasAmount = row.some(cell => isAmountLike(cell));
 
-    // Filter out header rows - check if cells are EXACTLY header words (not containing them)
-    const lowerRow = row.map(c => c.toLowerCase().trim());
-    const headerWords = ['date', 'description', 'amount', 'balance', 'debit', 'credit', 'transaction', 'withdrawals', 'deposits'];
-    const headerMatches = lowerRow.filter(c => headerWords.includes(c)).length;
-    const isHeader = headerMatches >= 2; // Need multiple header words to be a header row
-
     // Filter out summary rows - be strict: only match if cell STARTS with summary words
     // This avoids filtering "ESTABLISH TRANSFER BALANCE" as a summary
+    const lowerRow = row.map(c => c.toLowerCase().trim());
     const isSummary = lowerRow.some(c =>
       /^(opening\s+balance|closing\s+balance|transaction\s+total|total[s]?\s*[:/]?$|^balance\s+brought|^balance\s+carried)/i.test(c)
     );
 
-    return (hasDate || hasAmount) && !isHeader && !isSummary;
+    return (hasDate || hasAmount) && !isSummary;
   });
 }
 
 /**
  * Analyze columns to detect their types
  */
-function analyzeColumns(rows: string[][]): ColumnAnalysis[] {
+function analyzeColumns(rows: string[][], headerRow: string[] | null): ColumnAnalysis[] {
   if (rows.length === 0) return [];
 
   const numColumns = rows[0].length;
@@ -409,16 +455,135 @@ function analyzeColumns(rows: string[][]): ColumnAnalysis[] {
   for (let col = 0; col < numColumns; col++) {
     const samples = rows.map(row => row[col] || '').filter(s => s.trim() !== '');
     const type = detectColumnType(samples);
+    const headerHint = headerRow && headerRow[col] ? headerRow[col].trim() : undefined;
+
+    // Determine amount role from header hint
+    let amountRole: 'debit' | 'credit' | 'balance' | 'single' | undefined;
+    if (type.type === 'amount' && headerHint) {
+      amountRole = detectAmountRole(headerHint, samples);
+    }
 
     analysis.push({
       index: col,
       type: type.type,
+      amountRole,
       confidence: type.confidence,
       samples: samples.slice(0, 5),
+      headerHint,
     });
   }
 
+  // If we have multiple amount columns, try to infer roles even without header hints
+  const amountCols = analysis.filter(a => a.type === 'amount');
+  if (amountCols.length >= 2) {
+    inferAmountRoles(amountCols, rows);
+  }
+
   return analysis;
+}
+
+/**
+ * Detect amount column role from header name
+ */
+function detectAmountRole(header: string, samples: string[]): 'debit' | 'credit' | 'balance' | 'single' {
+  const lower = header.toLowerCase();
+
+  // Debit/withdrawal patterns
+  if (/withdraw|debit|dr\.?$|payment|expense|out/i.test(lower)) {
+    return 'debit';
+  }
+
+  // Credit/deposit patterns
+  if (/deposit|credit|cr\.?$|income|in$|received/i.test(lower)) {
+    return 'credit';
+  }
+
+  // Balance patterns
+  if (/balance|running|total$/i.test(lower)) {
+    return 'balance';
+  }
+
+  // Check if values have consistent signs (negative = debit, positive = credit)
+  const hasNegatives = samples.some(s => s.startsWith('-') || s.startsWith('('));
+  const hasPositives = samples.some(s => !s.startsWith('-') && !s.startsWith('(') && parseFloat(s.replace(/[^0-9.-]/g, '')) > 0);
+
+  if (hasNegatives && !hasPositives) return 'debit';
+  if (hasPositives && !hasNegatives) return 'credit';
+
+  return 'single';
+}
+
+/**
+ * Infer amount roles when headers don't provide enough info
+ * Uses heuristics like: balance typically has values for every row,
+ * debit/credit often have alternating empty values
+ */
+function inferAmountRoles(amountCols: ColumnAnalysis[], rows: string[][]): void {
+  // Already have explicit roles? Skip inference
+  if (amountCols.every(col => col.amountRole && col.amountRole !== 'single')) {
+    return;
+  }
+
+  // Count non-empty values per column
+  const fillRates = amountCols.map(col => ({
+    col,
+    fillRate: rows.filter(row => row[col.index]?.trim()).length / rows.length,
+  }));
+
+  // Sort by fill rate (highest = likely balance, lower = likely debit/credit)
+  fillRates.sort((a, b) => b.fillRate - a.fillRate);
+
+  // If we have 3 amount columns with different fill rates, likely: balance, debit, credit
+  if (fillRates.length === 3) {
+    const [highest, mid, lowest] = fillRates;
+
+    // If highest fill rate is much higher (>90%), it's probably balance
+    if (highest.fillRate > 0.9 && mid.fillRate < 0.8) {
+      if (!highest.col.amountRole || highest.col.amountRole === 'single') {
+        highest.col.amountRole = 'balance';
+      }
+    }
+
+    // For the other two, use position heuristic (first = debit, second = credit is common)
+    const remaining = fillRates.filter(f => f.col.amountRole !== 'balance');
+    if (remaining.length === 2) {
+      // Check if they have mutually exclusive values (typical debit/credit pattern)
+      const bothHaveValues = rows.filter(row =>
+        row[remaining[0].col.index]?.trim() && row[remaining[1].col.index]?.trim()
+      ).length;
+
+      if (bothHaveValues < rows.length * 0.1) {
+        // Columns are mostly mutually exclusive - likely debit/credit split
+        // Use column order (common pattern: debit first, credit second)
+        const [first, second] = remaining.sort((a, b) => a.col.index - b.col.index);
+        if (!first.col.amountRole || first.col.amountRole === 'single') {
+          first.col.amountRole = 'debit';
+        }
+        if (!second.col.amountRole || second.col.amountRole === 'single') {
+          second.col.amountRole = 'credit';
+        }
+      }
+    }
+  }
+
+  // If we have 2 amount columns with similar fill rates, likely debit/credit
+  if (fillRates.length === 2) {
+    const [first, second] = fillRates;
+    const bothHaveValues = rows.filter(row =>
+      row[first.col.index]?.trim() && row[second.col.index]?.trim()
+    ).length;
+
+    if (bothHaveValues < rows.length * 0.1) {
+      // Mutually exclusive - debit/credit split
+      const [colA, colB] = [first.col, second.col].sort((a, b) => a.index - b.index);
+      if (!colA.amountRole || colA.amountRole === 'single') {
+        colA.amountRole = 'debit';
+      }
+      if (!colB.amountRole || colB.amountRole === 'single') {
+        colB.amountRole = 'credit';
+      }
+    }
+  }
 }
 
 /**
@@ -493,23 +658,40 @@ export function isAmountLike(value: string): boolean {
 }
 
 /**
- * Generate header names based on column analysis
+ * Generate header names based on column analysis and original headers
  */
-function generateHeaders(analysis: ColumnAnalysis[]): string[] {
+function generateHeaders(analysis: ColumnAnalysis[], headerRow: string[] | null): string[] {
   const headers: string[] = [];
   let dateCount = 0;
-  let amountCount = 0;
   let textCount = 0;
 
   for (const col of analysis) {
+    // Prefer original header if available and meaningful
+    if (col.headerHint && col.headerHint.length > 1) {
+      headers.push(col.headerHint);
+      continue;
+    }
+
     switch (col.type) {
       case 'date':
         dateCount++;
         headers.push(dateCount === 1 ? 'Date' : `Date ${dateCount}`);
         break;
       case 'amount':
-        amountCount++;
-        headers.push(amountCount === 1 ? 'Amount' : `Amount ${amountCount}`);
+        // Use role-specific names for amount columns
+        switch (col.amountRole) {
+          case 'debit':
+            headers.push('Withdrawals');
+            break;
+          case 'credit':
+            headers.push('Deposits');
+            break;
+          case 'balance':
+            headers.push('Balance');
+            break;
+          default:
+            headers.push('Amount');
+        }
         break;
       case 'text':
         textCount++;
@@ -525,9 +707,10 @@ function generateHeaders(analysis: ColumnAnalysis[]): string[] {
 
 /**
  * Smart column mapping that considers column types
+ * Simplified to use single amount column (expense/income toggled in preview)
  */
 export function detectPasteColumnMapping(headers: string[], rows: string[][]): ColumnMapping | null {
-  const analysis = analyzeColumns(rows);
+  const analysis = analyzeColumnsWithHeaders(rows, headers);
 
   let dateIndex = -1;
   let amountIndex = -1;
@@ -537,31 +720,37 @@ export function detectPasteColumnMapping(headers: string[], rows: string[][]): C
   for (const col of analysis) {
     if (col.type === 'date' && dateIndex === -1) {
       dateIndex = col.index;
-    } else if (col.type === 'amount' && amountIndex === -1) {
-      amountIndex = col.index;
+    } else if (col.type === 'amount') {
+      // Skip balance columns, use first non-balance amount column
+      if (col.amountRole !== 'balance' && amountIndex === -1) {
+        amountIndex = col.index;
+      }
     } else if (col.type === 'text' && descIndex === -1) {
       descIndex = col.index;
     }
   }
 
   // Fallback: if we have amount but no text, use another column for description
-  if (amountIndex !== -1 && descIndex === -1) {
+  const usedIndices = new Set([dateIndex, amountIndex].filter((i): i is number => i !== -1));
+  if (usedIndices.size > 0 && descIndex === -1) {
     for (let i = 0; i < analysis.length; i++) {
-      if (i !== dateIndex && i !== amountIndex) {
+      if (!usedIndices.has(i) && analysis[i].type !== 'amount') {
         descIndex = i;
         break;
       }
     }
   }
 
-  if (dateIndex === -1 && amountIndex === -1) {
+  // Must have at least date and amount
+  if (dateIndex === -1 || amountIndex === -1) {
     return null;
   }
 
-  // Build ignore list
+  // Build ignore list (exclude mapped columns)
+  const mappedIndices = new Set([dateIndex, descIndex, amountIndex].filter((i): i is number => i !== -1));
   const ignore = headers
     .map((_, idx) => idx)
-    .filter(idx => idx !== dateIndex && idx !== descIndex && idx !== amountIndex);
+    .filter(idx => !mappedIndices.has(idx));
 
   return {
     date: dateIndex,
@@ -569,6 +758,45 @@ export function detectPasteColumnMapping(headers: string[], rows: string[][]): C
     amount: amountIndex,
     ignore,
   };
+}
+
+/**
+ * Analyze columns using generated header names (for detectPasteColumnMapping)
+ */
+function analyzeColumnsWithHeaders(rows: string[][], headers: string[]): ColumnAnalysis[] {
+  if (rows.length === 0) return [];
+
+  const numColumns = Math.max(rows[0].length, headers.length);
+  const analysis: ColumnAnalysis[] = [];
+
+  for (let col = 0; col < numColumns; col++) {
+    const samples = rows.map(row => row[col] || '').filter(s => s.trim() !== '');
+    const type = detectColumnType(samples);
+    const headerHint = headers[col] || undefined;
+
+    // Determine amount role from header name
+    let amountRole: 'debit' | 'credit' | 'balance' | 'single' | undefined;
+    if (type.type === 'amount' && headerHint) {
+      amountRole = detectAmountRole(headerHint, samples);
+    }
+
+    analysis.push({
+      index: col,
+      type: type.type,
+      amountRole,
+      confidence: type.confidence,
+      samples: samples.slice(0, 5),
+      headerHint,
+    });
+  }
+
+  // Infer roles for amount columns if needed
+  const amountCols = analysis.filter(a => a.type === 'amount');
+  if (amountCols.length >= 2) {
+    inferAmountRoles(amountCols, rows);
+  }
+
+  return analysis;
 }
 
 /**

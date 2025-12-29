@@ -163,6 +163,7 @@ function TransactionsPageContent() {
     if (result.imported > 0) {
       fetchTransactions();
     }
+    setShowImport(false);
   };
 
   const handleAddTransaction = () => {
@@ -176,7 +177,12 @@ function TransactionsPageContent() {
   };
 
   const handleDeleteTransaction = (tx: TransactionWithCategory) => {
-    setDeletingTransaction(tx);
+    // If this transaction is selected and there are multiple selections, do bulk delete
+    if (selectedIds.has(tx.id) && selectedIds.size > 1) {
+      handleBulkDelete();
+    } else {
+      setDeletingTransaction(tx);
+    }
   };
 
   const handleTransactionSaved = () => {
@@ -266,6 +272,7 @@ function TransactionsPageContent() {
       await Promise.all(
         Array.from(selectedIds).map(id => api.delete(`/api/transactions/${id}`))
       );
+      setSelectedIds(new Set());
       fetchTransactions();
     } catch (error) {
       console.error('Failed to delete transactions:', error);

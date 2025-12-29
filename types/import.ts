@@ -29,6 +29,12 @@ export interface ColumnMapping {
   date: number;
   description: number;
   amount: number;
+  /** Withdrawal/debit column - values treated as negative (optional) */
+  debit?: number;
+  /** Deposit/credit column - values treated as positive (optional) */
+  credit?: number;
+  /** Balance column - excluded from import (optional) */
+  balance?: number;
   ignore: number[];
 }
 
