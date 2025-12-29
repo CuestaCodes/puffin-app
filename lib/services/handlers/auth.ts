@@ -376,11 +376,14 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
 
   // Clear all data - this is a destructive operation
   // Note: tauri-db doesn't support multi-statement exec, run each separately
-  await db.execute('DELETE FROM "transaction"');
-  await db.execute('DELETE FROM sub_category');
-  await db.execute('DELETE FROM budget');
-  await db.execute('DELETE FROM auto_category_rule');
-  await db.execute('DELETE FROM source');
+  // Order matters due to foreign key constraints:
+  // 1. Delete tables that reference others first
+  // 2. Then delete the referenced tables
+  await db.execute('DELETE FROM "transaction"');  // references sub_category, source
+  await db.execute('DELETE FROM budget');          // references sub_category
+  await db.execute('DELETE FROM auto_category_rule'); // references sub_category
+  await db.execute('DELETE FROM sub_category');    // now safe to delete
+  await db.execute('DELETE FROM source');          // now safe to delete
   await db.execute('DELETE FROM local_user');
   await db.execute('DELETE FROM sync_log');
   await db.execute('DELETE FROM net_worth_entry');
