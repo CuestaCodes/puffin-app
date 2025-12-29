@@ -132,9 +132,9 @@ Test-Path "src-tauri\target\release\Puffin.exe"
 
 ## Phase 5: Signing & Version
 
-- [ ] Self-sign the Windows executable (see notes below)
-- [ ] Test self-signed `.exe` installs on another machine
-- [ ] Update version in `src-tauri/tauri.conf.json`: `0.1.0` → `1.0.0`
+- [ ] Self-sign the Windows executable (see notes below) - *Optional, SmartScreen shows regardless*
+- [ ] Test self-signed `.exe` installs on another machine - *Skip if not signing*
+- [x] Update version in `src-tauri/tauri.conf.json` and `package.json`: `0.1.0` → `1.0.0`
 
 ### Self-Signing (Windows)
 
