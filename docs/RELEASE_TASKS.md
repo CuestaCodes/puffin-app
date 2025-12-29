@@ -9,6 +9,13 @@ Track progress for the first public release. Check off items as completed.
 - [x] **Auto-categorisation rules** - Fixed: rules now apply on manual transaction creation and import
 - [x] **Dashboard graphs** - Fixed: renamed `monthlyTrends` to `trends` to match frontend expectations
 - [x] **Google Drive sync** - Fixed: OAuth loopback server, push/pull handlers, extended scope detection
+- [x] **Paste import** - Fixed: 5-column bank statement handling, single/separate column modes, expense/income toggle (global + per-row)
+- [x] **Import modal** - Fixed: Done button now closes modal correctly
+- [x] **Bulk delete** - Fixed: selecting multiple transactions and deleting now works
+- [x] **Budget SQL error** - Fixed: alias scoping issue in 12-month average query
+- [x] **Budget template responses** - Fixed: handler response formats to match API routes
+- [x] **Budget confirmations** - Fixed: replaced window.confirm with AlertDialog (Tauri compatible)
+- [x] **12-month average calculation** - Fixed: now divides by 12 months, not just months with data
 
 ---
 
@@ -184,21 +191,21 @@ First public release of Puffin - Personal Understanding & Forecasting of FINance
 ## Future Enhancements (Post v1.0)
 
 - [ ] **Auto-updater** - Tauri `tauri-plugin-updater` for in-app updates
-- [ ] **PDF transaction import** - Extract transactions from bank statement PDFs
+- [x] **PDF paste import** - Paste transactions copied from PDF bank statements (implemented in v1.0)
+- [ ] **Full PDF parsing** - Extract transactions directly from PDF files (deferred)
 - [ ] **Linux build** - Add AppImage/deb targets
 - [ ] **macOS build** - Add dmg target
 - [ ] **Code signing certificate** - Purchase proper cert to avoid SmartScreen
 
-### PDF Import Complexity
+### PDF Import Notes
 
-| Approach | Effort | Accuracy | Notes |
-|----------|--------|----------|-------|
-| Text extraction + regex | Low | 40-60% | Breaks with format changes |
-| Table extraction (tabula-js) | Medium | 60-80% | Requires Java runtime |
-| AI/LLM extraction | Medium | 85-95% | Requires API key + costs |
-| Document AI services | High | 90%+ | AWS Textract, Google Document AI |
+The "paste from PDF" approach is now implemented, allowing users to:
+- Copy transaction tables from PDF bank statements
+- Paste into the import dialog
+- Choose single or separate debit/credit columns
+- Toggle expense/income mode globally or per-row
 
-**Recommendation:** Defer to v1.1. Consider "paste from PDF" as quick alternative.
+Full PDF file parsing (drag-and-drop PDF) remains a future enhancement if needed.
 
 ---
 
