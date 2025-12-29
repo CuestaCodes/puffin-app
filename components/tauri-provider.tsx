@@ -72,13 +72,6 @@ async function closeWindow(): Promise<void> {
     await currentWindow.close();
   } catch (err) {
     console.error('Failed to close window:', err);
-    // Last resort: try to exit the process
-    try {
-      const { exit } = await import('@tauri-apps/plugin-process');
-      await exit(0);
-    } catch {
-      console.error('All close methods failed');
-    }
   }
 }
 
