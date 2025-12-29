@@ -5,7 +5,7 @@
 A privacy-first desktop budgeting app that keeps your financial data on your computer, not in the cloud.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows-blue)
 
 ## Why Puffin?
 
@@ -55,15 +55,7 @@ A privacy-first desktop budgeting app that keeps your financial data on your com
 2. Run the installer
 3. Windows SmartScreen may show a warning - click "More info" then "Run anyway"
 
-### macOS
-1. Download `Puffin_1.0.0_aarch64.dmg` (Apple Silicon) or `Puffin_1.0.0_x64.dmg` (Intel)
-2. Open the DMG and drag Puffin to Applications
-3. Right-click and select "Open" the first time (to bypass Gatekeeper)
-
-### Linux
-1. Download `Puffin_1.0.0_amd64.deb` or `Puffin_1.0.0_amd64.AppImage`
-2. For `.deb`: `sudo dpkg -i Puffin_1.0.0_amd64.deb`
-3. For `.AppImage`: Make executable and run
+> **Note:** macOS and Linux builds are planned for a future release.
 
 ## Getting Started
 
@@ -90,13 +82,10 @@ A privacy-first desktop budgeting app that keeps your financial data on your com
 
 ## Data Storage
 
-Your data is stored locally:
-
-| Platform | Location |
-|----------|----------|
-| Windows | `%APPDATA%\Puffin\puffin.db` |
-| macOS | `~/Library/Application Support/Puffin/puffin.db` |
-| Linux | `~/.local/share/puffin/puffin.db` |
+Your data is stored locally at:
+```
+%APPDATA%\Puffin\puffin.db
+```
 
 ## Backup & Restore
 
@@ -126,9 +115,7 @@ Not currently. Puffin is a desktop application.
 
 ## System Requirements
 
-- **Windows**: Windows 10 or later (64-bit)
-- **macOS**: macOS 10.15 (Catalina) or later
-- **Linux**: Ubuntu 22.04 or equivalent (64-bit)
+- **Windows 10 or later** (64-bit)
 
 ## Contributing
 
