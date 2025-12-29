@@ -5,6 +5,16 @@ import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -80,7 +90,9 @@ function MonthlyBudgetContent() {
   const [templateName, setTemplateName] = useState('');
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
-  
+  const [showCopyConfirm, setShowCopyConfirm] = useState(false);
+  const [showAverageConfirm, setShowAverageConfirm] = useState(false);
+
   // Ref for smooth scrolling to transactions
   const transactionsRef = useRef<HTMLDivElement>(null);
   
@@ -271,9 +283,8 @@ function MonthlyBudgetContent() {
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
 
-    if (!confirm(`Copy budgets from ${prevMonth}/${prevYear} to ${month}/${year}?`)) {
-      return;
-    }
+    setShowCopyConfirm(false);
+    setIsApplyingTemplate(true);
 
     try {
       const result = await api.post<{ copiedCount: number }>('/api/budgets', {
@@ -286,21 +297,18 @@ function MonthlyBudgetContent() {
 
       if (result.data) {
         await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        alert(`Copied ${result.data.copiedCount} budgets from previous month`);
-      } else {
-        alert('Failed to copy budgets: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error copying budgets:', error);
+    } finally {
+      setIsApplyingTemplate(false);
     }
   };
 
   const handleUse12MonthAverage = async () => {
-    if (!confirm(`This will update all budget amounts based on 12-month spending averages. Continue?`)) {
-      return;
-    }
-
+    setShowAverageConfirm(false);
     setIsApplyingTemplate(true);
+
     try {
       const result = await api.post<{ updatedCount: number }>('/api/budgets', {
         action: 'useAverage',
@@ -310,13 +318,9 @@ function MonthlyBudgetContent() {
 
       if (result.data) {
         await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        alert(`Updated ${result.data.updatedCount} budgets with 12-month averages`);
-      } else {
-        alert('Failed to apply averages: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error applying 12-month averages:', error);
-      alert('Failed to apply averages');
     } finally {
       setIsApplyingTemplate(false);
     }
@@ -486,18 +490,18 @@ function MonthlyBudgetContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleCopyFromPreviousMonth}
+              onClick={() => setShowCopyConfirm(true)}
               className="gap-1.5"
               disabled={isApplyingTemplate}
             >
               <Copy className="w-3.5 h-3.5" />
               Copy from Last Month
             </Button>
-            
+
             <Button
               variant="outline"
               size="sm"
-              onClick={handleUse12MonthAverage}
+              onClick={() => setShowAverageConfirm(true)}
               className="gap-1.5"
               disabled={isApplyingTemplate}
             >
@@ -995,6 +999,44 @@ function MonthlyBudgetContent() {
           onCategoryChange={handleCategoryChange}
         />
       </div>
+
+      {/* Copy from Last Month Confirmation */}
+      <AlertDialog open={showCopyConfirm} onOpenChange={setShowCopyConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Copy from Last Month</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will copy all budget amounts from {month === 1 ? 'December' : new Date(year, month - 2).toLocaleString('default', { month: 'long' })} {month === 1 ? year - 1 : year} to {new Date(year, month - 1).toLocaleString('default', { month: 'long' })} {year}.
+              Existing budgets will be overwritten.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCopyFromPreviousMonth}>
+              Copy Budgets
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Use 12-Month Average Confirmation */}
+      <AlertDialog open={showAverageConfirm} onOpenChange={setShowAverageConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Use 12-Month Average</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will update all budget amounts based on your average spending over the past 12 months.
+              Existing budgets will be overwritten with the calculated averages.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUse12MonthAverage}>
+              Apply Averages
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
