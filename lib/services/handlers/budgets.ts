@@ -411,15 +411,16 @@ async function createOrUpdateBudget(data: {
 /**
  * Get all budget templates.
  */
-async function getBudgetTemplates(): Promise<unknown[]> {
+async function getBudgetTemplates(): Promise<{ templates: unknown[] }> {
   await ensureTemplateTable();
-  return db.query('SELECT * FROM budget_template ORDER BY updated_at DESC');
+  const templates = await db.query('SELECT * FROM budget_template ORDER BY updated_at DESC');
+  return { templates };
 }
 
 /**
  * Create a budget template from current month's budgets.
  */
-async function createBudgetTemplate(name: string, year: number, month: number): Promise<unknown> {
+async function createBudgetTemplate(name: string, year: number, month: number): Promise<{ template: unknown }> {
   await ensureTemplateTable();
   const budgets = await getBudgetsByMonth(year, month);
 
@@ -436,13 +437,13 @@ async function createBudgetTemplate(name: string, year: number, month: number): 
     [id, name, JSON.stringify(templateData), now, now]
   );
 
-  return { id, name, template_data: JSON.stringify(templateData), created_at: now, updated_at: now };
+  return { template: { id, name, template_data: JSON.stringify(templateData), created_at: now, updated_at: now } };
 }
 
 /**
  * Apply a budget template to a specific month.
  */
-async function applyBudgetTemplate(templateId: string, year: number, month: number): Promise<{ appliedCount: number }> {
+async function applyBudgetTemplate(templateId: string, year: number, month: number): Promise<{ success: boolean; appliedCount: number; message: string }> {
   await ensureTemplateTable();
 
   const template = await db.queryOne<{ template_data: string }>(
@@ -469,7 +470,7 @@ async function applyBudgetTemplate(templateId: string, year: number, month: numb
     appliedCount++;
   }
 
-  return { appliedCount };
+  return { success: true, appliedCount, message: `Applied template to ${appliedCount} categories` };
 }
 
 /**
