@@ -159,11 +159,11 @@ $env:TAURI_SIGNING_PRIVATE_KEY = "path/to/puffin-signing.pfx"
 
 ## Phase 6: GitHub Release
 
-- [ ] Verify GitHub Actions workflow (`.github/workflows/release.yml`) is configured
-- [ ] Create git tag: `git tag v1.0.0 && git push origin v1.0.0`
+- [x] Verify GitHub Actions workflow (`.github/workflows/release.yml`) is configured
+- [x] Create git tag: `git tag v1.0.0 && git push origin v1.0.0`
 - [ ] Verify workflow builds and uploads artifacts
 - [ ] Test download of released `.exe`/`.msi`
-- [ ] Write release notes
+- [ ] Publish release (edit draft, update notes, publish)
 
 ### Release Notes Template
 
