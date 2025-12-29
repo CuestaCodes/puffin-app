@@ -1,36 +1,145 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Puffin
+
+**Personal Understanding & Forecasting of FINances**
+
+A privacy-first desktop budgeting app that keeps your financial data on your computer, not in the cloud.
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
+
+## Why Puffin?
+
+- **Your data stays yours** - Everything is stored locally on your computer
+- **No subscriptions** - Download once, use forever
+- **No account required** - No sign-ups, no emails, no tracking
+- **Optional cloud backup** - Sync to your own Google Drive if you want
+
+## Features
+
+### Transaction Management
+- Import transactions from CSV files or paste from bank statement PDFs
+- Manual transaction entry
+- Split transactions across multiple categories
+- Soft delete with recovery option
+
+### Budgeting
+- Set monthly budgets by category
+- Track spending vs budget in real-time
+- View 12-month spending averages
+- Copy budgets from previous months
+
+### Categories
+- Two-tier category system (e.g., "Bills" > "Electricity")
+- Auto-categorisation rules based on transaction descriptions
+- Customisable category names
+
+### Analytics
+- Dashboard with spending trends
+- Monthly comparisons
+- Net worth tracking over time
+
+### Security
+- PIN-protected access (6-digit PIN)
+- Rate limiting on failed login attempts
+- All data encrypted at rest
+
+### Cloud Backup (Optional)
+- Sync to your personal Google Drive
+- End-to-end encrypted backups
+- Manual push/pull - you control when it syncs
+
+## Installation
+
+### Windows
+1. Download `Puffin_1.0.0_x64-setup.exe` from the [latest release](https://github.com/CuestaCodes/puffin-app/releases/latest)
+2. Run the installer
+3. Windows SmartScreen may show a warning - click "More info" then "Run anyway"
+
+### macOS
+1. Download `Puffin_1.0.0_aarch64.dmg` (Apple Silicon) or `Puffin_1.0.0_x64.dmg` (Intel)
+2. Open the DMG and drag Puffin to Applications
+3. Right-click and select "Open" the first time (to bypass Gatekeeper)
+
+### Linux
+1. Download `Puffin_1.0.0_amd64.deb` or `Puffin_1.0.0_amd64.AppImage`
+2. For `.deb`: `sudo dpkg -i Puffin_1.0.0_amd64.deb`
+3. For `.AppImage`: Make executable and run
 
 ## Getting Started
 
-First, run the development server:
+1. **Set up your PIN** - Create a 6-digit PIN to protect your data
+2. **Add categories** - Customise the default categories or create your own
+3. **Import transactions** - Import a CSV from your bank or paste from a PDF statement
+4. **Set budgets** - Create monthly budgets for your spending categories
+5. **Track your spending** - The dashboard shows your progress at a glance
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Importing Transactions
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### From CSV
+1. Export transactions from your bank's website as CSV
+2. Click "Import" on the Transactions page
+3. Map the columns (Date, Description, Amount)
+4. Review and confirm
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### From PDF Bank Statements
+1. Open your bank statement PDF
+2. Select and copy the transaction table
+3. Click "Import" > "Paste" tab
+4. Adjust column mapping if needed
+5. Review and confirm
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data Storage
 
-## Learn More
+Your data is stored locally:
 
-To learn more about Next.js, take a look at the following resources:
+| Platform | Location |
+|----------|----------|
+| Windows | `%APPDATA%\Puffin\puffin.db` |
+| macOS | `~/Library/Application Support/Puffin/puffin.db` |
+| Linux | `~/.local/share/puffin/puffin.db` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Backup & Restore
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Local Backups
+- Go to Settings > Data > Create Backup
+- Saves a `.db` file you can store anywhere
 
-## Deploy on Vercel
+### Google Drive Sync (Optional)
+1. Go to Settings > Sync
+2. Connect your Google account
+3. Choose a folder for backups
+4. Use Push/Pull to sync manually
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## FAQ
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Is my data sent to any servers?**
+No. All data stays on your computer unless you explicitly enable Google Drive sync.
+
+**What if I forget my PIN?**
+You can reset the app from the login screen, but this will delete all data. Keep backups!
+
+**Can I use Puffin on multiple devices?**
+Yes, using Google Drive sync. Set up sync on each device and push/pull to keep them in sync.
+
+**Is there a mobile app?**
+Not currently. Puffin is a desktop application.
+
+## System Requirements
+
+- **Windows**: Windows 10 or later (64-bit)
+- **macOS**: macOS 10.15 (Catalina) or later
+- **Linux**: Ubuntu 22.04 or equivalent (64-bit)
+
+## Contributing
+
+Puffin is open source! Contributions are welcome.
+
+See [CLAUDE.md](CLAUDE.md) for development documentation.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+Made with care for people who want to understand their finances without giving up their privacy.
