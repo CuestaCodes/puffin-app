@@ -286,6 +286,39 @@ npm run build:static   # Build static export for Tauri (moves API routes tempora
 /api/analytics/*      # Dashboard data
 ```
 
+## Import Formats
+
+### CSV Import
+Standard CSV with configurable column mapping. Supports date format auto-detection.
+
+### PDF Paste Import
+For copying transaction tables directly from PDF bank statements. Located in `lib/paste/parser.ts`.
+
+**Expected Column Structures:**
+| Format | Columns | Notes |
+|--------|---------|-------|
+| 5-column | Date, Description, Debit, Credit, Balance | Common AU bank format |
+| 4-column | Date, Description, Amount, Balance | Single amount column |
+| 3-column | Date, Description, Amount | Minimal format |
+
+**Parser Features:**
+- Extracts trailing amounts from combined cells (e.g., `"TRANSFER ABC123 1,427.00 52,243.23"` → Description + Amount + Balance)
+- Merges multi-line descriptions from PDF text wrapping
+- Detects date patterns: `DD/MM/YYYY`, `YYYY-MM-DD`, `6 Dec 25`, etc.
+- Handles amount formats: `1,234.56`, `-$100.00`, `(500.00)`, `100.00 DR/CR`
+
+**Column Mapping Modes:**
+- **Single Column**: One amount column; user toggles expense/income globally or per-row in preview
+- **Separate Columns**: Distinct Debit (→ negative) and Credit (→ positive) columns for tabbed data
+
+**Key Functions:**
+| Function | Purpose |
+|----------|---------|
+| `parsePastedText()` | Main entry point - splits lines, extracts columns |
+| `splitAmountsInLastCell()` | Extracts trailing amounts from text+amount cells |
+| `detectPasteColumnMapping()` | Auto-detects Date, Description, Amount columns |
+| `parseAmount()` | Converts amount strings to numbers with sign handling |
+
 ## Development Phases
 
 1. **Foundation** - Project setup, database schema, authentication, basic API routes
@@ -362,11 +395,38 @@ const hasFullDrive = tokens.scope.includes('https://www.googleapis.com/auth/driv
 
 ## UI Safety Patterns
 
+### Destructive Operations
 For destructive operations (delete, restore, reset, clear):
 - Always show a confirmation dialog with clear consequences
 - Use `AlertDialog` from shadcn/ui for consistency
 - Include the item name/details in the confirmation message
 - Use destructive variant styling for delete buttons
+
+### Modal Completion
+Success callbacks (`onComplete`, `onSuccess`) should ALWAYS close the modal:
+```typescript
+const handleImportComplete = (result: ImportResult) => {
+  if (result.imported > 0) {
+    fetchData();  // Refresh data
+  }
+  setShowModal(false);  // ✅ ALWAYS close the modal
+};
+```
+**Common mistake:** Only refreshing data without closing the modal.
+
+### Bulk Actions
+Per-row actions on a selected item should operate on ALL selected items:
+```typescript
+const handleDeleteRow = (item: Item) => {
+  // If this item is selected and multiple items are selected, do bulk delete
+  if (selectedIds.has(item.id) && selectedIds.size > 1) {
+    handleBulkDelete();
+  } else {
+    deleteSingleItem(item);
+  }
+};
+```
+This prevents user confusion when they select multiple items then click an action on one of them.
 
 For file uploads:
 - Enforce size limits (e.g., `MAX_BACKUP_SIZE = 100MB` in `lib/data/utils.ts`)
