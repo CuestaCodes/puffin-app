@@ -292,11 +292,75 @@ export async function handleBackup(ctx: HandlerContext): Promise<unknown> {
   }
 
   if (method === 'POST') {
-    // Restore from backup
-    throw new Error(
-      'Backup restore in desktop mode requires manual file replacement. ' +
-      'Close the app, replace puffin.db with your backup, then restart.'
-    );
+    // Restore from local backup
+    try {
+      const { copyFile, exists, remove } = await import('@tauri-apps/plugin-fs');
+      const { appDataDir, join } = await import('@tauri-apps/api/path');
+      const { resetDatabaseConnection, closeDatabase } = await import('../tauri-db');
+
+      const dataDir = await appDataDir();
+      const backupPath = await join(dataDir, 'backups', filename);
+      const dbPath = await join(dataDir, 'puffin.db');
+
+      // Verify backup exists
+      if (!(await exists(backupPath))) {
+        throw new Error(`Backup file not found: ${filename}`);
+      }
+
+      // Create a pre-restore backup of current database
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
+      const preRestoreBackup = await join(dataDir, 'backups', `pre-restore-${timestamp}.db`);
+
+      try {
+        if (await exists(dbPath)) {
+          await copyFile(dbPath, preRestoreBackup);
+          console.log('[Restore] Created pre-restore backup:', preRestoreBackup);
+        }
+      } catch (err) {
+        console.warn('[Restore] Failed to create pre-restore backup:', err);
+      }
+
+      // Close database connection
+      console.log('[Restore] Closing database connection...');
+      await closeDatabase();
+      await resetDatabaseConnection();
+
+      // Remove WAL files
+      try {
+        const walPath = dbPath + '-wal';
+        const shmPath = dbPath + '-shm';
+        if (await exists(walPath)) await remove(walPath);
+        if (await exists(shmPath)) await remove(shmPath);
+      } catch (walErr) {
+        console.warn('[Restore] WAL cleanup error:', walErr);
+      }
+
+      // Remove current database
+      if (await exists(dbPath)) {
+        await remove(dbPath);
+      }
+
+      // Copy backup to database location
+      console.log('[Restore] Copying backup file...');
+      await copyFile(backupPath, dbPath);
+
+      // Verify copy worked
+      if (!(await exists(dbPath))) {
+        throw new Error('Database file was not created after copy');
+      }
+
+      console.log('[Restore] SUCCESS - Restore complete');
+
+      // Force page reload
+      if (typeof window !== 'undefined') {
+        setTimeout(() => window.location.reload(), 500);
+      }
+
+      return { success: true, restoredFrom: filename };
+    } catch (err) {
+      console.error('[Restore] Restore failed:', err);
+      throw new Error(`Failed to restore backup: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   }
 
   if (method === 'DELETE') {
