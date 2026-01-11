@@ -157,8 +157,8 @@ export async function handleSyncStatus(ctx: HandlerContext): Promise<unknown> {
 /**
  * Sync check handler - /api/sync/check
  *
- * In Tauri mode, returns basic sync status without cloud check.
- * Full cloud-based sync check requires browser OAuth context.
+ * Checks sync status by comparing local database hash and cloud modified time.
+ * Returns canEdit: false when there are unresolved conflicts.
  */
 export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
@@ -169,8 +169,13 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
 
   const config = getSyncConfig();
 
-  // If sync is not configured, allow editing
-  if (!config.isConfigured) {
+  // Check configuration - need either folder-based or file-based sync
+  const hasValidConfig = config.isFileBasedSync
+    ? !!config.backupFileId
+    : !!config.folderId;
+
+  // If not configured, allow editing
+  if (!config.isConfigured || !hasValidConfig) {
     return {
       syncRequired: false,
       reason: 'not_configured',
@@ -178,27 +183,199 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     };
   }
 
-  // If configured but never synced, we can't check cloud status in Tauri
-  // Allow editing but note that sync hasn't happened
-  if (!config.lastSyncedAt) {
+  // Get stored tokens
+  const tokensStored = localStorage.getItem('puffin_oauth_tokens');
+  if (!tokensStored) {
+    // Not authenticated - allow editing but warn
     return {
       syncRequired: false,
-      reason: 'not_configured',
+      reason: 'check_failed',
       canEdit: true,
-      message: 'Sync configured but not yet synced. Use Settings > Sync to sync.',
+      warning: 'Not authenticated with Google. Sign in to check sync status.',
     };
   }
 
-  // Sync was configured and has been used - assume in sync
-  // Full cloud checking requires OAuth which happens in browser context
-  return {
-    syncRequired: false,
-    reason: 'in_sync',
-    canEdit: true,
-    hasLocalChanges: false,
-    hasCloudChanges: false,
-    lastSyncedAt: config.lastSyncedAt,
-  };
+  const tokens = JSON.parse(tokensStored);
+  const accessToken = tokens.access_token;
+
+  if (!accessToken) {
+    return {
+      syncRequired: false,
+      reason: 'check_failed',
+      canEdit: true,
+      warning: 'No access token. Please sign in again.',
+    };
+  }
+
+  try {
+    // Detect local changes by comparing current hash vs synced hash
+    const hasLocalChanges = await detectLocalChanges(config);
+
+    // Get cloud backup info
+    let cloudInfo: { exists: boolean; modifiedTime?: string };
+
+    if (config.isFileBasedSync && config.backupFileId) {
+      // File-based sync: get info by file ID
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${config.backupFileId}?fields=id,modifiedTime&supportsAllDrives=true`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        cloudInfo = { exists: true, modifiedTime: data.modifiedTime };
+      } else if (response.status === 404) {
+        cloudInfo = { exists: false };
+      } else {
+        throw new Error('Failed to check cloud backup');
+      }
+    } else {
+      // Folder-based sync: search for backup file in folder
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${config.folderId}'+in+parents+and+name='puffin-backup.db'+and+trashed=false&fields=files(id,modifiedTime)&supportsAllDrives=true`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+
+      if (!searchResponse.ok) {
+        throw new Error('Failed to search for cloud backup');
+      }
+
+      const searchData = await searchResponse.json();
+      const file = searchData.files?.[0];
+
+      if (file) {
+        cloudInfo = { exists: true, modifiedTime: file.modifiedTime };
+      } else {
+        cloudInfo = { exists: false };
+      }
+    }
+
+    // If no cloud backup exists
+    if (!cloudInfo.exists) {
+      return {
+        syncRequired: true,
+        reason: 'no_cloud_backup',
+        message: 'No backup found in cloud. Upload your data to start syncing.',
+        canEdit: true,
+        hasLocalChanges,
+      };
+    }
+
+    // If we have never synced
+    if (!config.lastSyncedAt) {
+      return {
+        syncRequired: true,
+        reason: 'never_synced',
+        message: 'A backup exists in the cloud. Download it to start, or upload to replace it.',
+        canEdit: false,
+        hasLocalChanges,
+        cloudModifiedAt: cloudInfo.modifiedTime,
+      };
+    }
+
+    // Detect cloud changes by comparing cloud modified time vs last sync time
+    let hasCloudChanges = false;
+    if (cloudInfo.modifiedTime) {
+      const lastSyncTime = new Date(config.lastSyncedAt).getTime();
+      const cloudModifiedTime = new Date(cloudInfo.modifiedTime).getTime();
+      // 1 minute buffer for clock differences
+      hasCloudChanges = cloudModifiedTime > lastSyncTime + 60000;
+    }
+
+    // Determine scenario
+    if (!hasLocalChanges && !hasCloudChanges) {
+      return {
+        syncRequired: false,
+        reason: 'in_sync',
+        canEdit: true,
+        hasLocalChanges: false,
+        hasCloudChanges: false,
+        lastSyncedAt: config.lastSyncedAt,
+      };
+    }
+
+    if (hasLocalChanges && !hasCloudChanges) {
+      return {
+        syncRequired: true,
+        reason: 'local_only',
+        message: "You have local changes that haven't been uploaded yet.",
+        canEdit: true,
+        hasLocalChanges: true,
+        hasCloudChanges: false,
+        lastSyncedAt: config.lastSyncedAt,
+      };
+    }
+
+    if (!hasLocalChanges && hasCloudChanges) {
+      return {
+        syncRequired: true,
+        reason: 'cloud_only',
+        message: 'A newer version is available in the cloud.',
+        canEdit: false,
+        hasLocalChanges: false,
+        hasCloudChanges: true,
+        cloudModifiedAt: cloudInfo.modifiedTime,
+        lastSyncedAt: config.lastSyncedAt,
+      };
+    }
+
+    // Both have changes - CONFLICT
+    return {
+      syncRequired: true,
+      reason: 'conflict',
+      message: 'Both local and cloud have changes. Choose which version to keep.',
+      canEdit: false,
+      hasLocalChanges: true,
+      hasCloudChanges: true,
+      cloudModifiedAt: cloudInfo.modifiedTime,
+      lastSyncedAt: config.lastSyncedAt,
+    };
+
+  } catch (error) {
+    console.error('Sync check error:', error);
+    return {
+      syncRequired: false,
+      reason: 'check_failed',
+      canEdit: true,
+      warning: 'Could not verify sync status. Proceed with caution.',
+    };
+  }
+}
+
+/**
+ * Detect local changes by computing hash of current database
+ * and comparing with the stored hash from last sync.
+ */
+async function detectLocalChanges(config: SyncConfig): Promise<boolean> {
+  if (!config.syncedDbHash) {
+    // No previous hash, assume changes exist
+    return true;
+  }
+
+  try {
+    const { readFile } = await import('@tauri-apps/plugin-fs');
+    const { appDataDir, join } = await import('@tauri-apps/api/path');
+
+    const dataDir = await appDataDir();
+    const dbPath = await join(dataDir, 'puffin.db');
+
+    // Checkpoint WAL first
+    const { getDatabase } = await import('../tauri-db');
+    const db = await getDatabase();
+    await db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
+
+    // Read and hash the database file
+    const fileData = await readFile(dbPath);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', fileData);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const currentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    return currentHash !== config.syncedDbHash;
+  } catch (error) {
+    console.error('Failed to detect local changes:', error);
+    // On error, assume changes exist to be safe
+    return true;
+  }
 }
 
 /**
@@ -358,10 +535,16 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
       }
     }
 
-    // Update sync config
+    // Compute and save the database hash for change detection
+    const hashBuffer = await crypto.subtle.digest('SHA-256', fileData);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const dbHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Update sync config with hash
     saveSyncConfig({
       ...config,
       lastSyncedAt: new Date().toISOString(),
+      syncedDbHash: dbHash,
     });
 
     return { success: true };
@@ -624,10 +807,16 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
       }
     }
 
-    // Update sync config
+    // Compute and save the database hash for change detection
+    const hashBuffer = await crypto.subtle.digest('SHA-256', fileData);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const dbHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Update sync config with hash
     saveSyncConfig({
       ...config,
       lastSyncedAt: new Date().toISOString(),
+      syncedDbHash: dbHash,
     });
 
     return { success: true };

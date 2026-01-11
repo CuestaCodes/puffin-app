@@ -8,6 +8,7 @@ All notable changes to Puffin will be documented in this file.
 - "Forget PIN" reset now properly deletes local backup files and clears sync configuration (previously only cleared database tables)
 - Local Backups section now shows storage location path
 - "Restore Backup" button for local backups now works (was throwing an error instead of restoring)
+- Sync conflict detection now works in Tauri mode (was always returning "in sync")
 
 ### Improved
 - Test suite quality improvements:
