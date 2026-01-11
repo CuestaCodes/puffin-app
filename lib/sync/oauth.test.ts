@@ -192,6 +192,8 @@ describe('OAuth Utilities', () => {
 
       expect(url).toBeDefined();
       expect(typeof url).toBe('string');
+      // The mock returns this URL
+      expect(url).toContain('accounts.google.com');
     });
 
     it('should encode scope level in state parameter', () => {
@@ -204,6 +206,15 @@ describe('OAuth Utilities', () => {
       // Just verify it doesn't throw for different scope levels
       expect(() => getAuthUrl('standard')).not.toThrow();
       expect(() => getAuthUrl('extended')).not.toThrow();
+    });
+
+    it('should still generate URL when credentials are missing (uses empty strings)', () => {
+      // Note: getOAuth2Client uses empty strings as fallback, doesn't return null
+      vi.mocked(SyncConfigManager.getCredentials).mockReturnValue(null);
+
+      const url = getAuthUrl();
+      expect(url).toBeDefined();
+      expect(typeof url).toBe('string');
     });
   });
 });

@@ -101,8 +101,12 @@ describe('Transaction Validation Schemas', () => {
         amount: -50.00,
         sub_category_id: 'invalid-id',
       });
-      
+
       expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toContain('sub_category_id');
+        expect(result.error.issues[0].message).toContain('Invalid');
+      }
     });
 
     it('should allow null category ID', () => {

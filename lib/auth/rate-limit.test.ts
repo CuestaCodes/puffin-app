@@ -1,7 +1,7 @@
 /**
  * Tests for rate limiting functionality
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   checkRateLimit,
   recordAttempt,
@@ -210,6 +210,75 @@ describe('Rate Limiting', () => {
       expect(AUTH_RATE_LIMITS.reset.maxAttempts).toBe(3);
       expect(AUTH_RATE_LIMITS.reset.windowMs).toBe(60 * 60 * 1000);
       expect(AUTH_RATE_LIMITS.reset.lockoutMs).toBe(60 * 60 * 1000);
+    });
+  });
+
+  describe('Time-based window expiration', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      _clearAllAttempts();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should reset attempts after window expires', () => {
+      const config = { maxAttempts: 2, windowMs: 60000, lockoutMs: 60000 };
+
+      // Make some attempts
+      recordAttempt('window-test');
+      let result = checkRateLimit('window-test', config);
+      expect(result.remainingAttempts).toBe(0); // 2 - 1 - 1 = 0
+
+      // Advance time past the window
+      vi.advanceTimersByTime(61000);
+
+      // Should be reset - back to full attempts
+      result = checkRateLimit('window-test', config);
+      expect(result.allowed).toBe(true);
+      expect(result.remainingAttempts).toBe(config.maxAttempts - 1);
+    });
+
+    it('should release lockout after lockoutMs expires and window passes', () => {
+      // Note: After lockout expires, if still within window with max attempts,
+      // a new lockout is triggered. Must wait for window to expire too.
+      const config = { maxAttempts: 1, windowMs: 30000, lockoutMs: 30000 };
+
+      // Trigger lockout
+      checkRateLimit('lockout-expire', config);
+      recordAttempt('lockout-expire');
+      let result = checkRateLimit('lockout-expire', config);
+      expect(result.allowed).toBe(false);
+      expect(result.retryAfterMs).toBe(30000);
+
+      // Advance time partially - still locked
+      vi.advanceTimersByTime(15000);
+      result = checkRateLimit('lockout-expire', config);
+      expect(result.allowed).toBe(false);
+
+      // Advance past both lockout AND window (30s + 30s = 60s total needed, we're at 15s, need 46s more)
+      vi.advanceTimersByTime(46000);
+      result = checkRateLimit('lockout-expire', config);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('should correctly calculate remaining lockout time', () => {
+      const config = { maxAttempts: 1, windowMs: 60000, lockoutMs: 60000 };
+
+      // Trigger lockout
+      checkRateLimit('time-calc', config);
+      recordAttempt('time-calc');
+      checkRateLimit('time-calc', config);
+
+      // Advance 20 seconds
+      vi.advanceTimersByTime(20000);
+
+      const result = checkRateLimit('time-calc', config);
+      expect(result.allowed).toBe(false);
+      // Should have ~40 seconds remaining (60000 - 20000 = 40000)
+      expect(result.retryAfterMs).toBeGreaterThan(39000);
+      expect(result.retryAfterMs).toBeLessThanOrEqual(40000);
     });
   });
 });

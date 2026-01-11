@@ -688,12 +688,14 @@ describe('Budget Operations', () => {
     it('should create budgets based on 12-month spending average', () => {
       const db = getTestDatabase();
       const now = new Date().toISOString();
-      
+
       // Create transactions over the past 12 months before March 2025
       // For categoryId1: 100 per month = 1200 total over 12 months = 100 average
       for (let i = 1; i <= 12; i++) {
-        const year = i <= 2 ? 2024 : 2024;
-        const month = (14 - i) % 12 + 1; // Goes from Feb 2025 back to Mar 2024
+        // Calculate date i months before March 2025
+        const targetDate = new Date(2025, 2 - i, 15); // Month is 0-indexed, so 2 = March
+        const year = targetDate.getFullYear();
+        const month = targetDate.getMonth() + 1; // Convert back to 1-indexed
         const dateStr = `${year}-${String(month).padStart(2, '0')}-15`;
         
         db.prepare(`
