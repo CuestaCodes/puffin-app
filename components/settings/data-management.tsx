@@ -595,6 +595,9 @@ export function DataManagement({ onBack }: DataManagementProps) {
               <CardDescription className="text-slate-400">
                 Automatic backups created before sync operations
               </CardDescription>
+              <p className="text-xs text-slate-500 mt-1">
+                Stored in: <code className="text-slate-400">%APPDATA%\com.cuestacodes.puffin\backups</code>
+              </p>
             </div>
           </div>
         </CardHeader>

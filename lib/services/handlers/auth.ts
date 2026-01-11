@@ -486,6 +486,42 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   await db.execute('DELETE FROM sync_log');
   await db.execute('DELETE FROM net_worth_entry');
 
+  // Delete all local backups (full reset means starting completely fresh)
+  try {
+    const { remove, exists, readDir } = await import('@tauri-apps/plugin-fs');
+    const { appDataDir, join } = await import('@tauri-apps/api/path');
+
+    const dataDir = await appDataDir();
+    const backupsDir = await join(dataDir, 'backups');
+
+    if (await exists(backupsDir)) {
+      const entries = await readDir(backupsDir);
+      for (const entry of entries) {
+        if (entry.name?.endsWith('.db')) {
+          try {
+            await remove(await join(backupsDir, entry.name));
+          } catch (err) {
+            console.warn(`Failed to delete backup ${entry.name}:`, err);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to clear backups directory:', err);
+    // Continue with reset even if backup deletion fails
+  }
+
+  // Clear sync-related localStorage
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('puffin_sync_config');
+    localStorage.removeItem('puffin_sync_credentials');
+    localStorage.removeItem('puffin_oauth_tokens');
+    localStorage.removeItem('puffin_oauth_configured');
+    localStorage.removeItem('puffin_oauth_authenticated');
+    localStorage.removeItem('puffin_oauth_extended_scope');
+    localStorage.removeItem('puffin_session');
+  }
+
   // Clear session and rate limit
   setAuthState(false);
   clearRateLimitState();
