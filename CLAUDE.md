@@ -34,6 +34,7 @@
 ```
 app/           # Next.js App Router pages and API routes
 components/    # React UI components
+  rules/       # Auto-categorization rule components (RuleDialog)
 lib/           # Utility functions, database layer, validations
   auth/        # Authentication (PIN hashing, session, rate limiting)
   data/        # Data management utilities (backups, exports, formatting)
@@ -496,6 +497,74 @@ const handleComplete = useCallback(async () => {
 }, []);
 ```
 **Rule of thumb:** If a modal/dialog only appears in response to a specific action, the completion handler should always perform that action rather than checking state.
+
+### Debouncing API Calls in Input Handlers
+When user input triggers API calls (e.g., search-as-you-type, live preview), always debounce:
+```typescript
+// ✅ CORRECT - Debounce with useRef
+const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+const handleInputChange = (value: string) => {
+  setValue(value);
+
+  if (debounceRef.current) {
+    clearTimeout(debounceRef.current);
+  }
+  debounceRef.current = setTimeout(() => {
+    fetchData(value);  // API call
+  }, 300);
+};
+
+// ❌ WRONG - API call on every keystroke
+const handleInputChange = (value: string) => {
+  setValue(value);
+  fetchData(value);  // Fires on every character typed
+};
+```
+
+### Fire-and-Forget API Calls
+When making API calls where you don't need to await the result, use `void` prefix and add error handling:
+```typescript
+// ✅ CORRECT - Explicit fire-and-forget with error handling
+const closeDialog = () => {
+  setOpen(false);
+  void api.get('/api/data').then(result => {
+    // handle result
+  }).catch(err => {
+    console.error('Failed to fetch:', err);
+  });
+};
+
+// ❌ WRONG - Unhandled promise, no error handling
+const closeDialog = () => {
+  setOpen(false);
+  api.get('/api/data').then(result => {
+    // handle result
+  });
+};
+```
+
+### useCallback/useEffect Declaration Order
+When a `useCallback` is used in a `useEffect` dependency array, define the callback **before** the useEffect:
+```typescript
+// ✅ CORRECT - Callback defined before useEffect that uses it
+const fetchData = useCallback(async () => {
+  // ...
+}, []);
+
+useEffect(() => {
+  fetchData();
+}, [fetchData]);
+
+// ❌ WRONG - TypeScript error: "used before declaration"
+useEffect(() => {
+  fetchData();
+}, [fetchData]);
+
+const fetchData = useCallback(async () => {
+  // ...
+}, []);
+```
 
 For file uploads:
 - Enforce size limits (e.g., `MAX_BACKUP_SIZE = 100MB` in `lib/data/utils.ts`)
