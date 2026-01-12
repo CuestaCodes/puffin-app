@@ -6,10 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight, 
+import {
+  Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight,
   Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2,
-  CloudOff
+  Sparkles
 } from 'lucide-react';
 import { ImportWizard, PasteImport } from '@/components/import';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,7 +23,7 @@ import {
   SplitModal,
   type FilterValues 
 } from '@/components/transactions';
-import { useSyncContextOptional } from '@/hooks/use-sync-context';
+import { RuleDialog } from '@/components/rules';
 import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult } from '@/types/import';
 import { cn } from '@/lib/utils';
@@ -58,10 +58,6 @@ function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: Sort
 }
 
 function TransactionsPageContent() {
-  // Sync context for edit locking
-  const syncContext = useSyncContextOptional();
-  const canEdit = syncContext?.canEdit ?? true;
-  
   // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterValues>(emptyFilters);
@@ -72,6 +68,7 @@ function TransactionsPageContent() {
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
   const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
+  const [creatingRuleFromTransaction, setCreatingRuleFromTransaction] = useState<TransactionWithCategory | null>(null);
   
   // Data
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
@@ -301,16 +298,6 @@ function TransactionsPageContent() {
   return (
     <>
       <div className="space-y-6">
-        {/* Edit Locked Banner */}
-        {!canEdit && (
-          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2">
-            <CloudOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
-            <p className="text-sm text-amber-300">
-              Editing is disabled until you sync with the cloud. Please resolve the sync conflict to continue.
-            </p>
-          </div>
-        )}
-
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -320,19 +307,17 @@ function TransactionsPageContent() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowImport(true)}
-              disabled={!canEdit}
-              className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-50"
+              className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
             >
               <Upload className="w-4 h-4" />
               Import CSV
             </Button>
-            <Button 
+            <Button
               onClick={handleAddTransaction}
-              disabled={!canEdit}
-              className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:from-slate-600 disabled:to-slate-700"
+              className="gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20"
             >
               <Plus className="w-4 h-4" />
               Add Transaction
@@ -382,8 +367,7 @@ function TransactionsPageContent() {
                 variant="outline"
                 size="sm"
                 onClick={handleBulkDelete}
-                disabled={!canEdit}
-                className="gap-1 border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                className="gap-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
               >
                 <Trash2 className="w-3 h-3" />
                 Delete
@@ -419,19 +403,17 @@ function TransactionsPageContent() {
                 <p className="font-medium text-slate-400">No transactions yet</p>
                 <p className="text-sm mt-1">Import a CSV file or add transactions manually to get started</p>
                 <div className="flex justify-center gap-2 mt-4">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setShowImport(true)}
-                    disabled={!canEdit}
-                    className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                    className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800"
                   >
                     <Upload className="w-4 h-4" />
                     Import CSV
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleAddTransaction}
-                    disabled={!canEdit}
-                    className="gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
+                    className="gap-2 bg-cyan-600 hover:bg-cyan-500"
                   >
                     <Plus className="w-4 h-4" />
                     Add Transaction
@@ -547,45 +529,51 @@ function TransactionsPageContent() {
                           </td>
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1">
+                              {/* Create Rule button */}
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-slate-400 hover:text-violet-400"
+                                onClick={() => setCreatingRuleFromTransaction(tx)}
+                                title="Create auto-categorization rule"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                              </Button>
                               {/* Split/Unsplit button */}
                               {tx.is_split ? (
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon-sm" 
-                                  className="text-violet-400 hover:text-violet-300 disabled:opacity-30"
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="text-violet-400 hover:text-violet-300"
                                   onClick={() => handleUnsplitTransaction(tx)}
                                   title="Unsplit transaction"
-                                  disabled={!canEdit}
                                 >
                                   <Undo2 className="w-4 h-4" />
                                 </Button>
                               ) : !tx.parent_transaction_id && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon-sm" 
-                                  className="text-slate-400 hover:text-violet-400 disabled:opacity-30"
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="text-slate-400 hover:text-violet-400"
                                   onClick={() => handleSplitTransaction(tx)}
                                   title="Split transaction"
-                                  disabled={!canEdit}
                                 >
                                   <Split className="w-4 h-4" />
                                 </Button>
                               )}
-                              <Button 
-                                variant="ghost" 
-                                size="icon-sm" 
-                                className="text-slate-400 hover:text-slate-200 disabled:opacity-30"
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-slate-400 hover:text-slate-200"
                                 onClick={() => handleEditTransaction(tx)}
-                                disabled={!canEdit}
                               >
                                 <Edit2 className="w-4 h-4" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon-sm" 
-                                className="text-slate-400 hover:text-red-400 disabled:opacity-30"
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-slate-400 hover:text-red-400"
                                 onClick={() => handleDeleteTransaction(tx)}
-                                disabled={!canEdit}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -699,6 +687,21 @@ function TransactionsPageContent() {
         onOpenChange={(open) => !open && setSplittingTransaction(null)}
         transaction={splittingTransaction}
         onSuccess={handleSplitSuccess}
+      />
+
+      {/* Create Rule from Transaction Dialog */}
+      <RuleDialog
+        open={!!creatingRuleFromTransaction}
+        onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
+        defaultMatchText={creatingRuleFromTransaction?.description || ''}
+        defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
+        onSuccess={(rule, appliedCount) => {
+          setCreatingRuleFromTransaction(null);
+          // Refresh transactions if rule was applied to update categories
+          if (appliedCount && appliedCount > 0) {
+            fetchTransactions();
+          }
+        }}
       />
     </>
   );

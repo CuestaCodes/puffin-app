@@ -4,6 +4,9 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Create auto-categorization rule from any transaction row (Sparkles button) - available on both the main Transactions page and the Monthly Budget transaction list
+
 ### Fixed
 - "Forget PIN" reset now properly deletes local backup files and clears sync configuration (previously only cleared database tables)
 - Local Backups section now shows storage location path

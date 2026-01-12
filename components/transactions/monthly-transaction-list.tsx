@@ -6,18 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  Plus, Search, X, ChevronLeft, ChevronRight, 
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter
+import {
+  Plus, Search, X, ChevronLeft, ChevronRight,
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter, Sparkles
 } from 'lucide-react';
-import { 
-  TransactionForm, 
-  DeleteDialog, 
+import {
+  TransactionForm,
+  DeleteDialog,
   CategorySelector,
   SplitModal,
   FiltersPopover,
   type FilterValues,
 } from '@/components/transactions';
+import { RuleDialog } from '@/components/rules';
 import type { TransactionWithCategory } from '@/types/database';
 import { cn } from '@/lib/utils';
 
@@ -89,6 +90,7 @@ export function MonthlyTransactionList({
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
   const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
+  const [creatingRuleFromTransaction, setCreatingRuleFromTransaction] = useState<TransactionWithCategory | null>(null);
   
   // Data
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
@@ -584,6 +586,16 @@ export function MonthlyTransactionList({
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {/* Create Rule button */}
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-slate-400 hover:text-violet-400"
+                              onClick={() => setCreatingRuleFromTransaction(tx)}
+                              title="Create auto-categorization rule"
+                            >
+                              <Sparkles className="w-4 h-4" />
+                            </Button>
                             {/* Split/Unsplit button */}
                             {tx.is_split ? (
                               <Button 
@@ -688,6 +700,21 @@ export function MonthlyTransactionList({
         onOpenChange={(open) => !open && setSplittingTransaction(null)}
         transaction={splittingTransaction}
         onSuccess={handleSplitSuccess}
+      />
+
+      {/* Create Rule Dialog */}
+      <RuleDialog
+        open={!!creatingRuleFromTransaction}
+        onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
+        defaultMatchText={creatingRuleFromTransaction?.description || ''}
+        defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
+        onSuccess={(rule, appliedCount) => {
+          setCreatingRuleFromTransaction(null);
+          if (appliedCount && appliedCount > 0) {
+            fetchTransactions();
+            onCategoryChange?.();
+          }
+        }}
       />
     </>
   );
