@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,7 +76,9 @@ export function RuleDialog({
 
   // Duplicate check state
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
-  const [duplicateRuleId, setDuplicateRuleId] = useState<string | null>(null);
+
+  // Debounce ref for test rule
+  const testDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Apply dialog state
   const [showApplyDialog, setShowApplyDialog] = useState(false);
@@ -88,50 +90,6 @@ export function RuleDialog({
   // Save state
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Initialize form when dialog opens
-  useEffect(() => {
-    if (open) {
-      if (editingRule) {
-        setMatchText(editingRule.match_text);
-        setCategoryId(editingRule.sub_category_id);
-      } else {
-        setMatchText(defaultMatchText);
-        setCategoryId(defaultCategoryId);
-      }
-      setTestMatches([]);
-      setError(null);
-      setShowDuplicateWarning(false);
-      setDuplicateRuleId(null);
-
-      // Test the default match text if provided
-      if (defaultMatchText && !editingRule) {
-        testRule(defaultMatchText);
-      }
-    }
-  }, [open, editingRule, defaultMatchText, defaultCategoryId]);
-
-  // Fetch categories when dialog opens
-  useEffect(() => {
-    if (open && categories.length === 0) {
-      fetchCategories();
-    }
-  }, [open, categories.length]);
-
-  const fetchCategories = async () => {
-    try {
-      const result = await api.get<{ categories: Array<{ subCategories: SubCategoryWithUpper[] }> }>('/api/categories');
-      if (result.data) {
-        const allSubs: SubCategoryWithUpper[] = [];
-        for (const group of result.data.categories) {
-          allSubs.push(...group.subCategories);
-        }
-        setCategories(allSubs);
-      }
-    } catch (err) {
-      console.error('Failed to fetch categories:', err);
-    }
-  };
 
   // Test rule against existing transactions
   const testRule = useCallback(async (text: string) => {
@@ -154,6 +112,49 @@ export function RuleDialog({
       setIsTesting(false);
     }
   }, []);
+
+  // Initialize form when dialog opens
+  useEffect(() => {
+    if (open) {
+      if (editingRule) {
+        setMatchText(editingRule.match_text);
+        setCategoryId(editingRule.sub_category_id);
+      } else {
+        setMatchText(defaultMatchText);
+        setCategoryId(defaultCategoryId);
+      }
+      setTestMatches([]);
+      setError(null);
+      setShowDuplicateWarning(false);
+
+      // Test the default match text if provided
+      if (defaultMatchText && !editingRule) {
+        testRule(defaultMatchText);
+      }
+    }
+  }, [open, editingRule, defaultMatchText, defaultCategoryId, testRule]);
+
+  // Fetch categories when dialog opens
+  useEffect(() => {
+    if (open && categories.length === 0) {
+      fetchCategories();
+    }
+  }, [open, categories.length]);
+
+  const fetchCategories = async () => {
+    try {
+      const result = await api.get<{ categories: Array<{ subCategories: SubCategoryWithUpper[] }> }>('/api/categories');
+      if (result.data) {
+        const allSubs: SubCategoryWithUpper[] = [];
+        for (const group of result.data.categories) {
+          allSubs.push(...group.subCategories);
+        }
+        setCategories(allSubs);
+      }
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    }
+  };
 
   // Check for duplicate match_text
   const checkDuplicate = async (text: string): Promise<string | null> => {
@@ -179,7 +180,6 @@ export function RuleDialog({
     if (!editingRule || editingRule.match_text !== matchText) {
       const duplicateId = await checkDuplicate(matchText);
       if (duplicateId) {
-        setDuplicateRuleId(duplicateId);
         setShowDuplicateWarning(true);
         return;
       }
@@ -265,20 +265,29 @@ export function RuleDialog({
 
     // Fetch the updated rule to get match_count
     if (savedRuleId) {
-      api.get<AutoCategoryRule[]>('/api/rules').then(result => {
+      void api.get<AutoCategoryRule[]>('/api/rules').then(result => {
         if (result.data) {
           const rule = result.data.find(r => r.id === savedRuleId);
           if (rule) {
             onSuccess?.(rule, applyResult?.count);
           }
         }
+      }).catch(err => {
+        console.error('Failed to fetch updated rule:', err);
       });
     }
   };
 
   const handleMatchTextChange = (value: string) => {
     setMatchText(value);
-    testRule(value);
+
+    // Debounce test rule calls
+    if (testDebounceRef.current) {
+      clearTimeout(testDebounceRef.current);
+    }
+    testDebounceRef.current = setTimeout(() => {
+      testRule(value);
+    }, 300);
   };
 
   const formatCurrency = (amount: number) => {
