@@ -116,6 +116,13 @@ const result = await api.get('/api/transactions');
 2. Register in `lib/services/handlers/index.ts`
 3. Use `tauri-db` functions instead of `lib/db/` imports
 
+**Reset/Clear Operations in Tauri Mode:**
+When implementing reset or clear functionality in handlers, remember to clean up:
+- Database tables (via SQL)
+- Backup files in `appDataDir()/backups/`
+- Sync-related localStorage keys (`puffin_sync_*`)
+- Any encrypted config files (`.sync-*.enc`, `sync-config.json`)
+
 ### Tauri Capabilities
 
 Permissions are configured in `src-tauri/capabilities/default.json`. Key permissions:
@@ -266,6 +273,12 @@ Sync state uses encrypted JSON files (not SQLite) for portability:
 - OAuth flow: App starts local server → Opens browser → User authenticates → Google redirects to localhost → Server receives code → App exchanges code for tokens
 - **Google Cloud Console Setup Required**: Add `http://127.0.0.1` as an authorized redirect URI in your OAuth client settings (no port needed - Google allows any port with loopback addresses)
 
+**Local Change Detection:**
+- Database is hashed (SHA-256) after each successful sync
+- Hash stored in `sync-config.json` as `syncedDbHash`
+- On sync check, current DB hash is compared to stored hash
+- Hash mismatch = local changes since last sync
+
 ## Key Commands
 
 ```bash
@@ -363,6 +376,15 @@ For copying transaction tables directly from PDF bank statements. Located in `li
 - Test files alongside source: `*.test.ts`
 - Prioritise tests for calculation logic (totals, percentages, budget comparisons)
 
+### Test Utilities
+Shared test helpers are in `lib/db/test-utils.ts`:
+- `TEST_TIMESTAMP` - Fixed timestamp for deterministic tests
+- `TEST_SCHEMA` - Complete database schema for in-memory test DBs
+- `createTestDatabase(path)` - Creates test DB with schema
+- `cleanupTestDb(db, path)` - Closes connection and deletes file
+
+Use these instead of duplicating schema across test files.
+
 ### Sync Module Testing
 - Mock `fs` module for config/token storage tests
 - Mock `googleapis` with class-style OAuth2 constructor
@@ -422,6 +444,13 @@ For destructive operations (delete, restore, reset, clear):
 - Use destructive variant styling for delete buttons
 
 **CRITICAL - Tauri Mode:** Never use `window.confirm()` or `window.alert()` in Tauri. These don't block execution properly in the webview, causing actions to execute immediately without waiting for user response. Always use React-based dialogs (AlertDialog).
+
+### Sync Conflict Resolution
+The app uses a **blocking modal** pattern for sync conflicts (`SyncConflictDialog`):
+- Dialog cannot be dismissed (no escape key, no click-outside, no close button)
+- User MUST choose "Use Cloud" or "Use Local" before continuing
+- Therefore, individual `disabled={!canEdit}` checks on buttons are **unnecessary**
+- The `canEdit` flag from `useSyncContext` controls dialog visibility, not button states
 
 ### Modal Completion
 Success callbacks (`onComplete`, `onSuccess`) should ALWAYS close the modal:
