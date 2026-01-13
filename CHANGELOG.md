@@ -13,6 +13,7 @@ All notable changes to Puffin will be documented in this file.
 - Local Backups section now shows storage location path
 - "Restore Backup" button for local backups now works (was throwing an error instead of restoring)
 - Sync conflict detection now works in Tauri mode (was always returning "in sync")
+- OAuth access token now automatically refreshes when expired in Tauri mode (previously required re-authentication after 1 hour)
 
 ### Improved
 - Rule dialog now debounces match text preview (reduces API calls while typing)

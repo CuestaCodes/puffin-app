@@ -827,8 +827,36 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
 }
 
 /**
+ * Refresh an expired access token using the refresh token.
+ * Google does NOT return a new refresh_token - keep using the original one.
+ */
+async function refreshAccessToken(
+  refreshToken: string,
+  credentials: SyncCredentials
+): Promise<{ access_token: string; expires_in: number }> {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error_description || 'Failed to refresh token');
+  }
+
+  return response.json();
+}
+
+/**
  * Access token handler - /api/sync/token
- * Returns the stored OAuth access token for the Google Picker
+ * Returns the stored OAuth access token for the Google Picker.
+ * Automatically refreshes the token if expired.
  */
 export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
@@ -843,21 +871,60 @@ export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
     throw new Error('Not authenticated. Please sign in with Google first.');
   }
 
+  let tokens: {
+    access_token: string;
+    refresh_token?: string;
+    expiry_date?: number;
+    token_type?: string;
+    scope?: string;
+  };
+
   try {
-    const tokens = JSON.parse(stored);
-
-    // Check if token is expired
-    if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
-      // Token expired - need to refresh
-      // For now, just return error - user needs to re-authenticate
-      throw new Error('Access token expired. Please sign in again.');
-    }
-
-    return { accessToken: tokens.access_token };
-  } catch (e) {
-    if (e instanceof Error) throw e;
+    tokens = JSON.parse(stored);
+  } catch {
     throw new Error('Invalid token data');
   }
+
+  // Check if token is expired
+  if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
+    // Token expired - attempt refresh
+    if (!tokens.refresh_token) {
+      throw new Error('Access token expired and no refresh token available. Please sign in again.');
+    }
+
+    // Get credentials for refresh
+    const credentialsStored = localStorage.getItem(SYNC_CREDENTIALS_KEY);
+    if (!credentialsStored) {
+      throw new Error('OAuth credentials not found. Please sign in again.');
+    }
+
+    let credentials: SyncCredentials;
+    try {
+      credentials = JSON.parse(credentialsStored);
+    } catch {
+      throw new Error('Invalid credentials data. Please sign in again.');
+    }
+
+    try {
+      const refreshed = await refreshAccessToken(tokens.refresh_token, credentials);
+
+      // Update stored tokens (keep original refresh_token)
+      const updatedTokens = {
+        ...tokens,
+        access_token: refreshed.access_token,
+        expiry_date: Date.now() + (refreshed.expires_in * 1000),
+      };
+      localStorage.setItem('puffin_oauth_tokens', JSON.stringify(updatedTokens));
+
+      return { accessToken: refreshed.access_token };
+    } catch (e) {
+      // Refresh failed - user needs to re-authenticate
+      console.error('Token refresh failed:', e);
+      throw new Error('Failed to refresh access token. Please sign in again.');
+    }
+  }
+
+  return { accessToken: tokens.access_token };
 }
 
 /**
