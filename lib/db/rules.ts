@@ -89,18 +89,29 @@ export function getRuleById(id: string): AutoCategoryRuleWithCategory | null {
 
 /**
  * Create a new auto-categorisation rule
+ * @param input.add_to_top - If true, adds rule at top (priority 0) and shifts others down
  */
-export function createRule(input: CreateAutoRuleInput): AutoCategoryRule {
+export function createRule(input: CreateAutoRuleInput & { add_to_top?: boolean }): AutoCategoryRule {
   const db = getDatabase();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  // Get the next priority (add to end of list)
-  const maxPriority = db.prepare(
-    'SELECT COALESCE(MAX(priority), -1) as max_priority FROM auto_category_rule'
-  ).get() as { max_priority: number };
+  let priority: number;
 
-  const priority = maxPriority.max_priority + 1;
+  if (input.add_to_top) {
+    // Shift all existing rules down and add at top
+    const transaction = db.transaction(() => {
+      db.prepare('UPDATE auto_category_rule SET priority = priority + 1').run();
+    });
+    transaction();
+    priority = 0;
+  } else {
+    // Add to end of list (default behavior)
+    const maxPriority = db.prepare(
+      'SELECT COALESCE(MAX(priority), -1) as max_priority FROM auto_category_rule'
+    ).get() as { max_priority: number };
+    priority = maxPriority.max_priority + 1;
+  }
 
   db.prepare(`
     INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)

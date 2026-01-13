@@ -5,6 +5,7 @@ import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,7 @@ export function RuleDialog({
   const [matchText, setMatchText] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [categories, setCategories] = useState<SubCategoryWithUpper[]>([]);
+  const [addToTop, setAddToTop] = useState(false);
 
   // Test/preview state
   const [testMatches, setTestMatches] = useState<Array<{ id: string; description: string; date: string; amount: number }>>([]);
@@ -126,6 +128,7 @@ export function RuleDialog({
       setTestMatches([]);
       setError(null);
       setShowDuplicateWarning(false);
+      setAddToTop(false);
 
       // Test the default match text if provided
       if (defaultMatchText && !editingRule) {
@@ -204,6 +207,7 @@ export function RuleDialog({
         : await api.post<AutoCategoryRule>(url, {
             match_text: matchText,
             sub_category_id: categoryId,
+            add_to_top: addToTop,
           });
 
       if (result.data) {
@@ -357,6 +361,23 @@ export function RuleDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Add to top option - only for new rules */}
+            {!editingRule && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="add-to-top"
+                  checked={addToTop}
+                  onCheckedChange={(checked) => setAddToTop(checked === true)}
+                />
+                <label
+                  htmlFor="add-to-top"
+                  className="text-sm text-slate-300 cursor-pointer"
+                >
+                  Add to top of list (highest priority)
+                </label>
+              </div>
+            )}
 
             {/* Test results */}
             {matchText.trim() && (

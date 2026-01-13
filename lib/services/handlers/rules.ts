@@ -55,7 +55,7 @@ export async function handleRules(ctx: HandlerContext): Promise<unknown> {
       }
       return getAllRules();
     case 'POST':
-      return createRule(body as { match_text: string; sub_category_id: string });
+      return createRule(body as { match_text: string; sub_category_id: string; add_to_top?: boolean });
     case 'PUT':
       return updateRulePriorities(body as { ruleIds: string[] });
     default:
@@ -162,17 +162,25 @@ async function getRuleById(id: string): Promise<RuleWithCategory | null> {
 
 /**
  * Create a new rule.
+ * @param data.add_to_top - If true, adds rule at top (priority 0) and shifts others down
  */
-async function createRule(data: { match_text: string; sub_category_id: string }): Promise<AutoCategoryRule> {
+async function createRule(data: { match_text: string; sub_category_id: string; add_to_top?: boolean }): Promise<AutoCategoryRule> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  // Get the next priority
-  const maxPriority = await db.queryOne<{ max_priority: number }>(
-    'SELECT COALESCE(MAX(priority), -1) as max_priority FROM auto_category_rule'
-  );
+  let priority: number;
 
-  const priority = (maxPriority?.max_priority ?? -1) + 1;
+  if (data.add_to_top) {
+    // Shift all existing rules down and add at top
+    await db.execute('UPDATE auto_category_rule SET priority = priority + 1');
+    priority = 0;
+  } else {
+    // Add to end of list (default behavior)
+    const maxPriority = await db.queryOne<{ max_priority: number }>(
+      'SELECT COALESCE(MAX(priority), -1) as max_priority FROM auto_category_rule'
+    );
+    priority = (maxPriority?.max_priority ?? -1) + 1;
+  }
 
   await db.execute(`
     INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)

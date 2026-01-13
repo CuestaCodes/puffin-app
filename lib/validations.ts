@@ -65,6 +65,7 @@ export const updateBudgetSchema = z.object({
 export const createAutoRuleSchema = z.object({
   match_text: z.string().min(1, 'Match text is required').max(200, 'Match text too long'),
   sub_category_id: z.string().regex(uuidPattern, 'Invalid category ID'),
+  add_to_top: z.boolean().optional(),
 });
 
 export const updateAutoRuleSchema = z.object({

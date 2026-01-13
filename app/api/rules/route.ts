@@ -86,8 +86,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { match_text, sub_category_id } = parseResult.data;
-    const rule = createRule({ match_text, sub_category_id });
+    const { match_text, sub_category_id, add_to_top } = parseResult.data;
+    const rule = createRule({ match_text, sub_category_id, add_to_top });
     return NextResponse.json(rule, { status: 201 });
   } catch (error) {
     console.error('Error creating rule:', error);
