@@ -15,6 +15,7 @@ All notable changes to Puffin will be documented in this file.
 - Sync conflict detection now works in Tauri mode (was always returning "in sync")
 
 ### Improved
+- Rule dialog now debounces match text preview (reduces API calls while typing)
 - Test suite quality improvements:
   - Added shared test utilities (`lib/db/test-utils.ts`)
   - Fixed date calculation bug in budgets 12-month average test
