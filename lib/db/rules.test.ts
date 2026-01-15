@@ -535,6 +535,141 @@ describe('Auto-Categorisation Rules', () => {
     });
   });
 
+  describe('Add to Top Priority Option', () => {
+    it('should add rule to top with priority 0 when add_to_top is true', () => {
+      const now = new Date().toISOString();
+
+      // Create existing rules with priorities 0, 1, 2
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-1', 'WOOLWORTHS', 'sub-groceries', 0, 1, 0, now, now);
+
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-2', 'COLES', 'sub-groceries', 1, 1, 0, now, now);
+
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-3', 'ALDI', 'sub-groceries', 2, 1, 0, now, now);
+
+      // Simulate add_to_top logic: shift all existing rules down
+      db.prepare('UPDATE auto_category_rule SET priority = priority + 1').run();
+
+      // Insert new rule at priority 0
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-new', 'NETFLIX', 'sub-dining', 0, 1, 0, now, now);
+
+      const rules = db.prepare('SELECT id, match_text, priority FROM auto_category_rule ORDER BY priority').all() as Array<{
+        id: string;
+        match_text: string;
+        priority: number;
+      }>;
+
+      expect(rules).toHaveLength(4);
+      // New rule should be at top (priority 0)
+      expect(rules[0].id).toBe('rule-new');
+      expect(rules[0].match_text).toBe('NETFLIX');
+      expect(rules[0].priority).toBe(0);
+      // Existing rules should be shifted down
+      expect(rules[1].id).toBe('rule-1');
+      expect(rules[1].priority).toBe(1);
+      expect(rules[2].id).toBe('rule-2');
+      expect(rules[2].priority).toBe(2);
+      expect(rules[3].id).toBe('rule-3');
+      expect(rules[3].priority).toBe(3);
+    });
+
+    it('should add rule to bottom when add_to_top is false or undefined', () => {
+      const now = new Date().toISOString();
+
+      // Create existing rules
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-1', 'WOOLWORTHS', 'sub-groceries', 0, 1, 0, now, now);
+
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-2', 'COLES', 'sub-groceries', 1, 1, 0, now, now);
+
+      // Get max priority and add at end
+      const maxPriority = db.prepare('SELECT COALESCE(MAX(priority), -1) as max FROM auto_category_rule').get() as { max: number };
+      const newPriority = maxPriority.max + 1;
+
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-new', 'NETFLIX', 'sub-dining', newPriority, 1, 0, now, now);
+
+      const rules = db.prepare('SELECT id, match_text, priority FROM auto_category_rule ORDER BY priority').all() as Array<{
+        id: string;
+        match_text: string;
+        priority: number;
+      }>;
+
+      expect(rules).toHaveLength(3);
+      // New rule should be at bottom
+      expect(rules[2].id).toBe('rule-new');
+      expect(rules[2].priority).toBe(2);
+      // Existing rules should maintain their priorities
+      expect(rules[0].id).toBe('rule-1');
+      expect(rules[0].priority).toBe(0);
+      expect(rules[1].id).toBe('rule-2');
+      expect(rules[1].priority).toBe(1);
+    });
+
+    it('should add first rule with priority 0 regardless of add_to_top option', () => {
+      const now = new Date().toISOString();
+
+      // No existing rules - get max priority
+      const maxPriority = db.prepare('SELECT COALESCE(MAX(priority), -1) as max FROM auto_category_rule').get() as { max: number };
+      const newPriority = maxPriority.max + 1;
+
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-first', 'NETFLIX', 'sub-dining', newPriority, 1, 0, now, now);
+
+      const rule = db.prepare('SELECT * FROM auto_category_rule WHERE id = ?').get('rule-first') as { priority: number };
+
+      expect(rule.priority).toBe(0);
+    });
+
+    it('should maintain first match wins behavior after adding to top', () => {
+      const now = new Date().toISOString();
+
+      // Create a rule that matches "UBER" -> groceries
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-uber', 'UBER', 'sub-groceries', 0, 1, 0, now, now);
+
+      // Add a more specific rule to top: "UBER EATS" -> dining
+      db.prepare('UPDATE auto_category_rule SET priority = priority + 1').run();
+      db.prepare(`
+        INSERT INTO auto_category_rule (id, match_text, sub_category_id, priority, is_active, match_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run('rule-uber-eats', 'UBER EATS', 'sub-dining', 0, 1, 0, now, now);
+
+      // Test matching "UBER EATS SYDNEY" - should match the top rule first
+      const matches = db.prepare(`
+        SELECT * FROM auto_category_rule
+        WHERE is_active = 1 AND LOWER(?) LIKE '%' || LOWER(match_text) || '%'
+        ORDER BY priority
+      `).all('UBER EATS SYDNEY') as Array<{ id: string; sub_category_id: string }>;
+
+      expect(matches).toHaveLength(2); // Both rules match
+      expect(matches[0].id).toBe('rule-uber-eats'); // More specific rule should be first
+      expect(matches[0].sub_category_id).toBe('sub-dining');
+    });
+  });
+
   describe('Rule Statistics', () => {
     it('should get correct rule statistics', () => {
       const now = new Date().toISOString();

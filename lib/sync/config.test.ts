@@ -383,6 +383,90 @@ describe('SyncConfigManager', () => {
     });
   });
 
+  describe('Hash-Based Sync Detection', () => {
+    it('should detect changes when database hash differs from synced hash', () => {
+      const oldContent = Buffer.from('old database content');
+      const newContent = Buffer.from('new database content');
+      const oldHash = crypto.createHash('sha256').update(oldContent).digest('hex');
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockImplementation((filePath) => {
+        if ((filePath as string).includes('config')) {
+          return JSON.stringify({ folderId: 'folder-123', syncedDbHash: oldHash });
+        }
+        return newContent; // Current DB has different content
+      });
+
+      expect(SyncConfigManager.hasLocalChanges()).toBe(true);
+    });
+
+    it('should detect no changes when database hash matches synced hash', () => {
+      const content = Buffer.from('same database content');
+      const hash = crypto.createHash('sha256').update(content).digest('hex');
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockImplementation((filePath) => {
+        if ((filePath as string).includes('config')) {
+          return JSON.stringify({ folderId: 'folder-123', syncedDbHash: hash });
+        }
+        return content; // Same content as stored hash
+      });
+
+      expect(SyncConfigManager.hasLocalChanges()).toBe(false);
+    });
+
+    it('should compute consistent SHA-256 hash for same content', () => {
+      const content = Buffer.from('test content for hashing');
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(content);
+
+      const hash1 = SyncConfigManager.computeDbHash('/path/to/db');
+      const hash2 = SyncConfigManager.computeDbHash('/path/to/db');
+
+      expect(hash1).toBe(hash2);
+      expect(hash1).toHaveLength(64); // SHA-256 produces 64 hex characters
+    });
+
+    it('should produce different hashes for different content', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      vi.mocked(fs.readFileSync).mockReturnValueOnce(Buffer.from('content A'));
+      const hashA = SyncConfigManager.computeDbHash('/path/to/db');
+
+      vi.mocked(fs.readFileSync).mockReturnValueOnce(Buffer.from('content B'));
+      const hashB = SyncConfigManager.computeDbHash('/path/to/db');
+
+      expect(hashA).not.toBe(hashB);
+    });
+
+    it('should update syncedDbHash when marking as synced', () => {
+      const dbContent = Buffer.from('database content after sync');
+      const expectedHash = crypto.createHash('sha256').update(dbContent).digest('hex');
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockImplementation((filePath) => {
+        if ((filePath as string).includes('config')) {
+          return JSON.stringify({ folderId: 'folder-123', syncedDbHash: null });
+        }
+        return dbContent;
+      });
+
+      let writtenConfig: string | null = null;
+      vi.mocked(fs.writeFileSync).mockImplementation((_, data) => {
+        writtenConfig = data as string;
+      });
+      vi.mocked(fs.mkdirSync).mockImplementation(() => undefined);
+
+      SyncConfigManager.markSynced();
+
+      expect(writtenConfig).toBeTruthy();
+      const parsed = JSON.parse(writtenConfig!);
+      expect(parsed.syncedDbHash).toBe(expectedHash);
+      expect(parsed.lastSyncedAt).toBeDefined();
+    });
+  });
+
   describe('setBackupFileId', () => {
     it('should save backup file ID to config', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true);

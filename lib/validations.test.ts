@@ -424,7 +424,7 @@ describe('Auto-Categorization Rule Schemas', () => {
         match_text: 'GROCERY STORE',
         sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
       });
-      
+
       expect(result.success).toBe(true);
     });
 
@@ -433,7 +433,7 @@ describe('Auto-Categorization Rule Schemas', () => {
         match_text: '',
         sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
       });
-      
+
       expect(result.success).toBe(false);
     });
 
@@ -442,7 +442,55 @@ describe('Auto-Categorization Rule Schemas', () => {
         match_text: 'a'.repeat(201),
         sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
       });
-      
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate rule with add_to_top true', () => {
+      const result = createAutoRuleSchema.safeParse({
+        match_text: 'NETFLIX',
+        sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
+        add_to_top: true,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.add_to_top).toBe(true);
+      }
+    });
+
+    it('should validate rule with add_to_top false', () => {
+      const result = createAutoRuleSchema.safeParse({
+        match_text: 'SPOTIFY',
+        sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
+        add_to_top: false,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.add_to_top).toBe(false);
+      }
+    });
+
+    it('should validate rule without add_to_top (optional field)', () => {
+      const result = createAutoRuleSchema.safeParse({
+        match_text: 'UBER',
+        sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.add_to_top).toBeUndefined();
+      }
+    });
+
+    it('should reject non-boolean add_to_top', () => {
+      const result = createAutoRuleSchema.safeParse({
+        match_text: 'AMAZON',
+        sub_category_id: '123e4567-e89b-12d3-a456-426614174000',
+        add_to_top: 'yes',
+      });
+
       expect(result.success).toBe(false);
     });
   });
