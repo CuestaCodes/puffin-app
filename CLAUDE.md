@@ -64,6 +64,19 @@ Two-tier hierarchy:
 ### Soft Delete
 Transactions use `is_deleted` flag for soft delete, allowing recovery.
 
+**Sub-categories also use soft delete.** When querying tables that JOIN or reference `sub_category`, always filter out deleted categories:
+```typescript
+// ✅ CORRECT - Filter deleted categories in joins
+SELECT ... FROM budget b
+JOIN sub_category sc ON sc.id = b.sub_category_id
+WHERE sc.is_deleted = 0  -- Don't forget this!
+
+// ❌ WRONG - May return budgets for deleted categories
+SELECT ... FROM budget b
+JOIN sub_category sc ON sc.id = b.sub_category_id
+```
+Also wrap operations that create records referencing sub-categories in try-catch to handle race conditions where a category is deleted mid-operation.
+
 ### Database Abstraction
 `lib/db/` contains abstraction layer to switch between:
 - `better-sqlite3` for development (synchronous, fast iteration)
@@ -498,6 +511,12 @@ For copying transaction tables directly from PDF bank statements. Located in `li
 - Test files alongside source: `*.test.ts`
 - Prioritise tests for calculation logic (totals, percentages, budget comparisons)
 
+### UI Component Testing
+`@testing-library/react` is NOT installed. UI component tests should be skipped. Focus testing efforts on:
+- Database operation tests (`lib/db/*.test.ts`)
+- Calculation and utility function tests
+- Sync logic tests
+
 ### Test Utilities
 Shared test helpers are in `lib/db/test-utils.ts`:
 - `TEST_TIMESTAMP` - Fixed timestamp for deterministic tests
@@ -619,6 +638,33 @@ const handleComplete = useCallback(async () => {
 ```
 **Rule of thumb:** If a modal/dialog only appears in response to a specific action, the completion handler should always perform that action rather than checking state.
 
+### Null Comparison in Optional ID Checks
+When comparing optional IDs (e.g., `editingId === item.id`), remember that `null === null` is `true`:
+```typescript
+// ❌ WRONG - Returns true when both are null
+const isEditing = editingBudgetId === category.budget_id;
+
+// ✅ CORRECT - Guard against null comparison
+const isEditing = editingBudgetId !== null && editingBudgetId === category.budget_id;
+```
+This is especially important for "is currently editing" checks where items may not have IDs yet.
+
+### PropSync Pattern for Controlled Components
+When a component has internal state derived from props, sync it when props change externally:
+```typescript
+function MonthPicker({ selected }: { selected: Date }) {
+  const [displayYear, setDisplayYear] = useState(selected.getFullYear());
+
+  // ✅ CORRECT - Sync internal state when prop changes
+  useEffect(() => {
+    setDisplayYear(selected.getFullYear());
+  }, [selected]);
+
+  // ...
+}
+```
+Without this sync, state gets "stuck" when the parent updates the prop via a different mechanism (e.g., arrow buttons updating `selected` while user is in a different year view).
+
 ### Debouncing API Calls in Input Handlers
 When user input triggers API calls (e.g., search-as-you-type, live preview), always debounce:
 ```typescript
@@ -685,6 +731,20 @@ useEffect(() => {
 const fetchData = useCallback(async () => {
   // ...
 }, []);
+```
+
+### Accessibility: Icon-Only Buttons
+Icon-only buttons (no visible text) MUST have `aria-label` for screen readers:
+```typescript
+// ✅ CORRECT - Accessible
+<Button onClick={handlePrev} aria-label="Previous year">
+  <ChevronLeft className="h-4 w-4" />
+</Button>
+
+// ❌ WRONG - Screen reader sees no label
+<Button onClick={handlePrev}>
+  <ChevronLeft className="h-4 w-4" />
+</Button>
 ```
 
 For file uploads:
