@@ -311,6 +311,13 @@ When implementing sync operations, preserve device-specific tables:
 
 **CRITICAL:** Sync pull must save and restore `local_user` before/after replacing the database file. Otherwise, users get locked out when the cloud backup has a different PIN from their local device.
 
+**Session Tracking (Tauri-only):**
+The Tauri handler tracks which app session last modified the database using:
+- `SESSION_ID`: Generated on module load, unique per app instance
+- `LAST_MODIFY_SESSION_KEY`: localStorage key storing the session that last wrote data
+
+This enables blocking edits when `local_only` changes exist from a **previous** app session (user closed without syncing). The API routes (dev mode) don't have this - `canEdit` is always `true` for `local_only` in dev mode.
+
 ## Key Commands
 
 ```bash

@@ -138,6 +138,8 @@ export async function POST() {
         newDb.prepare(
           'INSERT INTO local_user (id, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)'
         ).run(localUserData.id, localUserData.password_hash, localUserData.created_at, localUserData.updated_at);
+        // Checkpoint WAL to ensure restored data is written to main file
+        newDb.pragma('wal_checkpoint(TRUNCATE)');
       }
 
       // Mark as synced - stores current local hash (the downloaded file) and timestamp

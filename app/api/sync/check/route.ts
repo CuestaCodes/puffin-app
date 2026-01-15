@@ -18,7 +18,8 @@ import { GoogleDriveService } from '@/lib/sync/google-drive';
 import type { SyncCheckResponse } from '@/types/sync';
 
 // Buffer for clock differences between local machine and Google servers
-const CLOCK_SKEW_BUFFER_MS = 60000; // 1 minute
+const CLOCK_SKEW_BUFFER_MS = 60000; // 1 minute - used when no hash available
+const HASH_MATCH_BUFFER_MS = 5000; // 5 seconds - used when hashes match (catches v1.0 pushes)
 
 // Re-export for backward compatibility
 export type { SyncCheckResponse } from '@/types/sync';
@@ -105,7 +106,8 @@ export async function GET() {
 
       // Also check timestamp as secondary signal for mixed-version compatibility
       // (v1.0 may push new data without updating the hash in description)
-      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + CLOCK_SKEW_BUFFER_MS) {
+      // Use smaller buffer since hash is primary signal
+      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + HASH_MATCH_BUFFER_MS) {
         hasCloudChanges = true;
       }
     } else if (cloudModifiedTime) {
@@ -128,11 +130,14 @@ export async function GET() {
 
     if (hasLocalChanges && !hasCloudChanges) {
       // Scenario: Local changes only (worked offline) - safe to upload
+      // NOTE: In Tauri mode, session tracking blocks editing if changes are from
+      // a previous app session. This API route (dev mode) doesn't have session
+      // tracking, so canEdit is always true for local_only.
       return NextResponse.json<SyncCheckResponse>({
         syncRequired: true,
         reason: 'local_only',
         message: 'You have local changes that haven\'t been uploaded yet.',
-        canEdit: true, // Allow editing - they can keep working
+        canEdit: true, // Always true in dev mode (no session tracking)
         hasLocalChanges: true,
         hasCloudChanges: false,
         lastSyncedAt: config.lastSyncedAt,
