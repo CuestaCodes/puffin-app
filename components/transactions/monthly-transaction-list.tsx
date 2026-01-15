@@ -532,7 +532,7 @@ export function MonthlyTransactionList({
                         </td>
                         <td className="py-3 px-4 text-sm text-slate-200 max-w-[300px]">
                           <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="truncate">{tx.description}</span>
                               {!!tx.is_split && (
                                 <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
