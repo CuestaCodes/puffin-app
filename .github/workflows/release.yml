@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.1.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,6 +20,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # Extract version from tag (v1.0.0 -> 1.0.0)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog
+        id: changelog
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Extract the section for this version from CHANGELOG.md
+          # Matches from "## [version]" until the next "## [" or end of file
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          # If no specific version found, try [Unreleased] section
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG=$(awk '
+              /^## \[Unreleased\]/ { found=1; next }
+              /^## \[/ { if (found) exit }
+              found { print }
+            ' CHANGELOG.md)
+          fi
+
+          # Escape for GitHub Actions output
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,20 +88,21 @@ jobs:
           tagName: v__VERSION__
           releaseName: 'Puffin v__VERSION__'
           releaseBody: |
-            First public release of Puffin - a privacy-first desktop budgeting app.
+            ${{ steps.changelog.outputs.changelog }}
 
-            ## Quick Start
+            ---
+
+            ## Installation
+
             1. Download the installer for your platform below
             2. Run the installer (click through SmartScreen warning on Windows)
             3. Set up a 6-digit PIN
             4. Start tracking your finances!
 
-            ## Documentation
-            See the [README](https://github.com/CuestaCodes/puffin-app#readme) for full documentation, features, and FAQ.
-
             ## Notes
+
             - Windows SmartScreen may show a warning - click "More info" → "Run anyway"
-            - macOS users: Right-click and select "Open" the first time
+            - See the [README](https://github.com/CuestaCodes/puffin-app#readme) for full documentation
           releaseDraft: true
           prerelease: false
           includeDebug: false
