@@ -505,6 +505,7 @@ async function ensureTemplateTable(): Promise<void> {
 
 /**
  * Copy budgets from one month to another.
+ * Skips budgets for deleted sub-categories.
  */
 async function copyBudgetsToMonth(
   fromYear: number,
@@ -516,13 +517,18 @@ async function copyBudgetsToMonth(
   let copiedCount = 0;
 
   for (const budget of sourceBudgets) {
-    await createOrUpdateBudget({
-      sub_category_id: budget.sub_category_id,
-      year: toYear,
-      month: toMonth,
-      amount: budget.amount,
-    });
-    copiedCount++;
+    try {
+      await createOrUpdateBudget({
+        sub_category_id: budget.sub_category_id,
+        year: toYear,
+        month: toMonth,
+        amount: budget.amount,
+      });
+      copiedCount++;
+    } catch (error) {
+      // Skip budgets for deleted categories
+      console.warn(`Skipping budget for deleted category ${budget.sub_category_id}`);
+    }
   }
 
   return copiedCount;
@@ -582,6 +588,7 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
       WHERE t.date >= ? AND t.date < ?
         AND t.is_deleted = 0
         AND t.is_split = 0
+        AND sc.is_deleted = 0
         AND uc.type NOT IN ('income', 'transfer')
         AND t.sub_category_id IS NOT NULL
       GROUP BY t.sub_category_id, strftime('%Y-%m', t.date)
@@ -593,13 +600,18 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
 
   for (const avg of averages) {
     if (avg.average > 0) {
-      await createOrUpdateBudget({
-        sub_category_id: avg.sub_category_id,
-        year,
-        month,
-        amount: Math.round(avg.average * 100) / 100,
-      });
-      updatedCount++;
+      try {
+        await createOrUpdateBudget({
+          sub_category_id: avg.sub_category_id,
+          year,
+          month,
+          amount: Math.round(avg.average * 100) / 100,
+        });
+        updatedCount++;
+      } catch (error) {
+        // Skip budgets for deleted categories
+        console.warn(`Skipping budget for deleted category ${avg.sub_category_id}`);
+      }
     }
   }
 

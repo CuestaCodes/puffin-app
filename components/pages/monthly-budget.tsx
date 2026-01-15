@@ -1,10 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
+import { MonthPicker } from '@/components/ui/month-picker';
 import { cn } from '@/lib/utils';
 import type { BudgetWithCategory, BudgetTemplate } from '@/types/database';
 
@@ -92,10 +98,13 @@ function MonthlyBudgetContent() {
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [showCopyConfirm, setShowCopyConfirm] = useState(false);
   const [showAverageConfirm, setShowAverageConfirm] = useState(false);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
 
   // Ref for smooth scrolling to transactions
   const transactionsRef = useRef<HTMLDivElement>(null);
-  
+  // Ref to preserve scroll position during month navigation
+  const savedScrollY = useRef<number | null>(null);
+
   // Handle escape key to cancel editing
   useEffect(() => {
     const handleEscKey = (e: KeyboardEvent) => {
@@ -117,22 +126,49 @@ function MonthlyBudgetContent() {
     year: 'numeric' 
   });
 
+  // Save scroll position and blur before navigation
+  const prepareForNavigation = () => {
+    savedScrollY.current = window.scrollY;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
   const goToPrevMonth = () => {
+    prepareForNavigation();
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
+    setEditingBudgetId(null);
+    setCreatingBudgetForCategory(null);
   };
 
   const goToNextMonth = () => {
+    prepareForNavigation();
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
+    setEditingBudgetId(null);
+    setCreatingBudgetForCategory(null);
   };
 
   const goToToday = () => {
+    prepareForNavigation();
     setCurrentDate(new Date());
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
+    setEditingBudgetId(null);
+    setCreatingBudgetForCategory(null);
+  };
+
+  const handleMonthSelect = (date: Date) => {
+    prepareForNavigation();
+    setCurrentDate(date);
+    setSelectedCategoryId(null);
+    setSelectedCategoryName(null);
+    setEditingBudgetId(null);
+    setCreatingBudgetForCategory(null);
+    setMonthPickerOpen(false);
   };
 
   const fetchBudgetSummary = useCallback(async () => {
@@ -163,6 +199,15 @@ function MonthlyBudgetContent() {
     fetchBudgetSummary();
   }, [fetchBudgetSummary]);
 
+  // Restore scroll position after data loads to prevent view jumping
+  // useLayoutEffect runs synchronously before browser paint
+  useLayoutEffect(() => {
+    if (!isLoading && savedScrollY.current !== null) {
+      window.scrollTo(0, savedScrollY.current);
+      savedScrollY.current = null;
+    }
+  }, [isLoading]);
+
   const fetchAllCategories = useCallback(async () => {
     try {
       const params = new URLSearchParams({
@@ -185,26 +230,20 @@ function MonthlyBudgetContent() {
   // Initialize $0 budgets for categories without budgets
   const initializeBudgets = useCallback(async () => {
     try {
-      const result = await api.post<{ initializedCount: number }>('/api/budgets', {
+      await api.post('/api/budgets', {
         action: 'initialize',
         year,
         month,
       });
-
-      if (result.data && result.data.initializedCount > 0) {
-        // Refresh data to show the new budgets
-        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-      }
     } catch (error) {
       console.error('Failed to initialize budgets:', error);
     }
-  }, [year, month, fetchBudgetSummary, fetchAllCategories]);
+  }, [year, month]);
 
-  // Always fetch all categories on mount and when month changes, then initialize missing budgets
+  // Fetch all categories on mount and when month changes, then initialize missing budgets
   useEffect(() => {
     const initializeMonth = async () => {
       await fetchAllCategories();
-      // After fetching categories, initialize any missing budgets to $0
       await initializeBudgets();
     };
     initializeMonth();
@@ -464,7 +503,7 @@ function MonthlyBudgetContent() {
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ overflowAnchor: 'none' }}>
       {/* Page header with month navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -477,10 +516,20 @@ function MonthlyBudgetContent() {
           <Button variant="outline" size="icon" onClick={goToPrevMonth} className="border-slate-700 hover:bg-slate-800">
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <Button variant="outline" onClick={goToToday} className="min-w-[180px] border-slate-700 text-slate-300 hover:bg-slate-800">
-            <Calendar className="w-4 h-4 mr-2" />
-            {monthYear}
-          </Button>
+          <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="min-w-[180px] border-slate-700 text-slate-300 hover:bg-slate-800">
+                <Calendar className="w-4 h-4 mr-2" />
+                {monthYear}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <MonthPicker
+                selected={currentDate}
+                onSelect={handleMonthSelect}
+              />
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" size="icon" onClick={goToNextMonth} className="border-slate-700 hover:bg-slate-800">
             <ChevronRight className="w-4 h-4" />
           </Button>
@@ -814,7 +863,7 @@ function MonthlyBudgetContent() {
                         : 0;
                       const isOverBudget = hasBudget && percentage > 100;
                       const isSelected = selectedCategoryId === category.sub_category_id;
-                      const isEditing = editingBudgetId === category.budget_id;
+                      const isEditing = editingBudgetId !== null && editingBudgetId === category.budget_id;
                       const isCreating = creatingBudgetForCategory === category.sub_category_id;
                       
                       // Editing mode

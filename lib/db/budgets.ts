@@ -214,19 +214,23 @@ export function createBudgetsFrom12MonthAverage(year: number, month: number): nu
   for (const cat of categories) {
     // Get 12-month average for this category, using the 12 months BEFORE the target month
     const average = getCategoryAverage(cat.sub_category_id, 12, year, month);
-    
+
     // Round to 2 decimal places
     const roundedAverage = Math.round(average * 100) / 100;
-    
-    // Use upsertBudget for DRY - it handles both create and update
-    upsertBudget({
-      sub_category_id: cat.sub_category_id,
-      year,
-      month,
-      amount: roundedAverage,
-    });
-    
-    count++;
+
+    try {
+      // Use upsertBudget for DRY - it handles both create and update
+      upsertBudget({
+        sub_category_id: cat.sub_category_id,
+        year,
+        month,
+        amount: roundedAverage,
+      });
+      count++;
+    } catch (error) {
+      // Skip if category was deleted between query and upsert
+      console.warn(`Skipping budget for category ${cat.sub_category_id}`);
+    }
   }
   
   return count;
@@ -234,6 +238,7 @@ export function createBudgetsFrom12MonthAverage(year: number, month: number): nu
 
 /**
  * Copy budgets from one month to another
+ * Skips budgets for deleted sub-categories
  */
 export function copyBudgetsToMonth(
   fromYear: number,
@@ -243,21 +248,32 @@ export function copyBudgetsToMonth(
 ): number {
   const db = getDatabase();
   const now = new Date().toISOString();
-  
+
   // Get existing budgets for source month
   const sourceBudgets = getBudgetsByMonth(fromYear, fromMonth);
-  
+
   if (sourceBudgets.length === 0) {
     return 0;
   }
-  
+
+  // Filter to only include budgets for categories that still exist
+  const validCategoryIds = new Set(
+    (db.prepare(`SELECT id FROM sub_category WHERE is_deleted = 0`).all() as { id: string }[])
+      .map(c => c.id)
+  );
+  const validBudgets = sourceBudgets.filter(b => validCategoryIds.has(b.sub_category_id));
+
+  if (validBudgets.length === 0) {
+    return 0;
+  }
+
   const insert = db.prepare(`
     INSERT OR REPLACE INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
-  
+
   let copiedCount = 0;
-  
+
   const copyAll = db.transaction((budgets: BudgetWithCategory[]) => {
     for (const budget of budgets) {
       const existingTarget = getBudgetByCategoryAndMonth(budget.sub_category_id, toYear, toMonth);
@@ -266,9 +282,9 @@ export function copyBudgetsToMonth(
       copiedCount++;
     }
   });
-  
-  copyAll(sourceBudgets);
-  
+
+  copyAll(validBudgets);
+
   return copiedCount;
 }
 
