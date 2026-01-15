@@ -117,6 +117,16 @@ const result = await api.get('/api/transactions');
 2. Register in `lib/services/handlers/index.ts`
 3. Use `tauri-db` functions instead of `lib/db/` imports
 
+**Tauri DB Select Generic:**
+The `select<T>()` method returns `Promise<T[]>`, so pass the row type, not an array:
+```typescript
+// ✅ CORRECT - select returns T[]
+const rows = await db.select<LocalUserRow>('SELECT * FROM local_user');
+
+// ❌ WRONG - returns LocalUserRow[][] (array of arrays)
+const rows = await db.select<LocalUserRow[]>('SELECT * FROM local_user');
+```
+
 **Reset/Clear Operations in Tauri Mode:**
 When implementing reset or clear functionality in handlers, remember to clean up:
 - Database tables (via SQL)
@@ -295,6 +305,14 @@ Sync state uses encrypted JSON files (not SQLite) for portability:
 - On sync check, current DB hash is compared to stored hash
 - Hash mismatch = local changes since last sync
 
+**Cloud Change Detection Buffers:**
+| Scenario | Buffer | Rationale |
+|----------|--------|-----------|
+| Hash match + timestamp | 5s | Hash is primary signal; timestamp catches v1.0 pushes |
+| Timestamp only (no hash) | 60s | Conservative buffer for clock skew without hash verification |
+
+The smaller buffer when hashes are present allows detecting v1.0 pushes that update file content but not the description metadata.
+
 **Device-Specific vs Synced Data:**
 When implementing sync operations, preserve device-specific tables:
 
@@ -318,6 +336,14 @@ The Tauri handler tracks which app session last modified the database using:
 
 This enables blocking edits when `local_only` changes exist from a **previous** app session (user closed without syncing). The API routes (dev mode) don't have this - `canEdit` is always `true` for `local_only` in dev mode.
 
+**Multi-Version Compatibility:**
+When modifying sync logic, consider backward compatibility with previous versions:
+- v1.0 doesn't store hash in Drive file description
+- v1.0 doesn't update description when pushing (only file content)
+- New versions must use timestamp fallback to detect v1.0 pushes
+
+Test sync between different versions before releasing breaking changes.
+
 ## Key Commands
 
 ```bash
@@ -330,6 +356,13 @@ npm run lint       # ESLint check
 npm run tauri:dev      # Run in Tauri shell with dev tools
 npm run tauri:build    # Build portable Windows .exe
 npm run build:static   # Build static export for Tauri (moves API routes temporarily)
+```
+
+**Static Build Warning:**
+`npm run build:static` temporarily moves `app/api/` to `app/_api_backup/` during the build. If editing API routes fails with "file not found", the static build may have run. Restore with:
+```bash
+# If _api_backup exists and api doesn't
+mv app/_api_backup app/api
 ```
 
 ### Platform-Specific Builds
