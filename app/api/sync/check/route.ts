@@ -96,14 +96,20 @@ export async function GET() {
 
     // Detect cloud changes - prefer hash comparison, fall back to timestamp
     let hasCloudChanges = false;
+    const lastSyncTime = new Date(config.lastSyncedAt).getTime();
+    const cloudModifiedTime = cloudInfo.modifiedTime ? cloudInfo.modifiedTime.getTime() : 0;
+
     if (cloudDbHash && config.syncedDbHash) {
       // Hash-based comparison (more reliable)
       hasCloudChanges = cloudDbHash !== config.syncedDbHash;
-    } else if (cloudInfo.modifiedTime) {
-      // Timestamp-based fallback for legacy files
-      const lastSyncTime = new Date(config.lastSyncedAt).getTime();
-      const cloudModifiedTime = cloudInfo.modifiedTime.getTime();
-      // 1 minute buffer for clock differences
+
+      // Also check timestamp as secondary signal for mixed-version compatibility
+      // (v1.0 may push new data without updating the hash in description)
+      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + CLOCK_SKEW_BUFFER_MS) {
+        hasCloudChanges = true;
+      }
+    } else if (cloudModifiedTime) {
+      // Timestamp-based fallback for legacy files without hash metadata
       hasCloudChanges = cloudModifiedTime > lastSyncTime + CLOCK_SKEW_BUFFER_MS;
     }
 
