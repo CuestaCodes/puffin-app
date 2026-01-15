@@ -293,8 +293,6 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     }
 
     // Determine scenario
-    console.log('[Sync] Check result:', { hasLocalChanges, hasCloudChanges });
-
     if (!hasLocalChanges && !hasCloudChanges) {
       return {
         syncRequired: false,
@@ -312,12 +310,6 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
       const lastModifySession = getLastModifySession();
       const currentSession = getSessionId();
       const changesFromPreviousSession = lastModifySession !== null && lastModifySession !== currentSession;
-
-      console.log('[Sync] Session check:', {
-        lastModifySession: lastModifySession?.substring(0, 8) || 'null',
-        currentSession: currentSession.substring(0, 8),
-        changesFromPreviousSession,
-      });
 
       return {
         syncRequired: true,
@@ -375,7 +367,6 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
 async function detectLocalChanges(config: SyncConfig): Promise<boolean> {
   if (!config.syncedDbHash) {
     // No previous hash, assume changes exist
-    console.log('[Sync] No syncedDbHash in config, assuming changes exist');
     return true;
   }
 
@@ -397,14 +388,7 @@ async function detectLocalChanges(config: SyncConfig): Promise<boolean> {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const currentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-    const hasChanges = currentHash !== config.syncedDbHash;
-    console.log('[Sync] Local change detection:', {
-      savedHash: config.syncedDbHash.substring(0, 16) + '...',
-      currentHash: currentHash.substring(0, 16) + '...',
-      hasChanges,
-    });
-
-    return hasChanges;
+    return currentHash !== config.syncedDbHash;
   } catch (error) {
     console.error('Failed to detect local changes:', error);
     // On error, assume changes exist to be safe
