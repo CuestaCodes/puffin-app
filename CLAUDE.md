@@ -191,7 +191,7 @@ cleanupWalFiles(dbPath); // Removes .db-wal and .db-shm files
 
 | Model | Purpose |
 |-------|---------|
-| LocalUser | Single-row table for local PIN authentication (6-digit PIN, bcrypt hashed) |
+| LocalUser | Single-row table for local PIN authentication (6-digit PIN, hashed with bcrypt in dev mode or PBKDF2 in Tauri mode) |
 | Transaction | Financial transactions with soft delete support |
 | UpperCategory | Top-level category groups |
 | SubCategory | User-defined categories under upper categories |
@@ -202,6 +202,21 @@ cleanupWalFiles(dbPath); // Removes .db-wal and .db-shm files
 
 **Primary Key Convention:**
 All tables use `TEXT PRIMARY KEY` with UUID values (generated via `crypto.randomUUID()`), not auto-increment integers. TypeScript interfaces must use `id: string`.
+
+**Shared Type Definitions:**
+Before defining new interfaces, check `types/database.ts` for existing types. All database model interfaces (`LocalUser`, `Transaction`, `SubCategory`, etc.) are defined there and should be imported rather than redefined locally. This prevents type drift and duplication.
+
+```typescript
+// ✅ CORRECT - Import shared type
+import type { LocalUser } from '@/types/database';
+
+// ❌ WRONG - Redefining existing type locally
+interface LocalUserRow {
+  id: string;
+  password_hash: string;
+  // ...
+}
+```
 
 **Note:** Authentication uses a 6-digit numeric PIN (not passwords). Validation schemas use PIN terminology (`setupPinSchema`, `loginPinSchema`) with backward-compatible aliases (`setupPasswordSchema`, `loginSchema`).
 
@@ -279,6 +294,22 @@ Sync state uses encrypted JSON files (not SQLite) for portability:
 - Hash stored in `sync-config.json` as `syncedDbHash`
 - On sync check, current DB hash is compared to stored hash
 - Hash mismatch = local changes since last sync
+
+**Device-Specific vs Synced Data:**
+When implementing sync operations, preserve device-specific tables:
+
+| Table | Synced? | Reason |
+|-------|---------|--------|
+| `local_user` | NO | Each device maintains its own PIN independently |
+| `transaction` | YES | Core financial data |
+| `sub_category` | YES | User-defined categories |
+| `budget` | YES | Budget amounts |
+| `auto_category_rule` | YES | Categorization rules |
+| `source` | YES | Bank/account sources |
+| `net_worth_entry` | YES | Net worth snapshots |
+| `sync_log` | NO | Device-specific sync history |
+
+**CRITICAL:** Sync pull must save and restore `local_user` before/after replacing the database file. Otherwise, users get locked out when the cloud backup has a different PIN from their local device.
 
 ## Key Commands
 
