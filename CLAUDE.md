@@ -46,6 +46,8 @@ types/         # TypeScript type definitions
 data/          # SQLite database file (development)
 src-tauri/     # Tauri Rust backend (desktop packaging)
 scripts/       # Build scripts (build-static.js)
+tasks/         # Feature specification documents (implementation checklists)
+.claude/       # Claude Code configuration and custom commands
 ```
 
 ## Key Conventions
@@ -391,6 +393,25 @@ mv app/_api_backup app/api
 - Tauri desktop builds MUST be run from Windows PowerShell (not WSL)
 - Run `npm ci && npm run tauri:build` from Windows for Windows executables
 
+### Claude Code Slash Commands
+
+Custom commands in `.claude/commands/`:
+
+| Command | Purpose |
+|---------|---------|
+| `/code-review <base> <feature>` | Run comprehensive code review comparing two git refs (branches or commits) |
+| `/reflection <base> <feature>` | Analyze session and suggest improvements to CLAUDE.md instructions |
+
+**Workflow:**
+1. After implementing a feature, run `/code-review main feature-branch` to identify issues
+2. Address any Critical/Major issues found
+3. Run `/reflection` to capture learnings and update documentation
+
+**Code Review Output:**
+- High-level summary (product impact, engineering approach)
+- Prioritized issues: Critical → Major → Minor → Enhancement
+- Highlights of well-implemented patterns
+
 ## Releases
 
 ### GitHub Actions Workflow
@@ -485,6 +506,55 @@ For copying transaction tables directly from PDF bank statements. Located in `li
 | `splitAmountsInLastCell()` | Extracts trailing amounts from text+amount cells |
 | `detectPasteColumnMapping()` | Auto-detects Date, Description, Amount columns |
 | `parseAmount()` | Converts amount strings to numbers with sign handling |
+
+### Adding Optional Import Columns
+
+When adding new optional columns to CSV import (e.g., Notes, Tags), follow this pattern:
+
+1. **Type Definition** (`types/import.ts`):
+   ```typescript
+   export interface ColumnMapping {
+     // ... required fields
+     notes?: number;  // Optional column index
+   }
+
+   export interface ParsedRow {
+     parsed: {
+       // ... required fields
+       notes: string | null;  // Parsed value
+     };
+   }
+   ```
+
+2. **Validation Schema** (`lib/validations.ts`):
+   ```typescript
+   export const IMPORT_NOTES_MAX_LENGTH = 250;  // Truncation limit
+
+   export const columnMappingSchema = z.object({
+     // ... required fields
+     notes: z.number().int().min(0).optional(),
+   });
+   ```
+
+3. **UI Toggle** (`components/import/column-mapping.tsx`):
+   - Add checkbox with `aria-label` for accessibility
+   - Use PropSync pattern to sync toggle state with mapping prop
+   - Conditionally show column selector when enabled
+
+4. **Processing** (`components/import/import-wizard.tsx`):
+   - Check if column is mapped: `columnMapping.notes !== undefined && columnMapping.notes >= 0`
+   - Truncate values if needed: `rawNotes.substring(0, IMPORT_NOTES_MAX_LENGTH)`
+   - Pass to transaction creation
+
+5. **Preview Table** (`components/import/preview-table.tsx`):
+   - Add `showNotes?: boolean` prop
+   - Conditionally render header and cell: `{showNotes && <th>...</th>}`
+   - Pass from parent: `showNotes={columnMapping.notes !== undefined && columnMapping.notes >= 0}`
+
+6. **Tests** (`lib/validations.test.ts`):
+   - Test schema accepts optional field
+   - Test validation (non-negative integer)
+   - Test backward compatibility (without field)
 
 ## Development Phases
 
@@ -746,6 +816,24 @@ Icon-only buttons (no visible text) MUST have `aria-label` for screen readers:
   <ChevronLeft className="h-4 w-4" />
 </Button>
 ```
+
+### Accessibility: Checkboxes with Labels
+Checkboxes with adjacent `<label>` elements should also include `aria-label` for redundant accessibility:
+```typescript
+// ✅ CORRECT - Accessible with both htmlFor association and aria-label
+<Checkbox
+  id="include-notes"
+  checked={includeNotes}
+  onCheckedChange={handleToggle}
+  aria-label="Include notes column in import"
+/>
+<label htmlFor="include-notes">Include Notes column</label>
+
+// ⚠️ WORKS but less robust - relies only on htmlFor association
+<Checkbox id="include-notes" checked={includeNotes} />
+<label htmlFor="include-notes">Include Notes column</label>
+```
+The `aria-label` provides a fallback if the label association breaks and makes the purpose explicit to assistive technologies.
 
 For file uploads:
 - Enforce size limits (e.g., `MAX_BACKUP_SIZE = 100MB` in `lib/data/utils.ts`)
