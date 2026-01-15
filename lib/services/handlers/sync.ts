@@ -803,7 +803,7 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
     // CRITICAL: Save local_user data before replacing database
     // Each device should keep its own PIN independently of synced data
     type LocalUserRow = { id: string; password_hash: string; created_at: string; updated_at: string };
-    const localUserRows = await db.select<LocalUserRow[]>('SELECT * FROM local_user');
+    const localUserRows = await db.select<LocalUserRow>('SELECT * FROM local_user');
     const localUserData = localUserRows.length > 0 ? localUserRows[0] : null;
 
     // Find the file to download
