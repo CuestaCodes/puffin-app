@@ -273,13 +273,13 @@ localStorage.removeItem(LAST_MODIFY_SESSION_KEY);
 
 ---
 
-## Open Questions
+## Decisions
 
-1. **Session marker granularity:** Should we track at the DB level (any change) or be more specific (only track "significant" changes)?
+1. **Session marker location:** Track in `tauri-db.ts` on any write, with table filter to only track user data tables (`transaction`, `sub_category`, `budget`, `auto_category_rule`, `source`, `net_worth_entry`).
 
-2. **UI messaging:** Should the `local_only` blocking dialog have different wording than `conflict`? e.g., "You have unsynced changes from a previous session. Push to cloud or discard?"
+2. **UI messaging:** Same wording as `conflict` - no special messaging for `local_only`.
 
-3. **Discard option:** Should the blocking dialog for `local_only` offer a "discard local changes" option (pull from cloud)?
+3. **Discard option:** Yes - the blocking dialog will offer "discard local changes and pull from cloud" option.
 
 ---
 

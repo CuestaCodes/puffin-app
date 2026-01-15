@@ -206,25 +206,44 @@ export function SyncConflictDialog({ isOpen, syncStatus, onResolved }: SyncConfl
               </Button>
             )}
 
-            {/* Local only - just upload */}
+            {/* Local only - upload, or discard if blocking (previous session changes) */}
             {reason === 'local_only' && (
-              <Button
-                onClick={handleUpload}
-                disabled={isSyncing}
-                className="w-full bg-emerald-600 hover:bg-emerald-500"
-              >
-                {isSyncing && action === 'upload' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <CloudUpload className="w-4 h-4 mr-2" />
-                    Upload to Cloud
-                  </>
-                )}
-              </Button>
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={handleDownload}
+                    disabled={isSyncing}
+                    variant="outline"
+                    className="border-cyan-600 text-cyan-400 hover:bg-cyan-600/10"
+                  >
+                    {isSyncing && action === 'download' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <CloudDownload className="w-4 h-4 mr-2" />
+                        Discard Local
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleUpload}
+                    disabled={isSyncing}
+                    className="bg-emerald-600 hover:bg-emerald-500"
+                  >
+                    {isSyncing && action === 'upload' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <CloudUpload className="w-4 h-4 mr-2" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500 text-center">
+                  Upload your changes or discard them and use the cloud version.
+                </p>
+              </>
             )}
 
             {/* No cloud backup - upload */}

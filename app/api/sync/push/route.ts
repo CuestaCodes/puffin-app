@@ -114,6 +114,15 @@ export async function POST() {
         SyncConfigManager.setBackupFileId(result.fileId);
       }
 
+      // Update file metadata with hash for cloud-side verification
+      const fileId = config.backupFileId || result.fileId;
+      if (fileId) {
+        const updatedConfig = SyncConfigManager.getConfig();
+        if (updatedConfig.syncedDbHash) {
+          await driveService.updateFileMetadata(fileId, updatedConfig.syncedDbHash);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         lastSyncedAt: new Date().toISOString(),

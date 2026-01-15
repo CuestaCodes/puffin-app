@@ -44,10 +44,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const canEdit = syncStatus?.canEdit ?? true;
 
   // Determine if we need to show the resolution dialog
-  // Show for: never_synced, cloud_only, local_only (optional), conflict
+  // Show for: never_synced, cloud_only, conflict, and local_only when canEdit is false (previous session changes)
   // Don't show for: not_configured, no_cloud_backup (optional upload), in_sync, check_failed
-  const needsResolution = syncStatus 
-    ? ['never_synced', 'cloud_only', 'conflict'].includes(syncStatus.reason) && !syncStatus.canEdit
+  const needsResolution = syncStatus
+    ? ['never_synced', 'cloud_only', 'conflict', 'local_only'].includes(syncStatus.reason) && !syncStatus.canEdit
     : false;
 
   return (

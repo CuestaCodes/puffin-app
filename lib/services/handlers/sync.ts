@@ -200,19 +200,19 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     // Detect local changes by comparing current hash vs synced hash
     const hasLocalChanges = await detectLocalChanges(config);
 
-    // Get cloud backup info
-    let cloudInfo: { exists: boolean; modifiedTime?: string };
+    // Get cloud backup info including description (for hash-based comparison)
+    let cloudInfo: { exists: boolean; modifiedTime?: string; description?: string };
 
     if (config.isFileBasedSync && config.backupFileId) {
       // File-based sync: get info by file ID
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${config.backupFileId}?fields=id,modifiedTime&supportsAllDrives=true`,
+        `https://www.googleapis.com/drive/v3/files/${config.backupFileId}?fields=id,modifiedTime,description&supportsAllDrives=true`,
         { headers: { 'Authorization': `Bearer ${accessToken}` } }
       );
 
       if (response.ok) {
         const data = await response.json();
-        cloudInfo = { exists: true, modifiedTime: data.modifiedTime };
+        cloudInfo = { exists: true, modifiedTime: data.modifiedTime, description: data.description };
       } else if (response.status === 404) {
         cloudInfo = { exists: false };
       } else {
@@ -221,7 +221,7 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     } else {
       // Folder-based sync: search for backup file in folder
       const searchResponse = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q='${config.folderId}'+in+parents+and+name='puffin-backup.db'+and+trashed=false&fields=files(id,modifiedTime)&supportsAllDrives=true`,
+        `https://www.googleapis.com/drive/v3/files?q='${config.folderId}'+in+parents+and+name='puffin-backup.db'+and+trashed=false&fields=files(id,modifiedTime,description)&supportsAllDrives=true`,
         { headers: { 'Authorization': `Bearer ${accessToken}` } }
       );
 
@@ -233,7 +233,7 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
       const file = searchData.files?.[0];
 
       if (file) {
-        cloudInfo = { exists: true, modifiedTime: file.modifiedTime };
+        cloudInfo = { exists: true, modifiedTime: file.modifiedTime, description: file.description };
       } else {
         cloudInfo = { exists: false };
       }
@@ -262,9 +262,24 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
       };
     }
 
-    // Detect cloud changes by comparing cloud modified time vs last sync time
+    // Parse cloud hash from description (if available)
+    let cloudDbHash: string | null = null;
+    if (cloudInfo.description) {
+      try {
+        const meta = JSON.parse(cloudInfo.description);
+        cloudDbHash = meta.dbHash || null;
+      } catch {
+        // Legacy file without hash metadata - will fall back to timestamp
+      }
+    }
+
+    // Detect cloud changes - prefer hash comparison, fall back to timestamp
     let hasCloudChanges = false;
-    if (cloudInfo.modifiedTime) {
+    if (cloudDbHash && config.syncedDbHash) {
+      // Hash-based comparison (more reliable)
+      hasCloudChanges = cloudDbHash !== config.syncedDbHash;
+    } else if (cloudInfo.modifiedTime) {
+      // Timestamp-based fallback for legacy files
       const lastSyncTime = new Date(config.lastSyncedAt).getTime();
       const cloudModifiedTime = new Date(cloudInfo.modifiedTime).getTime();
       // 1 minute buffer for clock differences
@@ -284,11 +299,19 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     }
 
     if (hasLocalChanges && !hasCloudChanges) {
+      // Check if changes were made in a previous session (should block)
+      const { getSessionId, getLastModifySession } = await import('../tauri-db');
+      const lastModifySession = getLastModifySession();
+      const currentSession = getSessionId();
+      const changesFromPreviousSession = lastModifySession !== null && lastModifySession !== currentSession;
+
       return {
         syncRequired: true,
         reason: 'local_only',
-        message: "You have local changes that haven't been uploaded yet.",
-        canEdit: true,
+        message: changesFromPreviousSession
+          ? 'You have unsynced changes from a previous session.'
+          : "You have local changes that haven't been uploaded yet.",
+        canEdit: !changesFromPreviousSession, // Block if from previous session
         hasLocalChanges: true,
         hasCloudChanges: false,
         lastSyncedAt: config.lastSyncedAt,
@@ -524,10 +547,54 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
       }
     }
 
-    // Compute and save the database hash for change detection
+    // Compute the database hash for change detection
     const hashBuffer = await crypto.subtle.digest('SHA-256', fileData);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const dbHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Get the file ID to update metadata
+    let fileId: string | null = null;
+    if (config.isFileBasedSync && config.backupFileId) {
+      fileId = config.backupFileId;
+    } else if (config.folderId) {
+      // Search for the file we just uploaded/updated
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${config.folderId}'+in+parents+and+name='${fileName}'+and+trashed=false&fields=files(id)`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        fileId = searchData.files?.[0]?.id || null;
+      }
+    }
+
+    // Store the hash in Drive file description for cloud-side verification
+    if (fileId) {
+      const metadataPayload = {
+        description: JSON.stringify({
+          dbHash,
+          pushedAt: new Date().toISOString(),
+          pushedFrom: 'puffin-app',
+        }),
+      };
+
+      await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(metadataPayload),
+        }
+      );
+      // Note: We don't throw if this fails - the upload succeeded, metadata is optional
+    }
+
+    // Clear session marker since we've synced
+    const { clearLastModifySession } = await import('../tauri-db');
+    clearLastModifySession();
 
     // Update sync config with hash
     saveSyncConfig({
@@ -828,6 +895,10 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
     const hashBuffer = await crypto.subtle.digest('SHA-256', fileData);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const dbHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Clear session marker since we've synced (pulled fresh data)
+    const { clearLastModifySession } = await import('../tauri-db');
+    clearLastModifySession();
 
     // Update sync config with hash
     saveSyncConfig({

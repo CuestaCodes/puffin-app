@@ -10,6 +10,63 @@
 
 import { SCHEMA_SQL, SEED_SQL } from '@/lib/db/schema';
 
+// Session tracking for sync conflict detection
+// Generate unique session ID on module load (in-memory only, lost on app restart)
+const SESSION_ID = typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36);
+
+// LocalStorage key for tracking which session last modified the DB
+const LAST_MODIFY_SESSION_KEY = 'puffin_last_modify_session';
+
+// Tables that contain user data (changes to these should trigger session tracking)
+const USER_DATA_TABLES = ['transaction', 'sub_category', 'budget', 'auto_category_rule', 'source', 'net_worth_entry', 'upper_category'];
+
+/**
+ * Get the current session ID.
+ * Used by sync handlers to compare against last modify session.
+ */
+export function getSessionId(): string {
+  return SESSION_ID;
+}
+
+/**
+ * Get the session ID that last modified the database.
+ * Returns null if no modifications tracked yet.
+ */
+export function getLastModifySession(): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  return localStorage.getItem(LAST_MODIFY_SESSION_KEY);
+}
+
+/**
+ * Clear the last modify session marker.
+ * Called after successful sync operations.
+ */
+export function clearLastModifySession(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(LAST_MODIFY_SESSION_KEY);
+}
+
+/**
+ * Check if a SQL statement modifies user data tables.
+ */
+function isUserDataWrite(sql: string): boolean {
+  const sqlLower = sql.toLowerCase().trim();
+  // Only track INSERT, UPDATE, DELETE operations
+  if (!sqlLower.startsWith('insert') && !sqlLower.startsWith('update') && !sqlLower.startsWith('delete')) {
+    return false;
+  }
+  // Check if any user data table is referenced
+  return USER_DATA_TABLES.some(table => sqlLower.includes(table));
+}
+
+/**
+ * Mark the current session as having modified the database.
+ */
+function markSessionModified(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(LAST_MODIFY_SESSION_KEY, SESSION_ID);
+}
+
 // Type definitions for Tauri SQL plugin
 interface TauriDatabase {
   select<T>(sql: string, params?: unknown[]): Promise<T[]>;
@@ -283,6 +340,7 @@ export async function queryOne<T = Record<string, unknown>>(
 
 /**
  * Execute an INSERT/UPDATE/DELETE statement.
+ * Automatically tracks modifications to user data tables for sync conflict detection.
  */
 export async function execute(
   sql: string,
@@ -290,6 +348,12 @@ export async function execute(
 ): Promise<{ changes: number; lastInsertRowId: number }> {
   const database = await getDatabase();
   const result = await database.execute(sql, params);
+
+  // Track modifications to user data tables for sync session detection
+  if (result.rowsAffected > 0 && isUserDataWrite(sql)) {
+    markSessionModified();
+  }
+
   return {
     changes: result.rowsAffected,
     lastInsertRowId: result.lastInsertId,

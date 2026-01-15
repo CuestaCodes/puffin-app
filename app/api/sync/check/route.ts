@@ -79,9 +79,28 @@ export async function GET() {
       });
     }
 
-    // Detect cloud changes by comparing cloud modified time vs last sync time
+    // Try to get cloud hash from file metadata for more reliable comparison
+    let cloudDbHash: string | null = null;
+    const fileId = config.backupFileId || null;
+    if (fileId) {
+      const metadata = await driveService.getFileMetadata(fileId);
+      if (metadata?.description) {
+        try {
+          const parsed = JSON.parse(metadata.description);
+          cloudDbHash = parsed.dbHash || null;
+        } catch {
+          // Legacy file without hash metadata
+        }
+      }
+    }
+
+    // Detect cloud changes - prefer hash comparison, fall back to timestamp
     let hasCloudChanges = false;
-    if (cloudInfo.modifiedTime) {
+    if (cloudDbHash && config.syncedDbHash) {
+      // Hash-based comparison (more reliable)
+      hasCloudChanges = cloudDbHash !== config.syncedDbHash;
+    } else if (cloudInfo.modifiedTime) {
+      // Timestamp-based fallback for legacy files
       const lastSyncTime = new Date(config.lastSyncedAt).getTime();
       const cloudModifiedTime = cloudInfo.modifiedTime.getTime();
       // 1 minute buffer for clock differences

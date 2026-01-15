@@ -467,6 +467,64 @@ export class GoogleDriveService {
   }
 
   /**
+   * Update file metadata (description) with hash info for sync verification
+   */
+  async updateFileMetadata(fileId: string, dbHash: string): Promise<void> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) return;
+    }
+
+    try {
+      await withRetry(
+        () => this.drive!.files.update({
+          fileId,
+          supportsAllDrives: true,
+          requestBody: {
+            description: JSON.stringify({
+              dbHash,
+              pushedAt: new Date().toISOString(),
+              pushedFrom: 'puffin-app',
+            }),
+          },
+        }),
+        'update file metadata'
+      );
+    } catch (error) {
+      // Non-critical - log but don't fail the sync
+      console.warn('Failed to update file metadata:', error);
+    }
+  }
+
+  /**
+   * Get file metadata including description (for hash verification)
+   */
+  async getFileMetadata(fileId: string): Promise<{ description?: string; modifiedTime?: string } | null> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) return null;
+    }
+
+    try {
+      const response = await withRetry(
+        () => this.drive!.files.get({
+          fileId,
+          fields: 'description,modifiedTime',
+          supportsAllDrives: true,
+        }),
+        'get file metadata'
+      );
+      return {
+        description: response.data.description || undefined,
+        modifiedTime: response.data.modifiedTime || undefined,
+      };
+    } catch (error) {
+      console.warn('Failed to get file metadata:', error);
+      return null;
+    }
+  }
+
+  /**
    * Download database by file ID (for multi-account sync)
    */
   async downloadDatabaseByFileId(fileId: string, localDestPath: string): Promise<{ success: boolean; error?: string }> {
