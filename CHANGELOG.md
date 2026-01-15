@@ -2,25 +2,20 @@
 
 All notable changes to Puffin will be documented in this file.
 
-## [1.1.0] - 2025-01-15
+## [Unreleased]
 
 ### Added
 - Create auto-categorization rule from any transaction row (Sparkles button) - available on both the main Transactions page and the Monthly Budget transaction list
 - Option to add new rules to top of list (highest priority) via checkbox in rule dialog
-- Session-aware sync conflict detection - blocks editing when local changes exist from a previous app session
-- "Discard Local" option in sync conflict dialog - allows pulling cloud version when local changes exist
 
 ### Fixed
-- PIN preserved during sync pull - no more lockout after downloading cloud backup
 - "Forget PIN" reset now properly deletes local backup files and clears sync configuration (previously only cleared database tables)
 - Local Backups section now shows storage location path
 - "Restore Backup" button for local backups now works (was throwing an error instead of restoring)
 - Sync conflict detection now works in Tauri mode (was always returning "in sync")
 - OAuth access token now automatically refreshes when expired in Tauri mode (previously required re-authentication after 1 hour)
-- Mixed-version sync compatibility - v1.1.0 correctly detects cloud changes pushed by v1.0.0
 
 ### Improved
-- Hash-based sync detection (more reliable than timestamp-only)
 - Rule dialog now debounces match text preview (reduces API calls while typing)
 - Test suite quality improvements:
   - Added shared test utilities (`lib/db/test-utils.ts`)
