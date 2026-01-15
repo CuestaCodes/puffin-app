@@ -183,29 +183,18 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     };
   }
 
-  // Get stored tokens
-  const tokensStored = localStorage.getItem('puffin_oauth_tokens');
-  if (!tokensStored) {
-    // Not authenticated - allow editing but warn
+  // Get valid access token (refreshes if expired)
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
     return {
       syncRequired: false,
       reason: 'check_failed',
       canEdit: true,
-      warning: 'Not authenticated with Google. Sign in to check sync status.',
+      warning: tokenResult.error,
     };
   }
 
-  const tokens = JSON.parse(tokensStored);
-  const accessToken = tokens.access_token;
-
-  if (!accessToken) {
-    return {
-      syncRequired: false,
-      reason: 'check_failed',
-      canEdit: true,
-      warning: 'No access token. Please sign in again.',
-    };
-  }
+  const accessToken = tokenResult.token;
 
   try {
     // Detect local changes by comparing current hash vs synced hash
@@ -882,55 +871,48 @@ async function refreshAccessToken(
 }
 
 /**
- * Access token handler - /api/sync/token
- * Returns the stored OAuth access token for the Google Picker.
- * Automatically refreshes the token if expired.
+ * Get a valid access token, refreshing if expired.
+ * Returns null if not authenticated or refresh fails.
  */
-export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
-  const { method } = ctx;
-
-  if (method !== 'GET') {
-    throw new Error(`Method ${method} not allowed`);
-  }
-
-  // Get stored tokens from localStorage
+async function getValidAccessToken(): Promise<{ token: string } | { error: string }> {
   const stored = localStorage.getItem('puffin_oauth_tokens');
   if (!stored) {
-    throw new Error('Not authenticated. Please sign in with Google first.');
+    return { error: 'Not authenticated with Google. Sign in to check sync status.' };
   }
 
   let tokens: {
     access_token: string;
     refresh_token?: string;
     expiry_date?: number;
-    token_type?: string;
-    scope?: string;
   };
 
   try {
     tokens = JSON.parse(stored);
   } catch {
-    throw new Error('Invalid token data');
+    return { error: 'Invalid token data. Please sign in again.' };
   }
 
-  // Check if token is expired
-  if (tokens.expiry_date && tokens.expiry_date < Date.now()) {
-    // Token expired - attempt refresh
+  if (!tokens.access_token) {
+    return { error: 'No access token. Please sign in again.' };
+  }
+
+  // Check if token is expired (with 60 second buffer)
+  if (tokens.expiry_date && tokens.expiry_date < Date.now() + 60000) {
+    // Token expired or expiring soon - attempt refresh
     if (!tokens.refresh_token) {
-      throw new Error('Access token expired and no refresh token available. Please sign in again.');
+      return { error: 'Access token expired. Please sign in again.' };
     }
 
-    // Get credentials for refresh
     const credentialsStored = localStorage.getItem(SYNC_CREDENTIALS_KEY);
     if (!credentialsStored) {
-      throw new Error('OAuth credentials not found. Please sign in again.');
+      return { error: 'OAuth credentials not found. Please sign in again.' };
     }
 
     let credentials: SyncCredentials;
     try {
       credentials = JSON.parse(credentialsStored);
     } catch {
-      throw new Error('Invalid credentials data. Please sign in again.');
+      return { error: 'Invalid credentials data. Please sign in again.' };
     }
 
     try {
@@ -944,15 +926,34 @@ export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
       };
       localStorage.setItem('puffin_oauth_tokens', JSON.stringify(updatedTokens));
 
-      return { accessToken: refreshed.access_token };
+      return { token: refreshed.access_token };
     } catch (e) {
-      // Refresh failed - user needs to re-authenticate
       console.error('Token refresh failed:', e);
-      throw new Error('Failed to refresh access token. Please sign in again.');
+      return { error: 'Failed to refresh access token. Please sign in again.' };
     }
   }
 
-  return { accessToken: tokens.access_token };
+  return { token: tokens.access_token };
+}
+
+/**
+ * Access token handler - /api/sync/token
+ * Returns the stored OAuth access token for the Google Picker.
+ * Automatically refreshes the token if expired.
+ */
+export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'GET') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    throw new Error(tokenResult.error);
+  }
+
+  return { accessToken: tokenResult.token };
 }
 
 /**
