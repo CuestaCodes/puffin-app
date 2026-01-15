@@ -22,6 +22,7 @@ All notable changes to Puffin will be documented in this file.
 ### Improved
 - Hash-based sync detection (more reliable than timestamp-only)
 - Rule dialog now debounces match text preview (reduces API calls while typing)
+- Rule dialog input no longer lags when typing quickly (memoized rendering)
 - Test suite quality improvements:
   - Added shared test utilities (`lib/db/test-utils.ts`)
   - Fixed date calculation bug in budgets 12-month average test
