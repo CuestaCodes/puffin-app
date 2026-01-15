@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,14 @@ import {
 import { Loader2, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
 import type { SubCategoryWithUpper } from '@/types/database';
 import { UPPER_CATEGORY_TEXT_COLORS } from '@/lib/constants';
+
+// Pure function - doesn't need to be inside component
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+  }).format(amount);
+};
 
 interface AutoCategoryRule {
   id: string;
@@ -294,16 +302,42 @@ export function RuleDialog({
     }, 300);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
-      currency: 'AUD',
-    }).format(amount);
-  };
-
   const getTypeColor = (type: string): string => {
     return UPPER_CATEGORY_TEXT_COLORS[type] || 'text-slate-400';
   };
+
+  // Memoize category options to prevent re-rendering Select on every keystroke
+  const categoryOptions = useMemo(() =>
+    categories.map((cat) => (
+      <SelectItem
+        key={cat.id}
+        value={cat.id}
+        className="text-white hover:bg-slate-700"
+      >
+        <span className={getTypeColor(cat.upper_category_type)}>
+          {cat.upper_category_name}
+        </span>
+        <span className="text-slate-400 ml-1">/ {cat.name}</span>
+      </SelectItem>
+    )), [categories]
+  );
+
+  // Memoize test matches display to prevent re-rendering on every keystroke
+  const testMatchesDisplay = useMemo(() => {
+    if (testMatches.length === 0) return null;
+    return (
+      <div className="bg-slate-800 rounded-lg p-2 space-y-1 max-h-32 overflow-y-auto">
+        {testMatches.map((tx) => (
+          <div key={tx.id} className="text-xs flex items-center justify-between">
+            <span className="text-slate-300 truncate flex-1">{tx.description}</span>
+            <span className={tx.amount < 0 ? 'text-red-400' : 'text-emerald-400'}>
+              {formatCurrency(tx.amount)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }, [testMatches]);
 
   return (
     <>
@@ -346,18 +380,7 @@ export function RuleDialog({
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  {categories.map((cat) => (
-                    <SelectItem
-                      key={cat.id}
-                      value={cat.id}
-                      className="text-white hover:bg-slate-700"
-                    >
-                      <span className={getTypeColor(cat.upper_category_type)}>
-                        {cat.upper_category_name}
-                      </span>
-                      <span className="text-slate-400 ml-1">/ {cat.name}</span>
-                    </SelectItem>
-                  ))}
+                  {categoryOptions}
                 </SelectContent>
               </Select>
             </div>
@@ -386,18 +409,7 @@ export function RuleDialog({
                   Preview Matches
                   {isTesting && <Loader2 className="w-3 h-3 animate-spin" />}
                 </Label>
-                {testMatches.length > 0 ? (
-                  <div className="bg-slate-800 rounded-lg p-2 space-y-1 max-h-32 overflow-y-auto">
-                    {testMatches.map((tx) => (
-                      <div key={tx.id} className="text-xs flex items-center justify-between">
-                        <span className="text-slate-300 truncate flex-1">{tx.description}</span>
-                        <span className={tx.amount < 0 ? 'text-red-400' : 'text-emerald-400'}>
-                          {formatCurrency(tx.amount)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                {testMatchesDisplay || (
                   <p className="text-xs text-slate-500">
                     No uncategorized transactions match this text
                   </p>
