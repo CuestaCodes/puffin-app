@@ -686,6 +686,9 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
 /**
  * Sync pull handler - /api/sync/pull
  * Downloads the database from Google Drive
+ *
+ * IMPORTANT: Preserves local authentication (local_user table) when downloading.
+ * Each device maintains its own PIN independently of the synced data.
  */
 export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
@@ -734,6 +737,12 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
     const { getDatabase, resetDatabaseConnection } = await import('../tauri-db');
     const db = await getDatabase();
     await db.execute(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+
+    // CRITICAL: Save local_user data before replacing database
+    // Each device should keep its own PIN independently of synced data
+    type LocalUserRow = { id: string; password_hash: string; created_at: string; updated_at: string };
+    const localUserRows = await db.select<LocalUserRow[]>('SELECT * FROM local_user');
+    const localUserData = localUserRows.length > 0 ? localUserRows[0] : null;
 
     // Find the file to download
     let fileId: string | null = null;
@@ -805,6 +814,25 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
       } catch {
         // Ignore removal errors
       }
+    }
+
+    // CRITICAL: Restore local_user data to preserve this device's PIN
+    // The downloaded database may have a different PIN from another device
+    if (localUserData) {
+      // Re-open database connection
+      const newDb = await getDatabase();
+
+      // Delete any local_user from the downloaded database
+      await newDb.execute('DELETE FROM local_user');
+
+      // Restore the original local_user (preserves this device's PIN)
+      await newDb.execute(
+        'INSERT INTO local_user (id, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)',
+        [localUserData.id, localUserData.password_hash, localUserData.created_at, localUserData.updated_at]
+      );
+
+      // Checkpoint WAL to ensure restored data is written to main file
+      await newDb.execute('PRAGMA wal_checkpoint(TRUNCATE)');
     }
 
     // Compute and save the database hash for change detection

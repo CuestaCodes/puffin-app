@@ -1,6 +1,9 @@
 /**
  * Sync Pull API
  * POST - Download database from Google Drive
+ *
+ * IMPORTANT: Preserves local authentication (local_user table) when downloading.
+ * Each device maintains its own PIN independently of the synced data.
  */
 
 import { NextResponse } from 'next/server';
@@ -8,7 +11,8 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 import { SyncConfigManager } from '@/lib/sync/config';
-import { resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
+import { getDatabase, resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
+import type { LocalUser } from '@/types/database';
 
 // Database paths
 const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
@@ -65,6 +69,21 @@ export async function POST() {
     // Create local backup before pull
     const backupPath = createLocalBackup();
 
+    // CRITICAL: Save local_user data before replacing database
+    // Each device should keep its own PIN independently of synced data
+    let localUserData: LocalUser | null = null;
+    try {
+      const db = getDatabase();
+      const row = db.prepare('SELECT * FROM local_user LIMIT 1').get() as LocalUser | undefined;
+      localUserData = row || null;
+    } catch (err) {
+      // Expected: database file doesn't exist yet on fresh installs
+      // Log unexpected errors for debugging
+      if (err instanceof Error && !err.message.includes('SQLITE_CANTOPEN')) {
+        console.warn('[Sync] Unexpected error reading local_user:', err.message);
+      }
+    }
+
     // Download from Google Drive to temp location
     const driveService = new GoogleDriveService();
     let result: { success: boolean; error?: string; notFound?: boolean };
@@ -110,6 +129,16 @@ export async function POST() {
 
       // Move downloaded file to database location
       fs.renameSync(TEMP_DOWNLOAD_PATH, DB_PATH);
+
+      // CRITICAL: Restore local_user data to preserve this device's PIN
+      // The downloaded database may have a different PIN from another device
+      if (localUserData) {
+        const newDb = getDatabase();
+        newDb.prepare('DELETE FROM local_user').run();
+        newDb.prepare(
+          'INSERT INTO local_user (id, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)'
+        ).run(localUserData.id, localUserData.password_hash, localUserData.created_at, localUserData.updated_at);
+      }
 
       // Mark as synced - stores current local hash (the downloaded file) and timestamp
       SyncConfigManager.markSynced();
