@@ -338,6 +338,56 @@ npm run build:static   # Build static export for Tauri (moves API routes tempora
 - Tauri desktop builds MUST be run from Windows PowerShell (not WSL)
 - Run `npm ci && npm run tauri:build` from Windows for Windows executables
 
+## Releases
+
+### GitHub Actions Workflow
+The release workflow (`.github/workflows/release.yml`) automatically builds and creates GitHub releases.
+
+**Triggers:**
+- Push a tag matching `v*` (e.g., `v1.1.0`)
+- Manual dispatch via GitHub Actions UI (with version input)
+
+**What it does:**
+1. Extracts release notes from `CHANGELOG.md` for the tagged version
+2. Falls back to `[Unreleased]` section if version not found
+3. Builds Tauri app for Windows (x86_64-pc-windows-msvc)
+4. Creates a draft GitHub release with changelog + installation instructions
+
+### CHANGELOG Format
+The workflow expects [Keep a Changelog](https://keepachangelog.com/) format:
+
+```markdown
+## [Unreleased]
+
+### Added
+- New feature description
+
+### Fixed
+- Bug fix description
+
+## [1.0.0] - 2025-01-12
+
+### Added
+- Previous release features
+```
+
+**Section headers:** `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, `Improved`
+
+### Release Checklist
+1. Move `[Unreleased]` content to new version header:
+   ```markdown
+   ## [1.1.0] - 2025-01-15
+   ```
+2. Bump version in `package.json` and `src-tauri/tauri.conf.json`
+3. Commit: `git commit -m "Release v1.1.0"`
+4. Tag and push:
+   ```bash
+   git tag v1.1.0
+   git push origin main --tags
+   ```
+5. GitHub Actions builds and creates draft release
+6. Review draft release on GitHub, then publish
+
 ## API Routes
 
 ```
