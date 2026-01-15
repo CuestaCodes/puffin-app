@@ -409,18 +409,12 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // Get stored tokens
-  const tokensStored = localStorage.getItem('puffin_oauth_tokens');
-  if (!tokensStored) {
-    throw new Error('Not authenticated. Please sign in with Google first.');
+  // Get valid access token (refreshes if expired)
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    throw new Error(tokenResult.error);
   }
-
-  const tokens = JSON.parse(tokensStored);
-  const accessToken = tokens.access_token;
-
-  if (!accessToken) {
-    throw new Error('No access token available. Please sign in again.');
-  }
+  const accessToken = tokenResult.token;
 
   // Get sync config
   const config = getSyncConfig();
@@ -761,18 +755,12 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // Get stored tokens
-  const tokensStored = localStorage.getItem('puffin_oauth_tokens');
-  if (!tokensStored) {
-    throw new Error('Not authenticated. Please sign in with Google first.');
+  // Get valid access token (refreshes if expired)
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    throw new Error(tokenResult.error);
   }
-
-  const tokens = JSON.parse(tokensStored);
-  const accessToken = tokens.access_token;
-
-  if (!accessToken) {
-    throw new Error('No access token available. Please sign in again.');
-  }
+  const accessToken = tokenResult.token;
 
   // Get sync config
   const config = getSyncConfig();
