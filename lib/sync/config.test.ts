@@ -463,7 +463,8 @@ describe('SyncConfigManager', () => {
       expect(writtenConfig).toBeTruthy();
       const parsed = JSON.parse(writtenConfig!);
       expect(parsed.syncedDbHash).toBe(expectedHash);
-      expect(parsed.lastSyncedAt).toBeDefined();
+      // Verify lastSyncedAt is a valid ISO timestamp string
+      expect(parsed.lastSyncedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     });
   });
 

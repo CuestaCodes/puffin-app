@@ -536,6 +536,9 @@ describe('Auto-Categorisation Rules', () => {
   });
 
   describe('Add to Top Priority Option', () => {
+    // These tests verify the SQL patterns used by createRule({ add_to_top: true })
+    // Testing directly with SQL ensures the database behavior matches expectations
+
     it('should add rule to top with priority 0 when add_to_top is true', () => {
       const now = new Date().toISOString();
 

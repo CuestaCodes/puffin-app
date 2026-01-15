@@ -3,6 +3,11 @@
  *
  * Tests OAuth token refresh logic and session-aware sync conflict detection.
  * These tests use mocks since they're testing Tauri-specific browser code.
+ *
+ * NOTE: These are "logic pattern" tests that verify the algorithms used in sync handlers.
+ * The actual handler functions run in a browser context with Tauri APIs and cannot be
+ * directly imported into Node.js tests. Full integration testing is done via E2E tests
+ * on the built Tauri application.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -91,6 +96,9 @@ describe('Tauri Sync Handler - OAuth Token Refresh', () => {
   });
 
   describe('Token Refresh Flow', () => {
+    // These tests verify the refresh logic pattern used in getValidAccessToken()
+    // The actual function cannot be imported as it depends on browser globals
+
     it('should refresh token successfully and update localStorage', async () => {
       // Setup: Expired token in localStorage
       const oldTokens = {
