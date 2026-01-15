@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { ColumnMapping, DateFormat, CSVParseResult } from '@/types/import';
 
@@ -40,6 +41,12 @@ export function ColumnMappingComponent({
   onBack,
 }: ColumnMappingProps) {
   const { headers, rows } = parseResult;
+  const [includeNotes, setIncludeNotes] = useState(mapping.notes !== undefined && mapping.notes >= 0);
+
+  // Sync includeNotes state when mapping.notes changes externally (PropSync pattern)
+  useEffect(() => {
+    setIncludeNotes(mapping.notes !== undefined && mapping.notes >= 0);
+  }, [mapping.notes]);
 
   // Get sample values for a column (first 3 non-empty)
   const getSampleValues = (columnIndex: number): string[] => {
@@ -55,13 +62,13 @@ export function ColumnMappingComponent({
 
   const handleColumnSelect = (field: keyof ColumnMapping, columnIndex: number) => {
     if (field === 'ignore') return;
-    
+
     // Remove the column from ignore if it was there
     const newIgnore = mapping.ignore.filter(i => i !== columnIndex);
-    
-    // If this column was already assigned to another field, swap
+
+    // If this column was already assigned to another field, clear that field
     const newMapping = { ...mapping, ignore: newIgnore };
-    
+
     if (mapping.date === columnIndex && field !== 'date') {
       newMapping.date = -1;
     }
@@ -71,15 +78,33 @@ export function ColumnMappingComponent({
     if (mapping.amount === columnIndex && field !== 'amount') {
       newMapping.amount = -1;
     }
-    
-    newMapping[field] = columnIndex;
+    if (mapping.notes === columnIndex && field !== 'notes') {
+      newMapping.notes = undefined;
+    }
+
+    if (field === 'notes') {
+      newMapping.notes = columnIndex;
+    } else {
+      newMapping[field] = columnIndex;
+    }
     onMappingChange(newMapping);
+  };
+
+  const handleNotesToggle = (checked: boolean) => {
+    setIncludeNotes(checked);
+    if (!checked) {
+      // Clear the notes mapping when unchecked
+      const newMapping = { ...mapping };
+      delete newMapping.notes;
+      onMappingChange(newMapping);
+    }
   };
 
   const getAssignedField = (columnIndex: number): string | null => {
     if (mapping.date === columnIndex) return 'Date';
     if (mapping.description === columnIndex) return 'Description';
     if (mapping.amount === columnIndex) return 'Amount';
+    if (mapping.notes === columnIndex) return 'Notes';
     return null;
   };
 
@@ -129,7 +154,7 @@ export function ColumnMappingComponent({
           {requiredFields.map((field) => {
             const currentValue = mapping[field.key as keyof Omit<ColumnMapping, 'ignore'>];
             const isAssigned = typeof currentValue === 'number' && currentValue >= 0;
-            
+
             return (
               <div
                 key={field.key}
@@ -156,7 +181,7 @@ export function ColumnMappingComponent({
                     <p className="text-xs text-slate-500">{field.description}</p>
                   </div>
                 </div>
-                
+
                 {isAssigned && typeof currentValue === 'number' ? (
                   <div className="flex items-center gap-2">
                     <ArrowRight className="w-4 h-4 text-slate-500" />
@@ -174,6 +199,68 @@ export function ColumnMappingComponent({
             );
           })}
         </div>
+      </div>
+
+      {/* Optional Notes Field */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="include-notes"
+            checked={includeNotes}
+            onCheckedChange={handleNotesToggle}
+            aria-label="Include notes column in import"
+          />
+          <label
+            htmlFor="include-notes"
+            className="text-sm font-medium text-slate-300 cursor-pointer"
+          >
+            Include Notes column
+          </label>
+          <span className="text-xs text-slate-500">(optional)</span>
+        </div>
+
+        {includeNotes && (
+          <div
+            className={cn(
+              'flex items-center justify-between p-3 rounded-lg border',
+              mapping.notes !== undefined && mapping.notes >= 0
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-slate-800/50 border-slate-700'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                'w-6 h-6 rounded-full flex items-center justify-center',
+                mapping.notes !== undefined && mapping.notes >= 0
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-700 text-slate-400'
+              )}>
+                {mapping.notes !== undefined && mapping.notes >= 0 ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <span className="text-xs">?</span>
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-slate-200">Notes</p>
+                <p className="text-xs text-slate-500">Reference, memo, or additional info</p>
+              </div>
+            </div>
+
+            {mapping.notes !== undefined && mapping.notes >= 0 ? (
+              <div className="flex items-center gap-2">
+                <ArrowRight className="w-4 h-4 text-slate-500" />
+                <span className="text-sm font-medium text-emerald-400">
+                  {headers[mapping.notes]}
+                </span>
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400">
+                Select from columns below
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Column Selection Grid */}
@@ -233,6 +320,19 @@ export function ColumnMappingComponent({
                         {field.label}
                       </button>
                     ))}
+                    {includeNotes && (
+                      <button
+                        onClick={() => handleColumnSelect('notes', index)}
+                        className={cn(
+                          'px-2 py-1 text-xs rounded transition-colors',
+                          mapping.notes === index
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
+                        )}
+                      >
+                        Notes
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

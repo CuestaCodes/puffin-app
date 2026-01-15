@@ -10,6 +10,7 @@ All notable changes to Puffin will be documented in this file.
 - Session-aware sync conflict detection - blocks editing when local changes exist from a previous app session
 - "Discard Local" option in sync conflict dialog - allows pulling cloud version when local changes exist
 - Month picker on Monthly Budget page - click the month label to quickly jump to any month
+- Optional Notes column mapping in CSV import - map reference/memo columns to transaction notes (truncated to 250 chars)
 
 ### Fixed
 - Monthly Budget page no longer jumps when navigating to a new month (fixed null comparison bug in edit state)

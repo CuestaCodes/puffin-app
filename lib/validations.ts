@@ -103,10 +103,14 @@ export const setupPasswordSchema = setupPinSchema;
 export const loginSchema = loginPinSchema;
 
 // Import schemas
+/** Maximum length for notes during import (truncated to this length) */
+export const IMPORT_NOTES_MAX_LENGTH = 250;
+
 export const columnMappingSchema = z.object({
   date: z.number().int().min(0),
   description: z.number().int().min(0),
   amount: z.number().int().min(0),
+  notes: z.number().int().min(0).optional(),
   ignore: z.array(z.number().int().min(0)).optional(),
 });
 

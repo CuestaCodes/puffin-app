@@ -159,10 +159,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
         // Parse amount - handle both single amount and debit/credit modes
         let parsedAmount: number | null = null;
 
-        if (columnMapping.debit !== undefined || columnMapping.credit !== undefined) {
+        if ((columnMapping.debit !== undefined && columnMapping.debit >= 0) ||
+            (columnMapping.credit !== undefined && columnMapping.credit >= 0)) {
           // Debit/Credit mode: combine both columns
-          const rawDebit = columnMapping.debit !== undefined ? row[columnMapping.debit] : '';
-          const rawCredit = columnMapping.credit !== undefined ? row[columnMapping.credit] : '';
+          const rawDebit = columnMapping.debit !== undefined && columnMapping.debit >= 0 ? row[columnMapping.debit] : '';
+          const rawCredit = columnMapping.credit !== undefined && columnMapping.credit >= 0 ? row[columnMapping.credit] : '';
 
           const debitAmount = rawDebit ? parseAmount(rawDebit) : null;
           const creditAmount = rawCredit ? parseAmount(rawCredit) : null;
@@ -418,8 +419,8 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
     } else {
       // Switch to debit/credit mode - try to auto-detect
       const headers = parseResult?.headers || [];
-      let debitIdx: number | undefined;
-      let creditIdx: number | undefined;
+      let debitIdx: number = -1;
+      let creditIdx: number = -1;
 
       headers.forEach((h, i) => {
         const lower = h.toLowerCase();
@@ -819,7 +820,7 @@ Example:
                   isLoading ||
                   columnMapping.date === -1 ||
                   (!useDebitCreditMode && columnMapping.amount === -1) ||
-                  (useDebitCreditMode && columnMapping.debit === undefined && columnMapping.credit === undefined)
+                  (useDebitCreditMode && (columnMapping.debit === undefined || columnMapping.debit < 0) && (columnMapping.credit === undefined || columnMapping.credit < 0))
                 }
                 className="bg-cyan-600 hover:bg-cyan-500"
               >

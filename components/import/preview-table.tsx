@@ -15,6 +15,7 @@ interface PreviewTableProps {
   onContinue: () => void;
   onBack: () => void;
   isLoading?: boolean;
+  showNotes?: boolean;
 }
 
 export function PreviewTable({
@@ -25,6 +26,7 @@ export function PreviewTable({
   onContinue,
   onBack,
   isLoading,
+  showNotes = false,
 }: PreviewTableProps) {
   const [filter, setFilter] = useState<'all' | 'valid' | 'errors' | 'duplicates'>('all');
 
@@ -145,6 +147,9 @@ export function PreviewTable({
                 <th className="px-3 py-2 text-left text-slate-400 font-medium">Date</th>
                 <th className="px-3 py-2 text-left text-slate-400 font-medium">Description</th>
                 <th className="px-3 py-2 text-right text-slate-400 font-medium">Amount</th>
+                {showNotes && (
+                  <th className="px-3 py-2 text-left text-slate-400 font-medium">Notes</th>
+                )}
                 <th className="w-20 px-3 py-2 text-center text-slate-400 font-medium">Status</th>
               </tr>
             </thead>
@@ -197,16 +202,21 @@ export function PreviewTable({
                   </td>
                   <td className={cn(
                     'px-3 py-2 text-right font-mono',
-                    row.parsed.amount === null 
-                      ? 'text-red-400' 
-                      : row.parsed.amount < 0 
-                        ? 'text-red-400' 
+                    row.parsed.amount === null
+                      ? 'text-red-400'
+                      : row.parsed.amount < 0
+                        ? 'text-red-400'
                         : 'text-emerald-400'
                   )}>
-                    {row.parsed.amount !== null 
-                      ? formatAmount(row.parsed.amount) 
+                    {row.parsed.amount !== null
+                      ? formatAmount(row.parsed.amount)
                       : 'Invalid'}
                   </td>
+                  {showNotes && (
+                    <td className="px-3 py-2 text-slate-400 max-w-[150px] truncate" title={row.parsed.notes || undefined}>
+                      {row.parsed.notes || '-'}
+                    </td>
+                  )}
                   <td className="px-3 py-2 text-center">
                     {row.errors.length > 0 ? (
                       <span className="inline-flex items-center gap-1 text-xs text-red-400" title={row.errors.join(', ')}>

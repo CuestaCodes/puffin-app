@@ -25,6 +25,7 @@ import {
   importOptionsSchema,
   transactionFilterSchema,
   paginationSchema,
+  IMPORT_NOTES_MAX_LENGTH,
 } from './validations';
 
 describe('Transaction Validation Schemas', () => {
@@ -626,8 +627,93 @@ describe('Import Schemas', () => {
         description: 1,
         amount: 2,
       });
-      
+
       expect(result.success).toBe(false);
+    });
+
+    it('should validate mapping with optional notes column', () => {
+      const result = columnMappingSchema.safeParse({
+        date: 0,
+        description: 1,
+        amount: 2,
+        notes: 3,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.notes).toBe(3);
+      }
+    });
+
+    it('should validate mapping without notes column (backward compatibility)', () => {
+      const result = columnMappingSchema.safeParse({
+        date: 0,
+        description: 1,
+        amount: 2,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.notes).toBeUndefined();
+      }
+    });
+
+    it('should validate notes as non-negative integer', () => {
+      const result = columnMappingSchema.safeParse({
+        date: 0,
+        description: 1,
+        amount: 2,
+        notes: 0, // First column (index 0) is valid
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject negative notes column index', () => {
+      const result = columnMappingSchema.safeParse({
+        date: 0,
+        description: 1,
+        amount: 2,
+        notes: -1,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].path).toContain('notes');
+      }
+    });
+
+    it('should reject non-integer notes column index', () => {
+      const result = columnMappingSchema.safeParse({
+        date: 0,
+        description: 1,
+        amount: 2,
+        notes: 3.5,
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate mapping with notes and ignore columns', () => {
+      const result = columnMappingSchema.safeParse({
+        date: 0,
+        description: 1,
+        amount: 2,
+        notes: 3,
+        ignore: [4, 5],
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.notes).toBe(3);
+        expect(result.data.ignore).toEqual([4, 5]);
+      }
+    });
+  });
+
+  describe('IMPORT_NOTES_MAX_LENGTH', () => {
+    it('should be defined as 250 characters', () => {
+      expect(IMPORT_NOTES_MAX_LENGTH).toBe(250);
     });
   });
 
@@ -671,8 +757,26 @@ describe('Import Schemas', () => {
         dateFormat: 'invalid-format',
         skipDuplicates: true,
       });
-      
+
       expect(result.success).toBe(false);
+    });
+
+    it('should validate options with notes column mapping', () => {
+      const result = importOptionsSchema.safeParse({
+        columnMapping: {
+          date: 0,
+          description: 1,
+          amount: 2,
+          notes: 3,
+        },
+        dateFormat: 'DD/MM/YYYY',
+        skipDuplicates: true,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.columnMapping.notes).toBe(3);
+      }
     });
   });
 });

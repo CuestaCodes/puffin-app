@@ -35,6 +35,8 @@ export interface ColumnMapping {
   credit?: number;
   /** Balance column - excluded from import (optional) */
   balance?: number;
+  /** Notes/memo column - populates transaction notes (optional) */
+  notes?: number;
   ignore: number[];
 }
 
@@ -45,6 +47,7 @@ export interface ParsedRow {
     date: string | null;
     description: string | null;
     amount: number | null;
+    notes: string | null;
   };
   errors: string[];
   isDuplicate: boolean;

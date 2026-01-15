@@ -22,6 +22,7 @@ import type {
   ImportResult
 } from '@/types/import';
 import type { Source } from '@/types/database';
+import { IMPORT_NOTES_MAX_LENGTH } from '@/lib/validations';
 
 type ImportStep = 'upload' | 'mapping' | 'preview' | 'complete';
 
@@ -125,7 +126,18 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         const rawDescription = row[columnMapping.description]?.trim();
         const description = rawDescription || 'No description';
         const hasDefaultDescription = !rawDescription;
-        
+
+        // Parse notes (optional) - truncate to max length
+        let notes: string | null = null;
+        if (columnMapping.notes !== undefined && columnMapping.notes >= 0) {
+          const rawNotes = row[columnMapping.notes]?.trim();
+          if (rawNotes) {
+            notes = rawNotes.length > IMPORT_NOTES_MAX_LENGTH
+              ? rawNotes.substring(0, IMPORT_NOTES_MAX_LENGTH)
+              : rawNotes;
+          }
+        }
+
         // Parse amount
         const amountStr = row[columnMapping.amount];
         let parsedAmount: number | null = null;
@@ -148,6 +160,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
             date: parsedDate,
             description,
             amount: parsedAmount,
+            notes,
           },
           errors,
           isDuplicate: false, // Will be checked server-side
@@ -252,11 +265,12 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     
     try {
       const selectedRows = preview.rows.filter(r => r.isSelected && r.errors.length === 0);
-      
+
       const transactions = selectedRows.map(row => ({
         date: row.parsed.date!,
         description: row.parsed.description!,
         amount: row.parsed.amount!,
+        notes: row.parsed.notes,
         source_id: selectedSourceId,
       }));
       
@@ -411,6 +425,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               onContinue={handleImport}
               onBack={() => setCurrentStep('mapping')}
               isLoading={isLoading}
+              showNotes={columnMapping.notes !== undefined && columnMapping.notes >= 0}
             />
           </div>
         )}
