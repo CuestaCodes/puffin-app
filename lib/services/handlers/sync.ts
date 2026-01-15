@@ -284,11 +284,13 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
 
       // Also check timestamp as secondary signal for mixed-version compatibility
       // (v1.0 may push new data without updating the hash in description)
-      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + 60000) {
+      // Use smaller buffer (5s) here since we have hash as primary signal
+      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + 5000) {
         hasCloudChanges = true;
       }
     } else if (cloudModifiedTime) {
       // Timestamp-based fallback for legacy files without hash metadata
+      // Use larger buffer (60s) when we have no hash to compare
       hasCloudChanges = cloudModifiedTime > lastSyncTime + 60000;
     }
 
