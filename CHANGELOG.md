@@ -4,6 +4,14 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-01-16
+
+### Fixed
+- GitHub release notes now render markdown correctly (was showing encoded characters)
+
+### Improved
+- Release notes now include privacy clarification about local data storage
+
 ## [1.1.0] - 2026-01-16
 
 ### Added
