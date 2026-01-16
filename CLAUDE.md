@@ -320,13 +320,24 @@ Sync state uses encrypted JSON files (not SQLite) for portability:
 - On sync check, current DB hash is compared to stored hash
 - Hash mismatch = local changes since last sync
 
-**Cloud Change Detection Buffers:**
-| Scenario | Buffer | Rationale |
-|----------|--------|-----------|
-| Hash match + timestamp | 5s | Hash is primary signal; timestamp catches v1.0 pushes |
-| Timestamp only (no hash) | 60s | Conservative buffer for clock skew without hash verification |
+**Cloud Change Detection:**
+Timestamp is the primary signal for detecting cloud changes:
+```typescript
+const CLOCK_SKEW_BUFFER_MS = 5000; // 5 second buffer
 
-The smaller buffer when hashes are present allows detecting v1.0 pushes that update file content but not the description metadata.
+if (cloudModifiedTime <= lastSyncTime + CLOCK_SKEW_BUFFER_MS) {
+  hasCloudChanges = false;  // Cloud not modified since our last sync
+} else {
+  hasCloudChanges = true;   // Cloud is newer - assume changes
+}
+```
+
+**Why timestamp over hash?**
+- v1.0 pushes update file content but NOT the description metadata (which stores hash)
+- After a pull, the cloud's hash (from pusher) won't match local hash (which includes local_user restoration)
+- Google Drive's `modifiedTime` is reliable - if newer than last sync, content changed
+
+**Buffer rationale:** 5 seconds accounts for clock skew between local machine and Google servers.
 
 **Device-Specific vs Synced Data:**
 When implementing sync operations, preserve device-specific tables:
@@ -625,6 +636,47 @@ const hasFullDrive = tokens.scope.includes('https://www.googleapis.com/auth/driv
 - Local backup created before every sync operation
 - Conflict resolution: last-write-wins
 
+### Code Style & Lint Compliance
+
+**Unused Variables:**
+Prefix intentionally unused variables with underscore to satisfy `@typescript-eslint/no-unused-vars`:
+```typescript
+// ✅ CORRECT - Underscore prefix for intentionally unused
+const [highest, mid, _lowest] = sortedItems;
+function handler(_req: Request, res: Response) { ... }
+
+// ❌ WRONG - Lint error for unused variable
+const [highest, mid, lowest] = sortedItems;  // lowest never used
+```
+
+**Catch Block Error Parameters:**
+Omit the error parameter if not used:
+```typescript
+// ✅ CORRECT - No parameter if not used
+try {
+  await riskyOperation();
+} catch {
+  console.warn('Operation failed, using fallback');
+}
+
+// ❌ WRONG - Unused 'error' causes lint warning
+try {
+  await riskyOperation();
+} catch (error) {
+  console.warn('Operation failed, using fallback');
+}
+
+// ✅ CORRECT - Keep parameter if logging the error
+try {
+  await riskyOperation();
+} catch (error) {
+  console.error('Operation failed:', error);
+}
+```
+
+**Unused Imports:**
+Remove unused imports rather than commenting them out. If keeping for future use, prefix with underscore.
+
 ### Logging Practices
 
 - **Debug logs**: Remove before committing
@@ -655,6 +707,26 @@ For destructive operations (delete, restore, reset, clear):
 - Use destructive variant styling for delete buttons
 
 **CRITICAL - Tauri Mode:** Never use `window.confirm()` or `window.alert()` in Tauri. These don't block execution properly in the webview, causing actions to execute immediately without waiting for user response. Always use React-based dialogs (AlertDialog).
+
+### Toast Notifications
+Use Sonner for non-blocking feedback (success messages, errors that don't require action):
+```typescript
+import { toast } from 'sonner';
+
+// Success feedback
+toast.success('Changes uploaded to cloud');
+
+// Error with description
+toast.error('Sync failed', {
+  description: 'Please check your network connection',
+});
+```
+
+**When to use toasts vs dialogs:**
+- **Toast**: Non-blocking feedback (success, info, errors user can dismiss)
+- **AlertDialog**: Destructive actions requiring confirmation, blocking errors
+
+**Setup**: `<Toaster />` is rendered in `app-shell.tsx` with `position="bottom-right"`.
 
 ### Sync Conflict Resolution
 The app uses a **blocking modal** pattern for sync conflicts (`SyncConflictDialog`):
@@ -719,21 +791,37 @@ const isEditing = editingBudgetId !== null && editingBudgetId === category.budge
 ```
 This is especially important for "is currently editing" checks where items may not have IDs yet.
 
-### PropSync Pattern for Controlled Components
-When a component has internal state derived from props, sync it when props change externally:
+### Deriving State from Props (Preferred)
+When possible, derive values directly from props instead of maintaining separate state:
+```typescript
+// ✅ BEST - Derive directly from props, no state needed
+function ColumnMapping({ mapping }: { mapping: Mapping }) {
+  const includeNotes = mapping.notes !== undefined;
+  // Use includeNotes directly - updates automatically when mapping changes
+}
+
+// ⚠️ AVOID - useState + useEffect triggers eslint set-state-in-effect error
+function ColumnMapping({ mapping }: { mapping: Mapping }) {
+  const [includeNotes, setIncludeNotes] = useState(mapping.notes !== undefined);
+  useEffect(() => {
+    setIncludeNotes(mapping.notes !== undefined);  // ❌ Lint error
+  }, [mapping.notes]);
+}
+```
+
+**When you must use internal state** (e.g., UI-only state like "display year" in a month picker that differs from the selected value):
 ```typescript
 function MonthPicker({ selected }: { selected: Date }) {
   const [displayYear, setDisplayYear] = useState(selected.getFullYear());
 
-  // ✅ CORRECT - Sync internal state when prop changes
+  // This is acceptable when displayYear is UI-only state that can diverge from props
+  // The lint warning can be suppressed if truly necessary
   useEffect(() => {
     setDisplayYear(selected.getFullYear());
   }, [selected]);
-
-  // ...
 }
 ```
-Without this sync, state gets "stuck" when the parent updates the prop via a different mechanism (e.g., arrow buttons updating `selected` while user is in a different year view).
+Prefer deriving from props. Only use useState + useEffect sync when the internal state serves a distinct UI purpose.
 
 ### Debouncing API Calls in Input Handlers
 When user input triggers API calls (e.g., search-as-you-type, live preview), always debounce:
