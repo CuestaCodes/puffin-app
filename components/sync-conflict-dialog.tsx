@@ -185,25 +185,44 @@ export function SyncConflictDialog({ isOpen, syncStatus, onResolved }: SyncConfl
 
           {/* Action buttons based on scenario */}
           <div className="space-y-3">
-            {/* Cloud only - just download */}
+            {/* Cloud only - download recommended, but allow keeping local */}
             {reason === 'cloud_only' && (
-              <Button
-                onClick={handleDownload}
-                disabled={isSyncing}
-                className="w-full bg-cyan-600 hover:bg-cyan-500"
-              >
-                {isSyncing && action === 'download' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Downloading...
-                  </>
-                ) : (
-                  <>
-                    <CloudDownload className="w-4 h-4 mr-2" />
-                    Download from Cloud
-                  </>
-                )}
-              </Button>
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={handleDownload}
+                    disabled={isSyncing}
+                    className="bg-cyan-600 hover:bg-cyan-500"
+                  >
+                    {isSyncing && action === 'download' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <CloudDownload className="w-4 h-4 mr-2" />
+                        Use Cloud
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleUpload}
+                    disabled={isSyncing}
+                    variant="outline"
+                    className="border-amber-600 text-amber-400 hover:bg-amber-600/10"
+                  >
+                    {isSyncing && action === 'upload' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <CloudUpload className="w-4 h-4 mr-2" />
+                        Use Local
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500 text-center">
+                  Download the cloud version, or overwrite it with your local data.
+                </p>
+              </>
             )}
 
             {/* Local only - upload, or discard if blocking (previous session changes) */}

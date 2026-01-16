@@ -106,11 +106,12 @@ export async function GET() {
     if (cloudModifiedTime <= lastSyncTime + HASH_MATCH_BUFFER_MS) {
       // Cloud was modified before or around when we last synced - no cloud changes
       hasCloudChanges = false;
-    } else if (cloudDbHash && config.syncedDbHash) {
-      // Cloud is newer - use hash comparison to confirm
-      hasCloudChanges = cloudDbHash !== config.syncedDbHash;
     } else {
-      // Cloud is newer but no hash to compare - assume changes
+      // Cloud is newer than our last sync - assume cloud has changes
+      // NOTE: We intentionally don't use hash comparison here because:
+      // - v1.0 pushes update file content but NOT the description (which stores hash)
+      // - So cloudDbHash from description might be stale, not matching actual content
+      // - Timestamp from Google Drive is reliable - if it's newer, content changed
       hasCloudChanges = true;
     }
 

@@ -21,8 +21,8 @@ interface SyncConfig {
   folderName: string | null;
 }
 
-// Polling interval for sync status (15 seconds)
-const SYNC_POLL_INTERVAL = 15000;
+// Sync status is checked on window focus, not continuously polled
+// This saves battery and network while still detecting changes when user returns to app
 
 export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatus, onSyncComplete }: HeaderProps) {
   const [syncConfig, setSyncConfig] = useState<SyncConfig | null>(null);
@@ -52,20 +52,25 @@ export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatu
 
       if (statusResult.data) {
         setLocalSyncStatus(statusResult.data);
+
+        // If polling detects a status that needs the conflict dialog,
+        // notify the context so the dialog appears
+        const needsDialog = ['conflict', 'cloud_only', 'never_synced'].includes(statusResult.data.reason)
+          && !statusResult.data.canEdit;
+        if (needsDialog) {
+          onSyncComplete();
+        }
       }
     } catch (error) {
       console.error('Failed to fetch sync data:', error);
     }
-  }, []);
+  }, [onSyncComplete]);
 
   useEffect(() => {
     isMounted.current = true;
     fetchSyncData();
 
-    // Poll every 15 seconds
-    const interval = setInterval(fetchSyncData, SYNC_POLL_INTERVAL);
-
-    // Also refresh when window regains focus
+    // Refresh when window regains focus (no continuous polling to save battery/network)
     const handleFocus = () => {
       fetchSyncData();
     };
@@ -73,7 +78,6 @@ export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatu
 
     return () => {
       isMounted.current = false;
-      clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
   }, [fetchSyncData]);
