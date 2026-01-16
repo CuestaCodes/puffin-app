@@ -525,7 +525,7 @@ async function copyBudgetsToMonth(
         amount: budget.amount,
       });
       copiedCount++;
-    } catch (error) {
+    } catch {
       // Skip budgets for deleted categories
       console.warn(`Skipping budget for deleted category ${budget.sub_category_id}`);
     }
@@ -608,7 +608,7 @@ async function createBudgetsFrom12MonthAverage(year: number, month: number): Pro
           amount: Math.round(avg.average * 100) / 100,
         });
         updatedCount++;
-      } catch (error) {
+      } catch {
         // Skip budgets for deleted categories
         console.warn(`Skipping budget for deleted category ${avg.sub_category_id}`);
       }

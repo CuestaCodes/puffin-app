@@ -237,7 +237,6 @@ export async function handleBackups(ctx: HandlerContext): Promise<unknown> {
   if (method === 'POST') {
     // Create a new backup
     try {
-      const dbPath = await getDatabasePath();
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
 
       // Get backups directory path
@@ -458,7 +457,6 @@ export async function handleExportBackup(ctx: HandlerContext): Promise<unknown> 
   // In Tauri mode, we need to use the save dialog to let user choose location
   try {
     const { save } = await import('@tauri-apps/plugin-dialog');
-    const { appDataDir, join } = await import('@tauri-apps/api/path');
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
     const defaultName = `puffin-backup-${timestamp}.db`;
@@ -496,7 +494,7 @@ export async function handleImportBackup(ctx: HandlerContext): Promise<unknown> 
 
   try {
     const { open } = await import('@tauri-apps/plugin-dialog');
-    const { copyFile, exists, remove, readFile } = await import('@tauri-apps/plugin-fs');
+    const { copyFile, exists, remove } = await import('@tauri-apps/plugin-fs');
     const { resetDatabaseConnection, closeDatabase } = await import('../tauri-db');
 
     console.log('[Import] Opening file picker...');

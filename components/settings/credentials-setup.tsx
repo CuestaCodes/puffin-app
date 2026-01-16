@@ -13,9 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { 
+import {
   Key, ExternalLink, Loader2, CheckCircle2, AlertTriangle,
-  ChevronRight, Copy, Check
+  ChevronRight,
 } from 'lucide-react';
 
 interface CredentialsSetupProps {
@@ -31,13 +31,6 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
   const [apiKey, setApiKey] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
-  };
 
   const handleSave = async () => {
     if (!clientId.trim() || !clientSecret.trim()) {

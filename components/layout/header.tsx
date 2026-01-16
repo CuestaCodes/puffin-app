@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -89,6 +89,24 @@ export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatu
     }
   }, [initialSyncStatus]);
 
+  // Fetch only the config (not status) - used after sync to update lastSyncedAt
+  const fetchConfigOnly = useCallback(async () => {
+    if (!isMounted.current) return;
+    try {
+      const configResult = await api.get<{ isConfigured: boolean; lastSyncedAt: string | null; folderName: string | null }>('/api/sync/config');
+      if (!isMounted.current) return;
+      if (configResult.data) {
+        setSyncConfig({
+          configured: configResult.data.isConfigured,
+          lastSyncedAt: configResult.data.lastSyncedAt,
+          folderName: configResult.data.folderName,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch sync config:', error);
+    }
+  }, []);
+
   // Handle sync button click
   const handleSyncClick = async () => {
     if (isSyncing) return;
@@ -100,10 +118,13 @@ export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatu
       const checkResult = await api.get<SyncCheckResponse>('/api/sync/check');
 
       if (checkResult.data?.reason === 'conflict' || checkResult.data?.reason === 'cloud_only') {
-        // Let the conflict dialog handle this - just refetch to trigger it
+        // Update local state with the result we already have
+        setLocalSyncStatus(checkResult.data);
+        // Let the conflict dialog handle this - refetch to trigger it
         await onSyncComplete();
-        toast.error('Sync conflict detected', {
-          description: 'Please resolve the conflict before syncing.',
+        const isConflict = checkResult.data.reason === 'conflict';
+        toast.error(isConflict ? 'Sync conflict detected' : 'Cloud has newer data', {
+          description: 'Please resolve before syncing.',
         });
         return;
       }
@@ -113,8 +134,9 @@ export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatu
 
       if (pushResult.data?.success) {
         toast.success('Changes uploaded to cloud');
-        // Refresh both config and sync status
-        await Promise.all([fetchSyncData(), onSyncComplete()]);
+        // Refresh context status, then fetch config to update lastSyncedAt
+        await onSyncComplete();
+        await fetchConfigOnly();
       } else {
         toast.error('Sync failed', {
           description: pushResult.data?.error || pushResult.error || 'Failed to upload changes',
@@ -126,12 +148,20 @@ export function Header({ onToggleSidebar, onLogout, syncStatus: initialSyncStatu
         description: 'An unexpected error occurred',
       });
     } finally {
-      setIsSyncing(false);
+      if (isMounted.current) {
+        setIsSyncing(false);
+      }
     }
   };
 
-  const lastSynced = syncConfig?.lastSyncedAt ? new Date(syncConfig.lastSyncedAt) : null;
-  const hasLocalChanges = localSyncStatus?.reason === 'local_only';
+  const lastSynced = useMemo(
+    () => syncConfig?.lastSyncedAt ? new Date(syncConfig.lastSyncedAt) : null,
+    [syncConfig?.lastSyncedAt]
+  );
+  const hasLocalChanges = useMemo(
+    () => localSyncStatus?.reason === 'local_only',
+    [localSyncStatus?.reason]
+  );
   const showSyncButton = syncConfig?.configured && hasLocalChanges;
 
   return (

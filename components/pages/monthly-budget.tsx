@@ -152,7 +152,7 @@ function MonthlyBudgetContent() {
     setCreatingBudgetForCategory(null);
   };
 
-  const goToToday = () => {
+  const _goToToday = () => {
     prepareForNavigation();
     setCurrentDate(new Date());
     setSelectedCategoryId(null);

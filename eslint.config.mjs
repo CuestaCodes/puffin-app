@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "coverage/**",
     // Node.js scripts (use CommonJS require)
     "scripts/**",
+    // Tauri build artifacts
+    "src-tauri/target/**",
   ]),
   // Allow underscore-prefixed unused variables (common convention for intentionally unused)
   {

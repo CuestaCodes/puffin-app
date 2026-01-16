@@ -535,7 +535,7 @@ function inferAmountRoles(amountCols: ColumnAnalysis[], rows: string[][]): void 
 
   // If we have 3 amount columns with different fill rates, likely: balance, debit, credit
   if (fillRates.length === 3) {
-    const [highest, mid, lowest] = fillRates;
+    const [highest, mid, _lowest] = fillRates;
 
     // If highest fill rate is much higher (>90%), it's probably balance
     if (highest.fillRate > 0.9 && mid.fillRate < 0.8) {
@@ -660,7 +660,7 @@ export function isAmountLike(value: string): boolean {
 /**
  * Generate header names based on column analysis and original headers
  */
-function generateHeaders(analysis: ColumnAnalysis[], headerRow: string[] | null): string[] {
+function generateHeaders(analysis: ColumnAnalysis[], _headerRow: string[] | null): string[] {
   const headers: string[] = [];
   let dateCount = 0;
   let textCount = 0;

@@ -227,7 +227,7 @@ export function createBudgetsFrom12MonthAverage(year: number, month: number): nu
         amount: roundedAverage,
       });
       count++;
-    } catch (error) {
+    } catch {
       // Skip if category was deleted between query and upsert
       console.warn(`Skipping budget for category ${cat.sub_category_id}`);
     }

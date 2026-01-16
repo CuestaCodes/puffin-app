@@ -59,7 +59,7 @@ async function checkSyncConfigured(): Promise<boolean> {
 }
 
 // Flag to track if we're in the process of closing (to avoid infinite loop)
-let isClosingConfirmed = false;
+const isClosingConfirmed = false;
 
 // Close the window - use destroy() to bypass close event handler
 async function closeWindow(): Promise<void> {
@@ -78,7 +78,7 @@ export function TauriProvider({ children }: TauriProviderProps) {
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; url: string } | null>(null);
   const [showSyncModal, setShowSyncModal] = useState(false);
-  const [pendingClose, setPendingClose] = useState(false);
+  const [_pendingClose, setPendingClose] = useState(false);
 
   // Initialize Tauri-specific features
   useEffect(() => {

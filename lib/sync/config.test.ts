@@ -6,7 +6,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import { SyncConfigManager, GoogleCredentials } from './config';
 
@@ -367,7 +366,6 @@ describe('SyncConfigManager', () => {
       vi.mocked(fs.writeFileSync).mockImplementation(() => {});
       vi.mocked(fs.mkdirSync).mockImplementation(() => undefined);
 
-      const beforeTime = new Date().toISOString();
       SyncConfigManager.markSynced();
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(

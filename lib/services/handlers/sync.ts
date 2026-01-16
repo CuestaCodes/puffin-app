@@ -262,14 +262,15 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
       };
     }
 
-    // Parse cloud hash from description (if available)
-    let cloudDbHash: string | null = null;
+    // Parse cloud hash from description (kept for potential future use/debugging)
+    // Note: Not used for change detection due to v1.0 compatibility issues - see comments below
+    let _cloudDbHash: string | null = null;
     if (cloudInfo.description) {
       try {
         const meta = JSON.parse(cloudInfo.description);
-        cloudDbHash = meta.dbHash || null;
+        _cloudDbHash = meta.dbHash || null;
       } catch {
-        // Legacy file without hash metadata - will fall back to timestamp
+        // Legacy file without hash metadata
       }
     }
 
@@ -283,9 +284,9 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
     const cloudModifiedTime = cloudInfo.modifiedTime ? new Date(cloudInfo.modifiedTime).getTime() : 0;
 
     // Buffer for clock skew (5 seconds)
-    const CLOCK_BUFFER_MS = 5000;
+    const CLOCK_SKEW_BUFFER_MS = 5000;
 
-    if (cloudModifiedTime <= lastSyncTime + CLOCK_BUFFER_MS) {
+    if (cloudModifiedTime <= lastSyncTime + CLOCK_SKEW_BUFFER_MS) {
       // Cloud was modified before or around when we last synced - no cloud changes
       hasCloudChanges = false;
     } else {

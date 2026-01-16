@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { ArrowRight, Check, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,12 +41,9 @@ export function ColumnMappingComponent({
   onBack,
 }: ColumnMappingProps) {
   const { headers, rows } = parseResult;
-  const [includeNotes, setIncludeNotes] = useState(mapping.notes !== undefined && mapping.notes >= 0);
 
-  // Sync includeNotes state when mapping.notes changes externally (PropSync pattern)
-  useEffect(() => {
-    setIncludeNotes(mapping.notes !== undefined && mapping.notes >= 0);
-  }, [mapping.notes]);
+  // Derive includeNotes from mapping prop (notes !== undefined means enabled)
+  const includeNotes = mapping.notes !== undefined;
 
   // Get sample values for a column (first 3 non-empty)
   const getSampleValues = (columnIndex: number): string[] => {
@@ -91,13 +88,15 @@ export function ColumnMappingComponent({
   };
 
   const handleNotesToggle = (checked: boolean) => {
-    setIncludeNotes(checked);
-    if (!checked) {
+    const newMapping = { ...mapping };
+    if (checked) {
+      // Enable notes with placeholder value (-1 means enabled but no column selected)
+      newMapping.notes = -1;
+    } else {
       // Clear the notes mapping when unchecked
-      const newMapping = { ...mapping };
       delete newMapping.notes;
-      onMappingChange(newMapping);
     }
+    onMappingChange(newMapping);
   };
 
   const getAssignedField = (columnIndex: number): string | null => {

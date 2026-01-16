@@ -18,7 +18,7 @@ import { GoogleDriveService } from '@/lib/sync/google-drive';
 import type { SyncCheckResponse } from '@/types/sync';
 
 // Buffer for clock differences between local machine and Google servers
-const HASH_MATCH_BUFFER_MS = 5000; // 5 seconds buffer for clock skew
+const CLOCK_SKEW_BUFFER_MS = 5000;
 
 // Re-export for backward compatibility
 export type { SyncCheckResponse } from '@/types/sync';
@@ -79,15 +79,16 @@ export async function GET() {
       });
     }
 
-    // Try to get cloud hash from file metadata for more reliable comparison
-    let cloudDbHash: string | null = null;
+    // Try to get cloud hash from file metadata (kept for potential future use/debugging)
+    // Note: Not used for change detection due to v1.0 compatibility issues - see comments below
+    let _cloudDbHash: string | null = null;
     const fileId = config.backupFileId || null;
     if (fileId) {
       const metadata = await driveService.getFileMetadata(fileId);
       if (metadata?.description) {
         try {
           const parsed = JSON.parse(metadata.description);
-          cloudDbHash = parsed.dbHash || null;
+          _cloudDbHash = parsed.dbHash || null;
         } catch {
           // Legacy file without hash metadata
         }
@@ -103,7 +104,7 @@ export async function GET() {
     const lastSyncTime = new Date(config.lastSyncedAt).getTime();
     const cloudModifiedTime = cloudInfo.modifiedTime ? cloudInfo.modifiedTime.getTime() : 0;
 
-    if (cloudModifiedTime <= lastSyncTime + HASH_MATCH_BUFFER_MS) {
+    if (cloudModifiedTime <= lastSyncTime + CLOCK_SKEW_BUFFER_MS) {
       // Cloud was modified before or around when we last synced - no cloud changes
       hasCloudChanges = false;
     } else {
