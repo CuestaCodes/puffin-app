@@ -59,12 +59,12 @@ jobs:
             ' CHANGELOG.md)
           fi
 
-          # Escape for GitHub Actions output
-          CHANGELOG="${CHANGELOG//'%'/'%25'}"
-          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
-          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
-
-          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          # Use heredoc for multi-line output (avoids URL-encoding issues)
+          {
+            echo 'changelog<<EOF'
+            echo "$CHANGELOG"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -98,6 +98,8 @@ jobs:
             2. Run the installer (click through SmartScreen warning on Windows)
             3. Set up a 6-digit PIN
             4. Start tracking your finances!
+
+            **Your data stays local.** All financial data is stored on your device in a local SQLite database. Nothing is sent to external servers unless you explicitly configure Google Drive sync.
 
             ## Notes
 
