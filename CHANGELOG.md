@@ -22,6 +22,7 @@ All notable changes to Puffin will be documented in this file.
 - OAuth access token now automatically refreshes when expired in Tauri mode (previously required re-authentication after 1 hour)
 - PIN preserved during sync pull - no more lockout after downloading cloud backup
 - Mixed-version sync compatibility - correctly detects cloud changes pushed by v1.0.0
+- Sync pull now correctly marks database as synced (fixed hash computation and prioritized timestamp for cloud change detection)
 
 ### Improved
 - Hash-based sync detection (more reliable than timestamp-only)

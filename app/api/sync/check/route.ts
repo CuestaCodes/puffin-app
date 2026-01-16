@@ -18,8 +18,7 @@ import { GoogleDriveService } from '@/lib/sync/google-drive';
 import type { SyncCheckResponse } from '@/types/sync';
 
 // Buffer for clock differences between local machine and Google servers
-const CLOCK_SKEW_BUFFER_MS = 60000; // 1 minute - used when no hash available
-const HASH_MATCH_BUFFER_MS = 5000; // 5 seconds - used when hashes match (catches v1.0 pushes)
+const HASH_MATCH_BUFFER_MS = 5000; // 5 seconds buffer for clock skew
 
 // Re-export for backward compatibility
 export type { SyncCheckResponse } from '@/types/sync';
@@ -95,24 +94,24 @@ export async function GET() {
       }
     }
 
-    // Detect cloud changes - prefer hash comparison, fall back to timestamp
+    // Detect cloud changes
+    // CRITICAL: Timestamp must be primary check because after a pull, the cloud's
+    // stored hash (from the pusher) won't match our local hash (which includes
+    // our device's local_user restoration). If cloud was modified BEFORE our
+    // last sync, there are definitively no cloud changes.
     let hasCloudChanges = false;
     const lastSyncTime = new Date(config.lastSyncedAt).getTime();
     const cloudModifiedTime = cloudInfo.modifiedTime ? cloudInfo.modifiedTime.getTime() : 0;
 
-    if (cloudDbHash && config.syncedDbHash) {
-      // Hash-based comparison (more reliable)
+    if (cloudModifiedTime <= lastSyncTime + HASH_MATCH_BUFFER_MS) {
+      // Cloud was modified before or around when we last synced - no cloud changes
+      hasCloudChanges = false;
+    } else if (cloudDbHash && config.syncedDbHash) {
+      // Cloud is newer - use hash comparison to confirm
       hasCloudChanges = cloudDbHash !== config.syncedDbHash;
-
-      // Also check timestamp as secondary signal for mixed-version compatibility
-      // (v1.0 may push new data without updating the hash in description)
-      // Use smaller buffer since hash is primary signal
-      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + HASH_MATCH_BUFFER_MS) {
-        hasCloudChanges = true;
-      }
-    } else if (cloudModifiedTime) {
-      // Timestamp-based fallback for legacy files without hash metadata
-      hasCloudChanges = cloudModifiedTime > lastSyncTime + CLOCK_SKEW_BUFFER_MS;
+    } else {
+      // Cloud is newer but no hash to compare - assume changes
+      hasCloudChanges = true;
     }
 
     // Determine scenario based on local and cloud changes

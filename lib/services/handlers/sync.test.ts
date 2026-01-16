@@ -33,7 +33,6 @@ describe('Tauri Sync Handler - OAuth Token Refresh', () => {
     vi.clearAllMocks();
     mockLocalStorage.clear();
     global.fetch = mockFetch;
-    // @ts-expect-error - Mock localStorage
     global.localStorage = mockLocalStorage;
   });
 
@@ -240,7 +239,6 @@ describe('Tauri Sync Handler - OAuth Token Refresh', () => {
 describe('Tauri Sync Handler - Session-Aware Conflict Detection', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
-    // @ts-expect-error - Mock localStorage
     global.localStorage = mockLocalStorage;
   });
 
@@ -365,14 +363,13 @@ describe('Tauri Sync Handler - Session-Aware Conflict Detection', () => {
 describe('Tauri Sync Handler - Cloud Change Detection', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
-    // @ts-expect-error - Mock localStorage
     global.localStorage = mockLocalStorage;
   });
 
   describe('Hash-Based Detection', () => {
     it('should detect cloud changes when cloud hash differs from local synced hash', () => {
-      const localSyncedHash = 'local-hash-abc123';
-      const cloudDbHash = 'cloud-hash-xyz789';
+      const localSyncedHash: string = 'local-hash-abc123';
+      const cloudDbHash: string = 'cloud-hash-xyz789';
 
       const hasCloudChanges = cloudDbHash !== localSyncedHash;
 

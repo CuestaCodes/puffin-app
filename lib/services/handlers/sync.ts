@@ -273,25 +273,27 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
       }
     }
 
-    // Detect cloud changes - prefer hash comparison, fall back to timestamp
+    // Detect cloud changes
+    // CRITICAL: Timestamp must be primary check because after a pull, the cloud's
+    // stored hash (from the pusher) won't match our local hash (which includes
+    // our device's local_user restoration). If cloud was modified BEFORE our
+    // last sync, there are definitively no cloud changes.
     let hasCloudChanges = false;
     const lastSyncTime = new Date(config.lastSyncedAt).getTime();
     const cloudModifiedTime = cloudInfo.modifiedTime ? new Date(cloudInfo.modifiedTime).getTime() : 0;
 
-    if (cloudDbHash && config.syncedDbHash) {
-      // Hash-based comparison (more reliable)
-      hasCloudChanges = cloudDbHash !== config.syncedDbHash;
+    // Buffer for clock skew (5 seconds)
+    const CLOCK_BUFFER_MS = 5000;
 
-      // Also check timestamp as secondary signal for mixed-version compatibility
-      // (v1.0 may push new data without updating the hash in description)
-      // Use smaller buffer (5s) here since we have hash as primary signal
-      if (!hasCloudChanges && cloudModifiedTime > lastSyncTime + 5000) {
-        hasCloudChanges = true;
-      }
-    } else if (cloudModifiedTime) {
-      // Timestamp-based fallback for legacy files without hash metadata
-      // Use larger buffer (60s) when we have no hash to compare
-      hasCloudChanges = cloudModifiedTime > lastSyncTime + 60000;
+    if (cloudModifiedTime <= lastSyncTime + CLOCK_BUFFER_MS) {
+      // Cloud was modified before or around when we last synced - no cloud changes
+      hasCloudChanges = false;
+    } else if (cloudDbHash && config.syncedDbHash) {
+      // Cloud is newer - use hash comparison to confirm
+      hasCloudChanges = cloudDbHash !== config.syncedDbHash;
+    } else {
+      // Cloud is newer but no hash to compare - assume changes
+      hasCloudChanges = true;
     }
 
     // Determine scenario
@@ -887,8 +889,12 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
       await newDb.execute('PRAGMA wal_checkpoint(TRUNCATE)');
     }
 
-    // Compute and save the database hash for change detection
-    const hashBuffer = await crypto.subtle.digest('SHA-256', fileData);
+    // Compute hash from the FINAL database state (after local_user restoration)
+    // This is critical - if we hash the downloaded file, it won't match the current
+    // state (which has local_user restored), causing false "local changes" detection
+    const { readFile } = await import('@tauri-apps/plugin-fs');
+    const finalFileData = await readFile(dbPath);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', finalFileData);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const dbHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 

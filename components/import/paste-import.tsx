@@ -208,6 +208,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
             date: parsedDate,
             description: description || 'No description',
             amount: parsedAmount,
+            notes: null, // Paste import doesn't support notes mapping
           },
           errors,
           isDuplicate: false,
