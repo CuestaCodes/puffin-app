@@ -11,6 +11,8 @@ import { MonthlyBudgetPage } from '@/components/pages/monthly-budget';
 import { NetWorthPage } from '@/components/pages/net-worth';
 import { SettingsPage } from '@/components/pages/settings';
 import { SyncConflictDialog } from '@/components/sync-conflict-dialog';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'net-worth' | 'settings';
 
@@ -75,9 +77,11 @@ function AppShellContent() {
       
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
+        <Header
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onLogout={logout}
+          syncStatus={syncStatus}
+          onSyncComplete={refetch}
         />
         
         <main className="flex-1 overflow-auto p-6 bg-slate-950">
@@ -91,7 +95,10 @@ function AppShellContent() {
 export function AppShell() {
   return (
     <SyncProvider>
-      <AppShellContent />
+      <TooltipProvider>
+        <AppShellContent />
+        <Toaster position="bottom-right" />
+      </TooltipProvider>
     </SyncProvider>
   );
 }
