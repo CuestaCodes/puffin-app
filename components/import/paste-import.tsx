@@ -35,7 +35,7 @@ import type {
   ImportResult
 } from '@/types/import';
 import type { Source } from '@/types/database';
-import type { UndoImportResult } from '@/app/api/transactions/undo-import/route';
+import type { UndoImportResult } from '@/types/import';
 
 type PasteStep = 'paste' | 'mapping' | 'preview' | 'complete';
 

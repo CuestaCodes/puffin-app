@@ -42,9 +42,8 @@ import {
   formatTimeRemaining,
   type LastImportInfo,
 } from '@/lib/import-undo';
-import type { UndoImportInfo, UndoImportResult } from '@/app/api/transactions/undo-import/route';
 import type { TransactionWithCategory } from '@/types/database';
-import type { ImportResult } from '@/types/import';
+import type { ImportResult, UndoImportInfo, UndoImportResult } from '@/types/import';
 import { cn } from '@/lib/utils';
 
 interface TransactionListResponse {

@@ -3,26 +3,13 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth } from '@/lib/auth';
 import { getDatabase, initializeDatabase } from '@/lib/db';
+import type { UndoImportInfo, UndoImportResult } from '@/types/import';
 
 // Validation schema for undo import request
 const undoImportSchema = z.object({
   batchId: z.string().uuid(),
   confirm: z.boolean().optional().default(false),
 });
-
-export interface UndoImportInfo {
-  batchId: string;
-  totalCount: number;
-  modifiedCount: number;
-  alreadyDeletedCount: number;
-  canUndo: boolean;
-}
-
-export interface UndoImportResult {
-  success: boolean;
-  undoneCount: number;
-  message: string;
-}
 
 export async function POST(request: Request) {
   const auth = await requireAuth();

@@ -9,11 +9,70 @@ import {
 import {
   DayPicker,
   getDefaultClassNames,
+  useDayPicker,
   type DayButton,
 } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { MonthPicker } from "@/components/ui/month-picker"
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
+
+/**
+ * Custom caption label that opens MonthPicker when clicked
+ */
+function CalendarCaptionLabel(props: React.HTMLAttributes<HTMLSpanElement>) {
+  const [open, setOpen] = React.useState(false)
+  const { goToMonth, months } = useDayPicker()
+
+  // Get the currently displayed month from DayPicker context
+  const displayedMonth = months[0]?.date || new Date()
+
+  const handleMonthSelect = (date: Date) => {
+    goToMonth(date)
+    setOpen(false)
+  }
+
+  const monthYear = displayedMonth.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  })
+
+  // Only use className from props
+  const { className } = props
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          className,
+          "hover:text-cyan-400 transition-colors cursor-pointer bg-transparent border-none relative z-20"
+        )}
+        aria-label={`Select month, currently ${monthYear}`}
+      >
+        {monthYear} ▼
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-auto p-4 pt-8 bg-slate-900 border-slate-700 max-w-fit">
+          <VisuallyHidden>
+            <DialogTitle>Select Month</DialogTitle>
+          </VisuallyHidden>
+          <MonthPicker
+            selected={displayedMonth}
+            onSelect={handleMonthSelect}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
 
 function Calendar({
   className,
@@ -142,6 +201,7 @@ function Calendar({
             />
           )
         },
+        CaptionLabel: CalendarCaptionLabel,
         Chevron: ({ className, orientation, ...props }) => {
           if (orientation === "left") {
             return (

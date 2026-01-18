@@ -22,10 +22,10 @@ import type {
   DateFormat,
   ImportPreview,
   ParsedRow,
-  ImportResult
+  ImportResult,
+  UndoImportResult
 } from '@/types/import';
 import type { Source } from '@/types/database';
-import type { UndoImportResult } from '@/app/api/transactions/undo-import/route';
 import { IMPORT_NOTES_MAX_LENGTH } from '@/lib/validations';
 
 type ImportStep = 'upload' | 'mapping' | 'preview' | 'complete';

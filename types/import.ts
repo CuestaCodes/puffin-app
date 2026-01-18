@@ -103,5 +103,21 @@ export interface ImportProgress {
   message: string;
 }
 
+/** Info about an import batch for undo confirmation */
+export interface UndoImportInfo {
+  batchId: string;
+  totalCount: number;
+  modifiedCount: number;
+  alreadyDeletedCount: number;
+  canUndo: boolean;
+}
+
+/** Result of undoing an import batch */
+export interface UndoImportResult {
+  success: boolean;
+  undoneCount: number;
+  message: string;
+}
+
 
 
