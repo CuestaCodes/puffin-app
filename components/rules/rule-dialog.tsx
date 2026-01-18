@@ -92,7 +92,8 @@ export function RuleDialog({
   // Apply dialog state
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [savedRuleId, setSavedRuleId] = useState<string | null>(null);
-  const [matchingCount, setMatchingCount] = useState(0);
+  const [matchingCounts, setMatchingCounts] = useState<{ uncategorized: number; alreadyCategorized: number; total: number }>({ uncategorized: 0, alreadyCategorized: 0, total: 0 });
+  const [includeAlreadyCategorized, setIncludeAlreadyCategorized] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ success: boolean; count: number } | null>(null);
 
@@ -223,11 +224,13 @@ export function RuleDialog({
 
         // For new rules, check if there are existing transactions to apply to
         if (isNewRule) {
-          const countResult = await api.get<{ count: number }>(
-            `/api/rules?action=count&matchText=${encodeURIComponent(matchText)}`
+          // Always fetch with includeAlreadyCategorized=true to get both counts
+          const countResult = await api.get<{ uncategorized: number; alreadyCategorized: number; total: number }>(
+            `/api/rules?action=count&matchText=${encodeURIComponent(matchText)}&includeAlreadyCategorized=true`
           );
-          if (countResult.data && countResult.data.count > 0) {
-            setMatchingCount(countResult.data.count);
+          if (countResult.data && countResult.data.total > 0) {
+            setMatchingCounts(countResult.data);
+            setIncludeAlreadyCategorized(false); // Reset checkbox
             setApplyResult(null);
             setShowApplyDialog(true);
             // Keep the main dialog open but hidden behind apply dialog
@@ -255,7 +258,9 @@ export function RuleDialog({
 
     setIsApplying(true);
     try {
-      const result = await api.post<{ updatedCount: number }>(`/api/rules/${savedRuleId}`, {});
+      const result = await api.post<{ updatedCount: number }>(`/api/rules/${savedRuleId}`, {
+        includeAlreadyCategorized,
+      });
 
       if (result.data) {
         setApplyResult({ success: true, count: result.data.updatedCount });
@@ -470,23 +475,49 @@ export function RuleDialog({
               <Zap className="w-5 h-5 text-violet-400" />
               Apply to Existing Transactions
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              {applyResult ? (
-                applyResult.success ? (
-                  <span className="flex items-center gap-2 text-emerald-400">
-                    <CheckCircle className="w-4 h-4" />
-                    Successfully categorised {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
-                  </span>
+            <DialogDescription asChild>
+              <div className="text-slate-400">
+                {applyResult ? (
+                  applyResult.success ? (
+                    <span className="flex items-center gap-2 text-emerald-400">
+                      <CheckCircle className="w-4 h-4" />
+                      Successfully categorised {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
+                    </span>
+                  ) : (
+                    <span className="text-red-400">Failed to apply rule. Please try again.</span>
+                  )
                 ) : (
-                  <span className="text-red-400">Failed to apply rule. Please try again.</span>
-                )
-              ) : (
-                <>
-                  Found <span className="text-violet-400 font-semibold">{matchingCount}</span> uncategorized
-                  transaction{matchingCount !== 1 ? 's' : ''} that match{matchingCount === 1 ? 'es' : ''} this rule.
-                  Would you like to categorise them now?
-                </>
-              )}
+                  <div className="space-y-3">
+                    <p>
+                      Found <span className="text-violet-400 font-semibold">{matchingCounts.uncategorized}</span> uncategorized
+                      transaction{matchingCounts.uncategorized !== 1 ? 's' : ''} that match{matchingCounts.uncategorized === 1 ? 'es' : ''} this rule.
+                    </p>
+                    {matchingCounts.alreadyCategorized > 0 && (
+                      <div className="flex items-start space-x-2 pt-2 border-t border-slate-700">
+                        <Checkbox
+                          id="include-categorized"
+                          checked={includeAlreadyCategorized}
+                          onCheckedChange={(checked) => setIncludeAlreadyCategorized(checked === true)}
+                          className="mt-0.5"
+                          aria-label="Include already categorized transactions"
+                        />
+                        <label
+                          htmlFor="include-categorized"
+                          className="text-sm text-slate-300 cursor-pointer"
+                        >
+                          Also re-categorise <span className="text-amber-400 font-semibold">{matchingCounts.alreadyCategorized}</span> already
+                          categorised transaction{matchingCounts.alreadyCategorized !== 1 ? 's' : ''}
+                        </label>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      {includeAlreadyCategorized
+                        ? `Will apply to ${matchingCounts.total} total transactions`
+                        : 'Would you like to categorise them now?'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
 
@@ -509,7 +540,7 @@ export function RuleDialog({
                 </Button>
                 <Button
                   onClick={handleApplyToExisting}
-                  disabled={isApplying}
+                  disabled={isApplying || (matchingCounts.uncategorized === 0 && !includeAlreadyCategorized)}
                   className="bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   {isApplying ? (

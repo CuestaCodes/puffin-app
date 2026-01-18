@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
@@ -51,6 +52,7 @@ interface RulesManagementProps {
 export function RulesManagement({ onBack }: RulesManagementProps) {
   // Data
   const [rules, setRules] = useState<AutoCategoryRuleWithCategory[]>([]);
+  const [currentCounts, setCurrentCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   // Rule dialog state
@@ -63,7 +65,8 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
   // Apply to existing state (for Zap button on existing rules)
   const [showApplyDialog, setShowApplyDialog] = useState(false);
   const [applyingRuleId, setApplyingRuleId] = useState<string | null>(null);
-  const [matchingCount, setMatchingCount] = useState(0);
+  const [matchingCounts, setMatchingCounts] = useState<{ uncategorized: number; alreadyCategorized: number; total: number }>({ uncategorized: 0, alreadyCategorized: 0, total: 0 });
+  const [includeAlreadyCategorized, setIncludeAlreadyCategorized] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [applyResult, setApplyResult] = useState<{ success: boolean; count: number } | null>(null);
 
@@ -76,9 +79,15 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
   const fetchRules = useCallback(async () => {
     try {
-      const result = await api.get<AutoCategoryRuleWithCategory[]>('/api/rules');
-      if (result.data) {
-        setRules(result.data);
+      const [rulesResult, countsResult] = await Promise.all([
+        api.get<AutoCategoryRuleWithCategory[]>('/api/rules'),
+        api.get<{ counts: Record<string, number> }>('/api/rules?action=current-counts'),
+      ]);
+      if (rulesResult.data) {
+        setRules(rulesResult.data);
+      }
+      if (countsResult.data) {
+        setCurrentCounts(countsResult.data.counts);
       }
     } catch (err) {
       console.error('Failed to fetch rules:', err);
@@ -102,7 +111,9 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
 
     setIsApplying(true);
     try {
-      const result = await api.post<{ updatedCount: number }>(`/api/rules/${applyingRuleId}`, {});
+      const result = await api.post<{ updatedCount: number }>(`/api/rules/${applyingRuleId}`, {
+        includeAlreadyCategorized,
+      });
 
       if (result.data) {
         setApplyResult({ success: true, count: result.data.updatedCount });
@@ -121,17 +132,22 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
   const closeApplyDialog = () => {
     setShowApplyDialog(false);
     setApplyingRuleId(null);
-    setMatchingCount(0);
+    setMatchingCounts({ uncategorized: 0, alreadyCategorized: 0, total: 0 });
+    setIncludeAlreadyCategorized(false);
     setApplyResult(null);
   };
 
   // Open apply dialog for an existing rule
   const openApplyDialog = async (rule: AutoCategoryRuleWithCategory) => {
     try {
-      const result = await api.get<{ count: number }>(`/api/rules?action=count&matchText=${encodeURIComponent(rule.match_text)}`);
+      // Fetch with includeAlreadyCategorized=true to get both counts
+      const result = await api.get<{ uncategorized: number; alreadyCategorized: number; total: number }>(
+        `/api/rules?action=count&matchText=${encodeURIComponent(rule.match_text)}&includeAlreadyCategorized=true`
+      );
       if (result.data) {
         setApplyingRuleId(rule.id);
-        setMatchingCount(result.data.count);
+        setMatchingCounts(result.data);
+        setIncludeAlreadyCategorized(false);
         setApplyResult(null);
         setShowApplyDialog(true);
       }
@@ -319,7 +335,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 mt-1">
-                      {rule.match_count} matches
+                      {currentCounts[rule.id] ?? 0} matching transactions
                     </div>
                   </div>
 
@@ -434,23 +450,49 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
               <Zap className="w-5 h-5 text-violet-400" />
               Apply to Existing Transactions
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              {applyResult ? (
-                applyResult.success ? (
-                  <span className="flex items-center gap-2 text-emerald-400">
-                    <CheckCircle className="w-4 h-4" />
-                    Successfully categorised {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
-                  </span>
+            <DialogDescription asChild>
+              <div className="text-slate-400">
+                {applyResult ? (
+                  applyResult.success ? (
+                    <span className="flex items-center gap-2 text-emerald-400">
+                      <CheckCircle className="w-4 h-4" />
+                      Successfully categorised {applyResult.count} transaction{applyResult.count !== 1 ? 's' : ''}!
+                    </span>
+                  ) : (
+                    <span className="text-red-400">Failed to apply rule. Please try again.</span>
+                  )
                 ) : (
-                  <span className="text-red-400">Failed to apply rule. Please try again.</span>
-                )
-              ) : (
-                <>
-                  Found <span className="text-violet-400 font-semibold">{matchingCount}</span> uncategorized
-                  transaction{matchingCount !== 1 ? 's' : ''} that match{matchingCount === 1 ? 'es' : ''} this rule.
-                  Would you like to categorise them now?
-                </>
-              )}
+                  <div className="space-y-3">
+                    <p>
+                      Found <span className="text-violet-400 font-semibold">{matchingCounts.uncategorized}</span> uncategorized
+                      transaction{matchingCounts.uncategorized !== 1 ? 's' : ''} that match{matchingCounts.uncategorized === 1 ? 'es' : ''} this rule.
+                    </p>
+                    {matchingCounts.alreadyCategorized > 0 && (
+                      <div className="flex items-start space-x-2 pt-2 border-t border-slate-700">
+                        <Checkbox
+                          id="include-categorized-mgmt"
+                          checked={includeAlreadyCategorized}
+                          onCheckedChange={(checked) => setIncludeAlreadyCategorized(checked === true)}
+                          className="mt-0.5"
+                          aria-label="Include already categorized transactions"
+                        />
+                        <label
+                          htmlFor="include-categorized-mgmt"
+                          className="text-sm text-slate-300 cursor-pointer"
+                        >
+                          Also re-categorise <span className="text-amber-400 font-semibold">{matchingCounts.alreadyCategorized}</span> already
+                          categorised transaction{matchingCounts.alreadyCategorized !== 1 ? 's' : ''}
+                        </label>
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      {includeAlreadyCategorized
+                        ? `Will apply to ${matchingCounts.total} total transactions`
+                        : 'Would you like to categorise them now?'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
 
@@ -469,11 +511,11 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                   onClick={closeApplyDialog}
                   className="border-slate-700 text-slate-300"
                 >
-                  Skip
+                  Cancel
                 </Button>
                 <Button
                   onClick={handleApplyToExisting}
-                  disabled={isApplying}
+                  disabled={isApplying || (matchingCounts.uncategorized === 0 && !includeAlreadyCategorized)}
                   className="bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   {isApplying ? (

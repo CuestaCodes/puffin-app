@@ -51,7 +51,11 @@ export async function handleRules(ctx: HandlerContext): Promise<unknown> {
         if (!params.matchText) {
           throw new Error('matchText is required for counting');
         }
-        return { count: await countMatchingTransactions(params.matchText) };
+        const includeAlreadyCategorized = params.includeAlreadyCategorized === 'true';
+        return await countMatchingTransactions(params.matchText, includeAlreadyCategorized);
+      }
+      if (params.action === 'current-counts') {
+        return { counts: await getAllRuleCurrentCounts() };
       }
       return getAllRules();
     case 'POST':
@@ -77,9 +81,12 @@ export async function handleRule(ctx: HandlerContext): Promise<unknown> {
   switch (method) {
     case 'GET':
       return getRuleById(id);
-    case 'POST':
-      // Apply rule to existing uncategorized transactions
-      return applyRuleToExistingTransactions(id);
+    case 'POST': {
+      // Apply rule to existing transactions
+      const applyBody = body as { includeAlreadyCategorized?: boolean } | undefined;
+      const includeAlreadyCategorized = applyBody?.includeAlreadyCategorized ?? false;
+      return applyRuleToExistingTransactions(id, includeAlreadyCategorized);
+    }
     case 'PUT':
     case 'PATCH':
       return updateRule(id, body as { match_text?: string; sub_category_id?: string; is_active?: boolean });
@@ -319,10 +326,15 @@ async function testRule(
 }
 
 /**
- * Count uncategorized transactions matching a pattern.
+ * Count transactions matching a pattern.
+ * @param matchText - Text to match against transaction descriptions
+ * @param includeAlreadyCategorized - If true, counts ALL matching transactions; if false, only uncategorized
  */
-async function countMatchingTransactions(matchText: string): Promise<number> {
-  const result = await db.queryOne<{ count: number }>(`
+async function countMatchingTransactions(
+  matchText: string,
+  includeAlreadyCategorized: boolean = false
+): Promise<{ uncategorized: number; alreadyCategorized: number; total: number }> {
+  const uncategorizedResult = await db.queryOne<{ count: number }>(`
     SELECT COUNT(*) as count
     FROM "transaction"
     WHERE is_deleted = 0
@@ -331,13 +343,43 @@ async function countMatchingTransactions(matchText: string): Promise<number> {
       AND LOWER(description) LIKE '%' || LOWER(?) || '%'
   `, [matchText.trim()]);
 
-  return result?.count ?? 0;
+  const uncategorized = uncategorizedResult?.count ?? 0;
+
+  if (!includeAlreadyCategorized) {
+    return {
+      uncategorized,
+      alreadyCategorized: 0,
+      total: uncategorized,
+    };
+  }
+
+  const categorizedResult = await db.queryOne<{ count: number }>(`
+    SELECT COUNT(*) as count
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NOT NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+  `, [matchText.trim()]);
+
+  const alreadyCategorized = categorizedResult?.count ?? 0;
+
+  return {
+    uncategorized,
+    alreadyCategorized,
+    total: uncategorized + alreadyCategorized,
+  };
 }
 
 /**
- * Apply a rule to existing uncategorized transactions.
+ * Apply a rule to existing transactions.
+ * @param ruleId - ID of the rule to apply
+ * @param includeAlreadyCategorized - If true, updates ALL matching transactions; if false, only uncategorized
  */
-async function applyRuleToExistingTransactions(ruleId: string): Promise<{
+async function applyRuleToExistingTransactions(
+  ruleId: string,
+  includeAlreadyCategorized: boolean = false
+): Promise<{
   success: boolean;
   updatedCount: number;
   message: string;
@@ -354,13 +396,18 @@ async function applyRuleToExistingTransactions(ruleId: string): Promise<{
     throw new Error('Rule not found');
   }
 
-  // Update matching uncategorized transactions
+  // Build the WHERE clause based on whether to include already categorized
+  const categoryCondition = includeAlreadyCategorized
+    ? '' // No category filter - update all matching
+    : 'AND sub_category_id IS NULL'; // Only uncategorized
+
+  // Update matching transactions
   const result = await db.execute(`
     UPDATE "transaction"
     SET sub_category_id = ?, updated_at = ?
     WHERE is_deleted = 0
       AND is_split = 0
-      AND sub_category_id IS NULL
+      ${categoryCondition}
       AND LOWER(description) LIKE '%' || LOWER(?) || '%'
   `, [rule.sub_category_id, now, rule.match_text]);
 
@@ -379,4 +426,46 @@ async function applyRuleToExistingTransactions(ruleId: string): Promise<{
     updatedCount,
     message: `Applied rule to ${updatedCount} transaction${updatedCount !== 1 ? 's' : ''}`,
   };
+}
+
+/**
+ * Get current match counts for all rules in a single batch operation.
+ * Returns a record of rule ID to current transaction count.
+ */
+async function getAllRuleCurrentCounts(): Promise<Record<string, number>> {
+  // Get all rules
+  const rules = await db.query<{ id: string; match_text: string }>(`
+    SELECT id, match_text
+    FROM auto_category_rule
+  `);
+
+  if (rules.length === 0) {
+    return {};
+  }
+
+  // Get all non-deleted, non-split transactions
+  const transactions = await db.query<{ description_lower: string }>(`
+    SELECT LOWER(description) as description_lower
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+  `);
+
+  // Count matches for each rule in memory (more efficient than N queries)
+  const counts: Record<string, number> = {};
+
+  for (const rule of rules) {
+    const matchTextLower = rule.match_text.toLowerCase();
+    let count = 0;
+
+    for (const tx of transactions) {
+      if (tx.description_lower.includes(matchTextLower)) {
+        count++;
+      }
+    }
+
+    counts[rule.id] = count;
+  }
+
+  return counts;
 }

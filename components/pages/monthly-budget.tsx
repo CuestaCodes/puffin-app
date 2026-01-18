@@ -441,16 +441,24 @@ function MonthlyBudgetContent() {
     }
   };
 
-  const clearCategoryFilter = () => {
+  const clearCategoryFilter = useCallback(() => {
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
-  };
+  }, []);
 
   // Handle budget refresh when transactions change
-  const handleCategoryChange = async () => {
-    // Refresh both budget summary (for upper category totals) and all categories (for sub-category totals)
+  // Memoized to prevent unnecessary re-renders of MonthlyTransactionList
+  // Save scroll position before refresh, restore after DOM fully settles
+  const handleCategoryChange = useCallback(async () => {
+    const scrollY = window.scrollY;
     await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-  };
+    // Double rAF ensures DOM is fully painted before restoring scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    });
+  }, [fetchBudgetSummary, fetchAllCategories]);
 
   const handleSaveBudget = async (subCategoryId: string, amount: number) => {
     try {

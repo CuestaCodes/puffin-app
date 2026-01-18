@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -74,7 +74,8 @@ function getDefaultTransactionDate(year: number, month: number): string {
   }
 }
 
-export function MonthlyTransactionList({
+// Memoized to prevent re-renders when parent budget data updates
+export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   year,
   month,
   categoryFilter,
@@ -136,8 +137,11 @@ export function MonthlyTransactionList({
       });
 
       if (searchQuery) params.set('search', searchQuery);
-      if (categoryFilter) params.set('categoryId', categoryFilter);
-      
+
+      // Category filter: prop takes priority (from clicking budget categories), then popover filter
+      const effectiveCategoryId = categoryFilter || filters.categoryId;
+      if (effectiveCategoryId) params.set('categoryId', effectiveCategoryId);
+
       // Apply additional filters (excluding date range which is controlled by month view)
       if (filters.sourceId) params.set('sourceId', filters.sourceId);
       if (filters.minAmount !== null) params.set('minAmount', filters.minAmount.toString());
@@ -718,5 +722,4 @@ export function MonthlyTransactionList({
       />
     </>
   );
-}
-
+});

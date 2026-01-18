@@ -386,12 +386,17 @@ export function getRuleStats(): {
 }
 
 /**
- * Count how many existing uncategorized transactions would match a rule
+ * Count how many existing transactions would match a rule
+ * @param matchText - Text to match against transaction descriptions
+ * @param includeAlreadyCategorized - If true, counts ALL matching transactions; if false, only uncategorized
  */
-export function countMatchingTransactions(matchText: string): number {
+export function countMatchingTransactions(
+  matchText: string,
+  includeAlreadyCategorized: boolean = false
+): { uncategorized: number; alreadyCategorized: number; total: number } {
   const db = getDatabase();
 
-  const result = db.prepare(`
+  const uncategorizedResult = db.prepare(`
     SELECT COUNT(*) as count
     FROM "transaction"
     WHERE is_deleted = 0
@@ -400,14 +405,40 @@ export function countMatchingTransactions(matchText: string): number {
       AND LOWER(description) LIKE '%' || LOWER(?) || '%'
   `).get(matchText.trim()) as { count: number };
 
-  return result.count;
+  if (!includeAlreadyCategorized) {
+    return {
+      uncategorized: uncategorizedResult.count,
+      alreadyCategorized: 0,
+      total: uncategorizedResult.count,
+    };
+  }
+
+  const categorizedResult = db.prepare(`
+    SELECT COUNT(*) as count
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+      AND sub_category_id IS NOT NULL
+      AND LOWER(description) LIKE '%' || LOWER(?) || '%'
+  `).get(matchText.trim()) as { count: number };
+
+  return {
+    uncategorized: uncategorizedResult.count,
+    alreadyCategorized: categorizedResult.count,
+    total: uncategorizedResult.count + categorizedResult.count,
+  };
 }
 
 /**
- * Apply a rule to existing uncategorized transactions
+ * Apply a rule to existing transactions
+ * @param ruleId - ID of the rule to apply
+ * @param includeAlreadyCategorized - If true, updates ALL matching transactions; if false, only uncategorized
  * Returns the number of transactions updated
  */
-export function applyRuleToExistingTransactions(ruleId: string): number {
+export function applyRuleToExistingTransactions(
+  ruleId: string,
+  includeAlreadyCategorized: boolean = false
+): number {
   const db = getDatabase();
   const now = new Date().toISOString();
 
@@ -420,13 +451,18 @@ export function applyRuleToExistingTransactions(ruleId: string): number {
 
   if (!rule) return 0;
 
-  // Update matching uncategorized transactions
+  // Build the WHERE clause based on whether to include already categorized
+  const categoryCondition = includeAlreadyCategorized
+    ? '' // No category filter - update all matching
+    : 'AND sub_category_id IS NULL'; // Only uncategorized
+
+  // Update matching transactions
   const result = db.prepare(`
     UPDATE "transaction"
     SET sub_category_id = ?, updated_at = ?
     WHERE is_deleted = 0
       AND is_split = 0
-      AND sub_category_id IS NULL
+      ${categoryCondition}
       AND LOWER(description) LIKE '%' || LOWER(?) || '%'
   `).run(rule.sub_category_id, now, rule.match_text);
 
@@ -440,4 +476,48 @@ export function applyRuleToExistingTransactions(ruleId: string): number {
   }
 
   return result.changes;
+}
+
+/**
+ * Get current match counts for all rules in a single batch query.
+ * Returns a map of rule ID to current transaction count.
+ */
+export function getAllRuleCurrentCounts(): Map<string, number> {
+  const db = getDatabase();
+
+  // Get all rules
+  const rules = db.prepare(`
+    SELECT id, match_text
+    FROM auto_category_rule
+  `).all() as Array<{ id: string; match_text: string }>;
+
+  if (rules.length === 0) {
+    return new Map();
+  }
+
+  // Get all non-deleted, non-split transactions
+  const transactions = db.prepare(`
+    SELECT LOWER(description) as description_lower
+    FROM "transaction"
+    WHERE is_deleted = 0
+      AND is_split = 0
+  `).all() as Array<{ description_lower: string }>;
+
+  // Count matches for each rule in memory (more efficient than N queries)
+  const counts = new Map<string, number>();
+
+  for (const rule of rules) {
+    const matchTextLower = rule.match_text.toLowerCase();
+    let count = 0;
+
+    for (const tx of transactions) {
+      if (tx.description_lower.includes(matchTextLower)) {
+        count++;
+      }
+    }
+
+    counts.set(rule.id, count);
+  }
+
+  return counts;
 }

@@ -410,6 +410,7 @@ Custom commands in `.claude/commands/`:
 
 | Command | Purpose |
 |---------|---------|
+| `/dev` | Systematically work through feature tasks in `/tasks` folder with 7-phase workflow (discovery, implementation, manual testing, automated testing, code review, reflection, release). Supports fast-track for trivial fixes. |
 | `/code-review <base> <feature>` | Run comprehensive code review comparing two git refs (branches or commits) |
 | `/reflection <base> <feature>` | Analyze session and suggest improvements to CLAUDE.md instructions |
 
@@ -629,6 +630,31 @@ const hasFullDrive = tokens.scope.includes('drive');
 const hasFullDrive = tokens.scope.includes('https://www.googleapis.com/auth/drive ');
 ```
 
+## Performance Patterns
+
+### Batch Queries for Aggregations
+When computing data for many items (e.g., counts for N rules, stats for N categories), load all data in 2 queries and process in memory rather than N queries:
+```typescript
+// ✅ CORRECT - 2 queries, O(rules × transactions) in memory
+const rules = db.query('SELECT id, match_text FROM auto_category_rule');
+const transactions = db.query('SELECT description FROM transaction WHERE is_deleted = 0');
+
+const counts = new Map<string, number>();
+for (const rule of rules) {
+  const matchText = rule.match_text.toLowerCase();
+  counts.set(rule.id, transactions.filter(t =>
+    t.description.toLowerCase().includes(matchText)
+  ).length);
+}
+
+// ❌ WRONG - N queries, one per rule
+for (const rule of rules) {
+  const count = db.query('SELECT COUNT(*) FROM transaction WHERE description LIKE ?', rule.match_text);
+  counts.set(rule.id, count);
+}
+```
+For 100 rules and 10k transactions, batch is ~100-300ms vs N×100ms for individual queries.
+
 ## Important Notes
 
 - All data stays local; sync to Google Drive is manual and optional
@@ -698,6 +724,18 @@ Remove unused imports rather than commenting them out. If keeping for future use
   ```
 
 ## UI Safety Patterns
+
+### Component Consistency
+Always use shadcn/ui components instead of native HTML elements for form controls:
+```typescript
+// ✅ CORRECT - Use shadcn Checkbox
+import { Checkbox } from '@/components/ui/checkbox';
+<Checkbox checked={value} onCheckedChange={setValue} />
+
+// ❌ WRONG - Native input breaks visual consistency
+<input type="checkbox" checked={value} onChange={e => setValue(e.target.checked)} />
+```
+This ensures consistent styling, accessibility, and behavior across the app. The same applies to Select, Input, Button, and other form elements.
 
 ### Destructive Operations
 For destructive operations (delete, restore, reset, clear):
@@ -846,6 +884,22 @@ const handleInputChange = (value: string) => {
   fetchData(value);  // Fires on every character typed
 };
 ```
+
+### Scroll Position Preservation
+When refreshing data that may cause re-renders, save and restore scroll position with double `requestAnimationFrame` to ensure DOM is fully painted:
+```typescript
+const handleRefresh = useCallback(async () => {
+  const scrollY = window.scrollY;
+  await fetchData();
+  // Double rAF ensures DOM is fully painted before restoring
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  });
+}, [fetchData]);
+```
+Single `requestAnimationFrame` may fire before React commits the new DOM. Use this pattern when users interact with lists that refresh (e.g., categorizing transactions).
 
 ### Fire-and-Forget API Calls
 When making API calls where you don't need to await the result, use `void` prefix and add error handling:
