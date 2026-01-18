@@ -293,7 +293,8 @@ function TransactionsPageContent() {
       } else {
         toast.error('Failed to get import info');
       }
-    } catch {
+    } catch (error) {
+      console.error('Failed to get import info:', error);
       toast.error('Failed to get import info');
     }
   };
@@ -318,7 +319,8 @@ function TransactionsPageContent() {
       } else {
         toast.error('Failed to undo import');
       }
-    } catch {
+    } catch (error) {
+      console.error('Failed to undo import:', error);
       toast.error('Failed to undo import');
     } finally {
       setIsUndoing(false);
