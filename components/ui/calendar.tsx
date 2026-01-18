@@ -43,7 +43,8 @@ function CalendarCaptionLabel(props: React.HTMLAttributes<HTMLSpanElement>) {
     year: "numeric",
   })
 
-  // Only use className from props
+  // Only use className from props - other props (role, aria-live, etc.) from
+  // react-day-picker interfere with Dialog behavior and are intentionally ignored
   const { className } = props
 
   return (
@@ -57,7 +58,8 @@ function CalendarCaptionLabel(props: React.HTMLAttributes<HTMLSpanElement>) {
         )}
         aria-label={`Select month, currently ${monthYear}`}
       >
-        {monthYear} ▼
+        {monthYear}
+        <ChevronDownIcon className="inline size-3 ml-1" />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-auto p-4 pt-8 bg-slate-900 border-slate-700 max-w-fit">
