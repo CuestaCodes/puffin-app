@@ -22,6 +22,7 @@ All notable changes to Puffin will be documented in this file.
 - Import limit increased from 1,000 to 5,000 transactions with loading indicator and within-file duplicate detection
 - Category dropdown in auto-category rule dialog is now searchable
 - Categories now sorted alphabetically (A-Z) within each section in all dropdowns
+- Date pickers now allow clicking the month/year to quickly jump to any month (opens MonthPicker dialog)
 
 ### Fixed
 - CSV and PDF paste import now have "First row contains headers" toggle - uncheck to import files without header rows
