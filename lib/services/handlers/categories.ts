@@ -105,7 +105,7 @@ async function getCategories(params: Record<string, string>): Promise<{
     FROM sub_category sc
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     ${whereClause}
-    ORDER BY uc.sort_order, sc.sort_order`
+    ORDER BY uc.sort_order, sc.name COLLATE NOCASE`
   );
 
   // Build grouped format for category-management.tsx

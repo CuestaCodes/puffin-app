@@ -48,7 +48,7 @@ export function getSubCategories(includeDeleted: boolean = false): SubCategoryWi
     FROM sub_category sc
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     ${deletedClause}
-    ORDER BY uc.sort_order ASC, sc.sort_order ASC
+    ORDER BY uc.sort_order ASC, sc.name COLLATE NOCASE ASC
   `).all() as SubCategoryWithUpper[];
 }
 

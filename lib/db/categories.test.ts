@@ -214,12 +214,43 @@ describe('Category Operations', () => {
       const now = new Date().toISOString();
       db.prepare('UPDATE sub_category SET is_deleted = 1, updated_at = ? WHERE id = ?')
         .run(now, 'sub-1');
-      
+
       const withDeleted = db.prepare('SELECT * FROM sub_category').all();
       const withoutDeleted = db.prepare('SELECT * FROM sub_category WHERE is_deleted = 0').all();
-      
+
       expect(withDeleted).toHaveLength(3);
       expect(withoutDeleted).toHaveLength(2);
+    });
+
+    it('should sort sub-categories alphabetically within each upper category', () => {
+      const now = new Date().toISOString();
+
+      // Add more categories with non-alphabetical sort_order to verify name sorting
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('sub-4', 'expense', 'Aardvark Expenses', 99, 0, ?, ?)
+      `).run(now, now);
+
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('sub-5', 'expense', 'zebra costs', 1, 0, ?, ?)
+      `).run(now, now);
+
+      // Query with alphabetical sorting (case-insensitive)
+      const categories = db.prepare(`
+        SELECT sc.*, uc.name as upper_category_name
+        FROM sub_category sc
+        JOIN upper_category uc ON sc.upper_category_id = uc.id
+        WHERE sc.is_deleted = 0 AND sc.upper_category_id = 'expense'
+        ORDER BY sc.name COLLATE NOCASE ASC
+      `).all() as Array<{ id: string; name: string }>;
+
+      // Should be sorted: Aardvark, Groceries, Transportation, zebra
+      expect(categories).toHaveLength(4);
+      expect(categories[0].name).toBe('Aardvark Expenses');
+      expect(categories[1].name).toBe('Groceries');
+      expect(categories[2].name).toBe('Transportation');
+      expect(categories[3].name).toBe('zebra costs');
     });
   });
 
