@@ -17,6 +17,9 @@ All notable changes to Puffin will be documented in this file.
 ### Changed
 - Renamed "Import CSV" button to "Import" (covers both CSV and PDF paste methods)
 
+### Improved
+- Budget progress bars now show orange warning up to 105% of limit instead of turning red immediately at 100%
+
 ### Fixed
 - CSV and PDF paste import now have "First row contains headers" toggle - uncheck to import files without header rows
 - Category filter in Monthly Budget view now works correctly from the Filters popover

@@ -33,6 +33,7 @@ import { CategoryProvider, MonthlyTransactionList } from '@/components/transacti
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { MonthPicker } from '@/components/ui/month-picker';
 import { cn, withScrollPreservation } from '@/lib/utils';
+import { BUDGET_THRESHOLDS } from '@/lib/budget-status';
 import type { BudgetWithCategory, BudgetTemplate } from '@/types/database';
 
 interface IncomeCategory {
@@ -518,8 +519,8 @@ function MonthlyBudgetContent() {
   };
 
   const remaining = (budgetData?.totalBudgeted || 0) - (budgetData?.totalSpent || 0);
-  const spentPercentage = budgetData?.totalBudgeted 
-    ? Math.min(100, (budgetData.totalSpent / budgetData.totalBudgeted) * 100)
+  const spentPercentage = budgetData?.totalBudgeted
+    ? (budgetData.totalSpent / budgetData.totalBudgeted) * 100
     : 0;
 
   return (
@@ -695,8 +696,8 @@ function MonthlyBudgetContent() {
                   <div 
                     className={cn(
                       'h-full rounded-full transition-all duration-500',
-                      spentPercentage > 100 ? 'bg-red-500' :
-                      spentPercentage > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                      spentPercentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' :
+                      spentPercentage > BUDGET_THRESHOLDS.WARNING ? 'bg-amber-500' : 'bg-emerald-500'
                     )}
                     style={{ width: `${Math.min(100, spentPercentage)}%` }}
                   />
@@ -928,7 +929,7 @@ function MonthlyBudgetContent() {
                       const percentage = hasBudget 
                         ? (category.actual_amount / category.budget_amount!) * 100 
                         : 0;
-                      const isOverBudget = hasBudget && percentage > 100;
+                      const isOverBudget = hasBudget && percentage > BUDGET_THRESHOLDS.OVER;
                       const isSelected = selectedCategoryId === category.sub_category_id;
                       const isEditing = editingBudgetId !== null && editingBudgetId === category.budget_id;
                       const isCreating = creatingBudgetForCategory === category.sub_category_id;
@@ -1034,11 +1035,11 @@ function MonthlyBudgetContent() {
                               </div>
                             </div>
                             <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                              <div 
+                              <div
                                 className={cn(
                                   'h-full rounded-full transition-all duration-300',
-                                  isOverBudget ? 'bg-red-500' :
-                                  percentage > 80 ? 'bg-amber-500' : 
+                                  percentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' :
+                                  percentage > BUDGET_THRESHOLDS.WARNING ? 'bg-amber-500' :
                                   isSelected ? 'bg-cyan-400' : 'bg-cyan-500'
                                 )}
                                 style={{ width: `${Math.min(100, percentage)}%` }}
