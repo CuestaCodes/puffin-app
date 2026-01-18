@@ -19,6 +19,7 @@ All notable changes to Puffin will be documented in this file.
 
 ### Improved
 - Budget progress bars now show orange warning up to 105% of limit instead of turning red immediately at 100%
+- Import limit increased from 1,000 to 5,000 transactions with loading indicator and within-file duplicate detection
 
 ### Fixed
 - CSV and PDF paste import now have "First row contains headers" toggle - uncheck to import files without header rows
