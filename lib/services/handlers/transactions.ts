@@ -111,7 +111,7 @@ async function getTransactions(params: Record<string, string>): Promise<{
   const sortColumn = sortColumnMap[sortBy] || 't.date';
 
   // Build WHERE clause
-  const conditions: string[] = ['t.is_deleted = 0', 't.is_split = 0'];
+  const conditions: string[] = ['t.is_deleted = 0'];
   const queryParams: unknown[] = [];
 
   if (params.startDate) {
@@ -519,6 +519,7 @@ interface ImportResult {
   duplicates: number;
   autoCategorized: number;
   errors: Array<{ rowIndex: number; message: string }>;
+  batchId?: string;
 }
 
 /**
@@ -545,6 +546,9 @@ async function importTransactions(data: {
   if (transactions.length > 1000) {
     throw new Error('Maximum 1000 transactions per import');
   }
+
+  // Generate a batch ID for this import (for undo functionality)
+  const batchId = crypto.randomUUID();
 
   const result: ImportResult = {
     success: true,
@@ -619,8 +623,8 @@ async function importTransactions(data: {
       await db.execute(
         `INSERT INTO "transaction" (
           id, date, description, amount, notes, sub_category_id, source_id,
-          is_split, parent_transaction_id, is_deleted, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?, ?)`,
+          is_split, parent_transaction_id, is_deleted, import_batch_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?, ?, ?)`,
         [
           id,
           tx.date,
@@ -629,6 +633,7 @@ async function importTransactions(data: {
           tx.notes || null,
           finalSubCategoryId,
           tx.source_id || null,
+          batchId,
           now,
           now,
         ]
@@ -649,6 +654,9 @@ async function importTransactions(data: {
   }
 
   result.success = result.errors.length === 0;
+  if (result.imported > 0) {
+    result.batchId = batchId;
+  }
   return result;
 }
 
@@ -689,4 +697,81 @@ export async function handleCheckDuplicates(ctx: HandlerContext): Promise<unknow
     .map(tx => tx.index);
 
   return { duplicates };
+}
+
+/**
+ * Undo import handler - /api/transactions/undo-import
+ */
+export async function handleUndoImport(ctx: HandlerContext): Promise<unknown> {
+  const { method, body } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const { batchId, confirm = false } = body as { batchId: string; confirm?: boolean };
+
+  if (!batchId) {
+    throw new Error('batchId is required');
+  }
+
+  // Get info about the batch
+  const batchInfo = await db.queryOne<{
+    total_count: number;
+    modified_count: number;
+    deleted_count: number;
+  }>(`
+    SELECT
+      COUNT(*) as total_count,
+      SUM(CASE WHEN updated_at > created_at THEN 1 ELSE 0 END) as modified_count,
+      SUM(CASE WHEN is_deleted = 1 THEN 1 ELSE 0 END) as deleted_count
+    FROM "transaction"
+    WHERE import_batch_id = ?
+  `, [batchId]);
+
+  if (!batchInfo || batchInfo.total_count === 0) {
+    throw new Error('Import batch not found');
+  }
+
+  const activeCount = batchInfo.total_count - batchInfo.deleted_count;
+
+  // If not confirming, just return the batch info
+  if (!confirm) {
+    return {
+      batchId,
+      totalCount: batchInfo.total_count,
+      modifiedCount: batchInfo.modified_count,
+      alreadyDeletedCount: batchInfo.deleted_count,
+      canUndo: activeCount > 0,
+    };
+  }
+
+  // Confirm = true, perform the undo (soft delete)
+  if (activeCount === 0) {
+    throw new Error('All transactions in this batch are already deleted');
+  }
+
+  // Soft delete split children of transactions in this batch first
+  const childResult = await db.execute(`
+    UPDATE "transaction"
+    SET is_deleted = 1, updated_at = datetime('now')
+    WHERE parent_transaction_id IN (
+      SELECT id FROM "transaction" WHERE import_batch_id = ?
+    ) AND is_deleted = 0
+  `, [batchId]);
+
+  // Then soft delete all active transactions in the batch
+  const batchResult = await db.execute(`
+    UPDATE "transaction"
+    SET is_deleted = 1, updated_at = datetime('now')
+    WHERE import_batch_id = ? AND is_deleted = 0
+  `, [batchId]);
+
+  const totalUndone = batchResult.changes + childResult.changes;
+
+  return {
+    success: true,
+    undoneCount: totalUndone,
+    message: `Successfully undone ${totalUndone} transaction${totalUndone !== 1 ? 's' : ''}`,
+  };
 }

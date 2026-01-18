@@ -2,9 +2,11 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { api } from '@/lib/services';
+import { toast } from 'sonner';
 import { FileSpreadsheet, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { FileUpload } from './file-upload';
@@ -13,6 +15,7 @@ import { PreviewTable } from './preview-table';
 import { parseCSV, detectColumnMapping } from '@/lib/csv/parser';
 import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
 import { cn } from '@/lib/utils';
+import { saveLastImport, clearLastImport } from '@/lib/import-undo';
 import type {
   CSVParseResult,
   ColumnMapping,
@@ -22,6 +25,7 @@ import type {
   ImportResult
 } from '@/types/import';
 import type { Source } from '@/types/database';
+import type { UndoImportResult } from '@/app/api/transactions/undo-import/route';
 import { IMPORT_NOTES_MAX_LENGTH } from '@/lib/validations';
 
 type ImportStep = 'upload' | 'mapping' | 'preview' | 'complete';
@@ -54,6 +58,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [hasHeaders, setHasHeaders] = useState(false);
 
   // Fetch sources on mount
   useEffect(() => {
@@ -70,21 +76,24 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     fetchSources();
   }, []);
 
-  // Step 1: Handle file upload
-  const handleFileSelect = useCallback(async (file: File) => {
+  // Parse file with current hasHeaders setting
+  const parseFile = useCallback(async (file: File, withHeaders: boolean) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const result = await parseCSV(file);
+      const result = await parseCSV(file, { hasHeaders: withHeaders });
       setParseResult(result);
-      
+
       // Auto-detect column mapping
       const detectedMapping = detectColumnMapping(result.headers);
       if (detectedMapping) {
         setColumnMapping(detectedMapping);
+      } else {
+        // Reset mapping if detection fails
+        setColumnMapping({ date: -1, description: -1, amount: -1, ignore: [] });
       }
-      
+
       // Auto-detect date format from samples
       if (detectedMapping && detectedMapping.date >= 0) {
         const dateSamples = result.rows
@@ -94,7 +103,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         const detectedFormat = detectDateFormat(dateSamples);
         setDateFormat(detectedFormat);
       }
-      
+
       setCurrentStep('mapping');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse CSV file');
@@ -102,6 +111,20 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       setIsLoading(false);
     }
   }, []);
+
+  // Step 1: Handle file upload
+  const handleFileSelect = useCallback(async (file: File) => {
+    setSelectedFile(file);
+    await parseFile(file, hasHeaders);
+  }, [hasHeaders, parseFile]);
+
+  // Handle hasHeaders toggle - re-parse the file
+  const handleHasHeadersChange = useCallback(async (checked: boolean) => {
+    setHasHeaders(checked);
+    if (selectedFile) {
+      await parseFile(selectedFile, checked);
+    }
+  }, [selectedFile, parseFile]);
 
   // Step 2: Continue from mapping to preview
   const handleMappingContinue = useCallback(async () => {
@@ -285,13 +308,62 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       }
       setImportResult(result.data);
       setCurrentStep('complete');
+
+      // Save import info for undo functionality
+      if (result.data.batchId && result.data.imported > 0) {
+        const sourceName = selectedSourceId
+          ? sources.find(s => s.id === selectedSourceId)?.name || null
+          : null;
+
+        saveLastImport({
+          batchId: result.data.batchId,
+          timestamp: Date.now(),
+          count: result.data.imported,
+          sourceName,
+        });
+
+        // Show toast with undo action
+        const toastId = toast.success(
+          `Imported ${result.data.imported} transaction${result.data.imported !== 1 ? 's' : ''}`,
+          {
+            description: 'You can undo this import within 5 minutes',
+            duration: 10000,
+            action: {
+              label: 'Undo',
+              onClick: async () => {
+                try {
+                  const undoResult = await api.post<UndoImportResult>(
+                    '/api/transactions/undo-import',
+                    { batchId: result.data!.batchId, confirm: true }
+                  );
+
+                  if (undoResult.data?.success) {
+                    clearLastImport();
+                    toast.success(undoResult.data.message);
+                    // Trigger a refresh by calling onComplete with updated result
+                    onComplete?.({ ...result.data!, imported: 0 });
+                  } else {
+                    toast.error('Failed to undo import');
+                  }
+                } catch {
+                  toast.error('Failed to undo import');
+                }
+              },
+            },
+          }
+        );
+
+        // Store toast ID for potential dismissal
+        void toastId;
+      }
+
       onComplete?.(result.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Import failed');
     } finally {
       setIsLoading(false);
     }
-  }, [preview, onComplete, selectedSourceId]);
+  }, [preview, onComplete, selectedSourceId, sources]);
 
   const handleReset = () => {
     setCurrentStep('upload');
@@ -301,6 +373,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     setPreview(null);
     setError(null);
     setImportResult(null);
+    setSelectedFile(null);
+    setHasHeaders(false);
   };
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
@@ -377,15 +451,38 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
         {/* Step: Column Mapping */}
         {currentStep === 'mapping' && parseResult && (
-          <ColumnMappingComponent
-            parseResult={parseResult}
-            mapping={columnMapping}
-            dateFormat={dateFormat}
-            onMappingChange={setColumnMapping}
-            onDateFormatChange={setDateFormat}
-            onContinue={handleMappingContinue}
-            onBack={() => setCurrentStep('upload')}
-          />
+          <div className="space-y-4">
+            {/* First row contains headers toggle */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+              <Checkbox
+                id="has-headers"
+                checked={hasHeaders}
+                onCheckedChange={(checked) => handleHasHeadersChange(!!checked)}
+                aria-label="First row contains column headers"
+              />
+              <label
+                htmlFor="has-headers"
+                className="text-sm text-slate-300 cursor-pointer"
+              >
+                First row contains column headers
+              </label>
+              {!hasHeaders && (
+                <span className="text-xs text-amber-400 ml-auto">
+                  Using generated column names
+                </span>
+              )}
+            </div>
+
+            <ColumnMappingComponent
+              parseResult={parseResult}
+              mapping={columnMapping}
+              dateFormat={dateFormat}
+              onMappingChange={setColumnMapping}
+              onDateFormatChange={setDateFormat}
+              onContinue={handleMappingContinue}
+              onBack={() => setCurrentStep('upload')}
+            />
+          </div>
         )}
 
         {/* Step: Preview */}

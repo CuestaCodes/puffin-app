@@ -42,17 +42,20 @@ export async function POST(request: Request) {
     
     const { transactions, skipDuplicates } = validation.data;
     const db = getDatabase();
-    
+
+    // Generate a batch ID for this import (for undo functionality)
+    const batchId = generateId();
+
     // Get date range for duplicate checking
     const dates = transactions.map(t => t.date).sort();
     const startDate = dates[0];
     const endDate = dates[dates.length - 1];
-    
+
     // Get existing fingerprints
-    const existingFingerprints = skipDuplicates 
+    const existingFingerprints = skipDuplicates
       ? getExistingFingerprints(startDate, endDate)
       : new Set<string>();
-    
+
     const importedFingerprints = new Set<string>();
     const result: ImportResult = {
       success: true,
@@ -67,8 +70,8 @@ export async function POST(request: Request) {
     const insertStmt = db.prepare(`
       INSERT INTO "transaction" (
         id, date, description, amount, notes, sub_category_id, source_id,
-        is_split, parent_transaction_id, is_deleted, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, datetime('now'), datetime('now'))
+        is_split, parent_transaction_id, is_deleted, import_batch_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?, datetime('now'), datetime('now'))
     `);
     
     // Process all transactions within a single database transaction for atomicity
@@ -121,7 +124,8 @@ export async function POST(request: Request) {
             tx.amount,
             tx.notes || null,
             finalSubCategoryId,
-            tx.source_id || null
+            tx.source_id || null,
+            batchId
           );
 
           importedFingerprints.add(fingerprint);
@@ -141,10 +145,13 @@ export async function POST(request: Request) {
     
     // Execute the batch import
     importBatch();
-    
-    // Set success flag
+
+    // Set success flag and include batch ID if transactions were imported
     result.success = result.errors.length === 0;
-    
+    if (result.imported > 0) {
+      result.batchId = batchId;
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error importing transactions:', error);

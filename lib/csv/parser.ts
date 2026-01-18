@@ -2,29 +2,46 @@
 import Papa from 'papaparse';
 import type { CSVParseResult, ColumnMapping } from '@/types/import';
 
+export interface ParseCSVOptions {
+  /** Whether the first row contains headers (default: true) */
+  hasHeaders?: boolean;
+}
+
 /**
  * Parse a CSV file and return structured data
  */
-export async function parseCSV(file: File): Promise<CSVParseResult> {
+export async function parseCSV(file: File, options: ParseCSVOptions = {}): Promise<CSVParseResult> {
+  const { hasHeaders = true } = options;
+
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       complete: (results) => {
         const data = results.data as string[][];
-        
+
         // Filter out completely empty rows
-        const filteredData = data.filter(row => 
+        const filteredData = data.filter(row =>
           row.some(cell => cell && cell.trim() !== '')
         );
-        
+
         if (filteredData.length === 0) {
           reject(new Error('CSV file is empty'));
           return;
         }
-        
-        // Assume first row is headers
-        const headers = filteredData[0].map(h => h?.trim() || '');
-        const rows = filteredData.slice(1);
-        
+
+        let headers: string[];
+        let rows: string[][];
+
+        if (hasHeaders) {
+          // First row is headers
+          headers = filteredData[0].map(h => h?.trim() || '');
+          rows = filteredData.slice(1);
+        } else {
+          // No headers - generate placeholder headers and keep all rows
+          const columnCount = filteredData[0].length;
+          headers = Array.from({ length: columnCount }, (_, i) => `Column ${i + 1}`);
+          rows = filteredData;
+        }
+
         resolve({
           headers,
           rows,

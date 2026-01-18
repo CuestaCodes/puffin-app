@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/services';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,21 +10,39 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight,
   Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2,
-  Sparkles
+  Sparkles, RotateCcw
 } from 'lucide-react';
 import { ImportWizard, PasteImport } from '@/components/import';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileSpreadsheet, ClipboardPaste } from 'lucide-react';
-import { 
-  TransactionForm, 
-  DeleteDialog, 
-  FiltersPopover, 
+import {
+  TransactionForm,
+  DeleteDialog,
+  FiltersPopover,
   CategorySelector,
   CategoryProvider,
   SplitModal,
-  type FilterValues 
+  type FilterValues
 } from '@/components/transactions';
 import { RuleDialog } from '@/components/rules';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  getLastImport,
+  clearLastImport,
+  getUndoTimeRemaining,
+  formatTimeRemaining,
+  type LastImportInfo,
+} from '@/lib/import-undo';
+import type { UndoImportInfo, UndoImportResult } from '@/app/api/transactions/undo-import/route';
 import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult } from '@/types/import';
 import { cn } from '@/lib/utils';
@@ -91,6 +110,13 @@ function TransactionsPageContent() {
   const isFirstRender = useRef(true);
   const prevSearchQuery = useRef(searchQuery);
 
+  // Undo import state
+  const [undoInfo, setUndoInfo] = useState<LastImportInfo | null>(null);
+  const [undoTimeRemaining, setUndoTimeRemaining] = useState(0);
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const [undoBatchInfo, setUndoBatchInfo] = useState<UndoImportInfo | null>(null);
+  const [isUndoing, setIsUndoing] = useState(false);
+
   const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -146,6 +172,19 @@ function TransactionsPageContent() {
     setSelectedIds(new Set());
   }, [transactions]);
 
+  // Check for available undo import and update timer
+  useEffect(() => {
+    const checkUndo = () => {
+      const info = getLastImport();
+      setUndoInfo(info);
+      setUndoTimeRemaining(getUndoTimeRemaining());
+    };
+
+    checkUndo();
+    const interval = setInterval(checkUndo, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -156,10 +195,9 @@ function TransactionsPageContent() {
     setPage(1);
   };
 
-  const handleImportComplete = (result: ImportResult) => {
-    if (result.imported > 0) {
-      fetchTransactions();
-    }
+  const handleImportComplete = (_result: ImportResult) => {
+    // Always refresh - covers both import and undo cases
+    fetchTransactions();
     setShowImport(false);
   };
 
@@ -238,6 +276,55 @@ function TransactionsPageContent() {
     setSplittingTransaction(null);
   };
 
+  // Undo import handlers
+  const handleUndoImportClick = async () => {
+    if (!undoInfo) return;
+
+    try {
+      // First, get info about the batch (without confirming)
+      const result = await api.post<UndoImportInfo>('/api/transactions/undo-import', {
+        batchId: undoInfo.batchId,
+        confirm: false,
+      });
+
+      if (result.data) {
+        setUndoBatchInfo(result.data);
+        setShowUndoConfirm(true);
+      } else {
+        toast.error('Failed to get import info');
+      }
+    } catch {
+      toast.error('Failed to get import info');
+    }
+  };
+
+  const handleConfirmUndo = async () => {
+    if (!undoInfo) return;
+
+    setIsUndoing(true);
+    try {
+      const result = await api.post<UndoImportResult>('/api/transactions/undo-import', {
+        batchId: undoInfo.batchId,
+        confirm: true,
+      });
+
+      if (result.data?.success) {
+        clearLastImport();
+        setUndoInfo(null);
+        setShowUndoConfirm(false);
+        setUndoBatchInfo(null);
+        toast.success(result.data.message);
+        fetchTransactions();
+      } else {
+        toast.error('Failed to undo import');
+      }
+    } catch {
+      toast.error('Failed to undo import');
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
   // Bulk selection
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -307,13 +394,24 @@ function TransactionsPageContent() {
             </p>
           </div>
           <div className="flex gap-2">
+            {/* Undo Import button - only shown when undo is available */}
+            {undoInfo && undoTimeRemaining > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleUndoImportClick}
+                className="gap-2 border-amber-500/50 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Undo Import ({formatTimeRemaining(undoTimeRemaining)})
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setShowImport(true)}
               className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
             >
               <Upload className="w-4 h-4" />
-              Import CSV
+              Import
             </Button>
             <Button
               onClick={handleAddTransaction}
@@ -401,7 +499,7 @@ function TransactionsPageContent() {
                   <Upload className="w-8 h-8 text-slate-500" />
                 </div>
                 <p className="font-medium text-slate-400">No transactions yet</p>
-                <p className="text-sm mt-1">Import a CSV file or add transactions manually to get started</p>
+                <p className="text-sm mt-1">Import transactions or add them manually to get started</p>
                 <div className="flex justify-center gap-2 mt-4">
                   <Button
                     variant="outline"
@@ -409,7 +507,7 @@ function TransactionsPageContent() {
                     className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800"
                   >
                     <Upload className="w-4 h-4" />
-                    Import CSV
+                    Import
                   </Button>
                   <Button
                     onClick={handleAddTransaction}
@@ -471,13 +569,18 @@ function TransactionsPageContent() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
-                      {transactions.map((tx) => (
-                        <tr 
-                          key={tx.id} 
+                      {transactions.map((tx) => {
+                        // Grey out split parents and transfer category transactions
+                        const isTransfer = tx.upper_category_type === 'transfer';
+                        const isGreyedOut = tx.is_split || isTransfer;
+
+                        return (
+                        <tr
+                          key={tx.id}
                           className={cn(
                             'hover:bg-slate-800/50 transition-colors',
                             selectedIds.has(tx.id) && 'bg-cyan-500/5',
-                            tx.is_split && 'opacity-50' // Greyed out - amounts are in children
+                            isGreyedOut && 'opacity-50' // Greyed out - excluded from totals
                           )}
                         >
                           <td className="py-3 px-2">
@@ -598,7 +701,8 @@ function TransactionsPageContent() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -721,6 +825,56 @@ function TransactionsPageContent() {
           }
         }}
       />
+
+      {/* Undo Import Confirmation Dialog */}
+      <AlertDialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100">
+              Undo Last Import?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400 space-y-2">
+              {undoBatchInfo && (
+                <>
+                  <p>
+                    This will remove {undoBatchInfo.totalCount - undoBatchInfo.alreadyDeletedCount} transaction
+                    {(undoBatchInfo.totalCount - undoBatchInfo.alreadyDeletedCount) !== 1 ? 's' : ''} from the last import
+                    {undoInfo?.sourceName ? ` (${undoInfo.sourceName})` : ''}.
+                  </p>
+                  {undoBatchInfo.modifiedCount > 0 && (
+                    <p className="text-amber-400 font-medium">
+                      Warning: {undoBatchInfo.modifiedCount} transaction
+                      {undoBatchInfo.modifiedCount !== 1 ? 's have' : ' has'} been modified since import.
+                      {undoBatchInfo.modifiedCount !== 1 ? ' These changes' : ' This change'} will be lost.
+                    </p>
+                  )}
+                  {undoBatchInfo.alreadyDeletedCount > 0 && (
+                    <p className="text-slate-500 text-sm">
+                      {undoBatchInfo.alreadyDeletedCount} transaction
+                      {undoBatchInfo.alreadyDeletedCount !== 1 ? 's were' : ' was'} already deleted.
+                    </p>
+                  )}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              disabled={isUndoing}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmUndo}
+              disabled={isUndoing}
+              className="bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              {isUndoing ? 'Undoing...' : 'Yes, Undo Import'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

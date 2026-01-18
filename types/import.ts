@@ -86,6 +86,8 @@ export interface ImportResult {
   duplicates: number;
   autoCategorized: number;
   errors: ImportError[];
+  /** Batch ID for undo functionality - only set when imported > 0 */
+  batchId?: string;
 }
 
 export interface ImportError {

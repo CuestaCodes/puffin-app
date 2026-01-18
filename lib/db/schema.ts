@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
   is_split INTEGER NOT NULL DEFAULT 0,
   parent_transaction_id TEXT REFERENCES "transaction"(id),
   is_deleted INTEGER NOT NULL DEFAULT 0,
+  import_batch_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -120,6 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_transaction_sub_category ON "transaction"(sub_cat
 CREATE INDEX IF NOT EXISTS idx_transaction_source ON "transaction"(source_id);
 CREATE INDEX IF NOT EXISTS idx_transaction_parent ON "transaction"(parent_transaction_id);
 CREATE INDEX IF NOT EXISTS idx_transaction_deleted ON "transaction"(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_transaction_import_batch ON "transaction"(import_batch_id);
 CREATE INDEX IF NOT EXISTS idx_sub_category_upper ON sub_category(upper_category_id);
 CREATE INDEX IF NOT EXISTS idx_budget_period ON budget(year, month);
 CREATE INDEX IF NOT EXISTS idx_auto_rule_priority ON auto_category_rule(priority);

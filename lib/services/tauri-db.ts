@@ -79,7 +79,7 @@ let dbPromise: Promise<TauriDatabase> | null = null;
 let isInitialized = false;
 
 // Current schema version - increment when adding new migrations
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 /**
  * Get the database path based on environment.
@@ -305,6 +305,24 @@ async function runMigrations(database: TauriDatabase): Promise<void> {
     `);
 
     await setSchemaVersion(database, 3);
+  }
+
+  // Migration 4: Add import_batch_id column to transaction table for undo import feature
+  if (currentVersion < 4) {
+    const columns = await database.select<{ name: string }>(
+      "SELECT name FROM pragma_table_info('transaction') WHERE name='import_batch_id'"
+    );
+
+    if (columns.length === 0) {
+      await database.execute(`
+        ALTER TABLE "transaction" ADD COLUMN import_batch_id TEXT
+      `);
+      await database.execute(`
+        CREATE INDEX IF NOT EXISTS idx_transaction_import_batch ON "transaction"(import_batch_id)
+      `);
+    }
+
+    await setSchemaVersion(database, 4);
   }
 
   // Verify migrations completed successfully

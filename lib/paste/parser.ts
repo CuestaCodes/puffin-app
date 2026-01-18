@@ -15,6 +15,8 @@ interface ParseOptions {
   minSpaces?: number;
   /** Whether to try merging multi-line descriptions */
   mergeMultiLine?: boolean;
+  /** Whether the first row contains headers (default: auto-detect) */
+  hasHeaders?: boolean;
 }
 
 interface ColumnAnalysis {
@@ -32,7 +34,7 @@ interface ColumnAnalysis {
  * Parse pasted text and extract tabular data
  */
 export function parsePastedText(text: string, options: ParseOptions = {}): CSVParseResult {
-  const { minSpaces = 2, mergeMultiLine = true } = options;
+  const { minSpaces = 2, mergeMultiLine = true, hasHeaders } = options;
 
   // Normalize line endings
   const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -69,10 +71,30 @@ export function parsePastedText(text: string, options: ParseOptions = {}): CSVPa
   }
 
   // Extract header row before filtering (if present)
-  const { headerRow, dataRows } = extractHeaderRow(rows);
+  // If hasHeaders is explicitly false, skip header extraction
+  let headerRow: string[] | null = null;
+  let dataRows: string[][];
 
-  // Filter out summary rows from data
-  rows = filterNonTransactionRows(dataRows);
+  if (hasHeaders === false) {
+    // User explicitly said no headers - treat all rows as data
+    // Only filter out obvious summary rows, but keep all data rows
+    dataRows = rows.filter(row => {
+      const lowerRow = row.map(c => c.toLowerCase().trim());
+      const isSummary = lowerRow.some(c =>
+        /^(opening\s+balance|closing\s+balance|transaction\s+total|total[s]?\s*[:/]?$|^balance\s+brought|^balance\s+carried)/i.test(c)
+      );
+      return !isSummary;
+    });
+  } else {
+    // Auto-detect or hasHeaders === true
+    const extracted = extractHeaderRow(rows);
+    headerRow = extracted.headerRow;
+    dataRows = extracted.dataRows;
+    // Filter out summary rows from data
+    dataRows = filterNonTransactionRows(dataRows);
+  }
+
+  rows = dataRows;
 
   if (rows.length === 0) {
     throw new Error('No transaction data found. Make sure you copied a transaction table.');

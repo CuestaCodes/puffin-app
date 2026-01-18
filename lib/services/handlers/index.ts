@@ -69,6 +69,11 @@ export function initializeTauriHandlers(): void {
     return handleCheckDuplicates;
   });
 
+  registerHandler('/api/transactions/undo-import', async () => {
+    const { handleUndoImport } = await import('./transactions');
+    return handleUndoImport;
+  });
+
   // Category handlers
   registerHandler('/api/categories', async () => {
     const { handleCategories } = await import('./categories');

@@ -93,36 +93,6 @@ For the selected task, work through each phase sequentially:
 
 ---
 
-## Fast-Track Option
-
-For trivial fixes (1-5 lines, single file, obvious bug), offer to fast-track after Phase 3 (Manual Testing):
-
-**Criteria for fast-track:**
-- Change is ≤5 lines of code
-- Single file modified
-- Bug fix with clear cause/solution (not architectural)
-- No new patterns or conventions introduced
-- Lint passes
-
-**Fast-track workflow:**
-1. Phase 1: Discovery (brief)
-2. Phase 2: Implementation
-3. Phase 3: Manual Testing → User confirms fix works
-4. **Skip Phases 4-6** (automated tests, code review, reflection)
-5. Phase 7: Release (CHANGELOG + mark complete)
-
-**When NOT to fast-track:**
-- New features (any size)
-- Changes touching multiple files
-- Database schema changes
-- New API endpoints
-- Architectural decisions
-- Changes that might benefit from CLAUDE.md updates
-
-After manual testing passes, ask: *"This was a small fix (X lines). Fast-track to release, or run full code review?"*
-
----
-
 ## Task Priorities
 
 | Priority | Meaning | Examples |

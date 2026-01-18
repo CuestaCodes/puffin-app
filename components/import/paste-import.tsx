@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '@/lib/services';
+import { toast } from 'sonner';
 import {
   ClipboardPaste,
   ArrowLeft,
@@ -24,6 +25,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { parsePastedText, detectPasteColumnMapping, parseAmount } from '@/lib/paste/parser';
 import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
 import { cn } from '@/lib/utils';
+import { saveLastImport, clearLastImport } from '@/lib/import-undo';
 import type {
   CSVParseResult,
   ColumnMapping,
@@ -33,6 +35,7 @@ import type {
   ImportResult
 } from '@/types/import';
 import type { Source } from '@/types/database';
+import type { UndoImportResult } from '@/app/api/transactions/undo-import/route';
 
 type PasteStep = 'paste' | 'mapping' | 'preview' | 'complete';
 
@@ -70,6 +73,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
   const [treatAsExpenses, setTreatAsExpenses] = useState(true);
+  const [hasHeaders, setHasHeaders] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch sources on mount
@@ -98,7 +102,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
     setError(null);
 
     try {
-      const result = parsePastedText(pastedText);
+      const result = parsePastedText(pastedText, { hasHeaders });
       setParseResult(result);
 
       // Auto-detect column mapping
@@ -123,7 +127,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [pastedText]);
+  }, [pastedText, hasHeaders]);
 
   // Generate preview from parse result and column mapping
   const generatePreview = useCallback(async () => {
@@ -303,15 +307,62 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
         throw new Error(result.error);
       }
 
-      setImportResult(result.data || {
+      const importData = result.data || {
         success: true,
         imported: selectedRows.length,
         skipped: 0,
         duplicates: 0,
         autoCategorized: 0,
         errors: [],
-      });
+      };
+
+      setImportResult(importData);
       setCurrentStep('complete');
+
+      // Save import info for undo functionality
+      if (importData.batchId && importData.imported > 0) {
+        const sourceName = selectedSourceId
+          ? sources.find(s => s.id === selectedSourceId)?.name || null
+          : null;
+
+        saveLastImport({
+          batchId: importData.batchId,
+          timestamp: Date.now(),
+          count: importData.imported,
+          sourceName,
+        });
+
+        // Show toast with undo action
+        toast.success(
+          `Imported ${importData.imported} transaction${importData.imported !== 1 ? 's' : ''}`,
+          {
+            description: 'You can undo this import within 5 minutes',
+            duration: 10000,
+            action: {
+              label: 'Undo',
+              onClick: async () => {
+                try {
+                  const undoResult = await api.post<UndoImportResult>(
+                    '/api/transactions/undo-import',
+                    { batchId: importData.batchId, confirm: true }
+                  );
+
+                  if (undoResult.data?.success) {
+                    clearLastImport();
+                    toast.success(undoResult.data.message);
+                    // Trigger a refresh
+                    onComplete?.({ ...importData, imported: 0 });
+                  } else {
+                    toast.error('Failed to undo import');
+                  }
+                } catch {
+                  toast.error('Failed to undo import');
+                }
+              },
+            },
+          }
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import transactions');
     } finally {
@@ -566,6 +617,27 @@ Example:
                 <span>{pastedText.split('\n').filter(l => l.trim()).length} lines detected</span>
               </div>
             )}
+
+            {/* First row contains headers toggle */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+              <Checkbox
+                id="paste-has-headers"
+                checked={hasHeaders}
+                onCheckedChange={(checked) => setHasHeaders(!!checked)}
+                aria-label="First row contains column headers"
+              />
+              <label
+                htmlFor="paste-has-headers"
+                className="text-sm text-slate-300 cursor-pointer"
+              >
+                First row contains column headers
+              </label>
+              {!hasHeaders && (
+                <span className="text-xs text-amber-400 ml-auto">
+                  All rows treated as data
+                </span>
+              )}
+            </div>
 
             <div className="flex justify-between">
               <Button
