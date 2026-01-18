@@ -8,13 +8,9 @@ All notable changes to Puffin will be documented in this file.
 - Option to apply auto-category rules to already-categorised transactions (with preview and confirmation)
 - Rules list now shows current matching transaction count instead of historical cumulative count
 
-### Changed
-
 ### Fixed
 - Category filter in Monthly Budget view now works correctly from the Filters popover
 - Monthly Budget view now preserves scroll position when editing, categorising, splitting, or deleting transactions
-
-### Improved
 
 ## [1.1.1] - 2026-01-16
 

@@ -27,7 +27,7 @@ import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Walle
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { MonthPicker } from '@/components/ui/month-picker';
-import { cn } from '@/lib/utils';
+import { cn, withScrollPreservation } from '@/lib/utils';
 import type { BudgetWithCategory, BudgetTemplate } from '@/types/database';
 
 interface IncomeCategory {
@@ -448,15 +448,9 @@ function MonthlyBudgetContent() {
 
   // Handle budget refresh when transactions change
   // Memoized to prevent unnecessary re-renders of MonthlyTransactionList
-  // Save scroll position before refresh, restore after DOM fully settles
   const handleCategoryChange = useCallback(async () => {
-    const scrollY = window.scrollY;
-    await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-    // Double rAF ensures DOM is fully painted before restoring scroll
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
+    await withScrollPreservation(async () => {
+      await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
     });
   }, [fetchBudgetSummary, fetchAllCategories]);
 

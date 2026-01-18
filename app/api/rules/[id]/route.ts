@@ -82,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// POST /api/rules/[id] - Apply rule to existing uncategorized transactions
+// POST /api/rules/[id] - Apply rule to existing transactions
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const auth = await requireAuth();
   if (!auth.isAuthenticated) return auth.response;
@@ -100,7 +100,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const updatedCount = applyRuleToExistingTransactions(id);
+    // Parse request body for includeAlreadyCategorized option
+    let includeAlreadyCategorized = false;
+    try {
+      const body = await request.json();
+      includeAlreadyCategorized = body?.includeAlreadyCategorized ?? false;
+    } catch {
+      // Empty body is fine, use default
+    }
+
+    const updatedCount = applyRuleToExistingTransactions(id, includeAlreadyCategorized);
 
     return NextResponse.json({
       success: true,

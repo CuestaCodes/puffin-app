@@ -10,6 +10,7 @@ import {
   getRuleStats,
   testRule,
   countMatchingTransactions,
+  getAllRuleCurrentCounts,
 } from '@/lib/db/rules';
 
 // GET /api/rules - Get all rules
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ matches });
     }
 
-    // Count matching uncategorized transactions for a match text
+    // Count matching transactions for a match text
     if (action === 'count') {
       const matchText = searchParams.get('matchText');
       if (!matchText) {
@@ -52,8 +53,20 @@ export async function GET(request: NextRequest) {
           { status: 400 }
         );
       }
-      const count = countMatchingTransactions(matchText);
-      return NextResponse.json({ count });
+      const includeAlreadyCategorized = searchParams.get('includeAlreadyCategorized') === 'true';
+      const counts = countMatchingTransactions(matchText, includeAlreadyCategorized);
+      return NextResponse.json(counts);
+    }
+
+    // Get current match counts for all rules
+    if (action === 'current-counts') {
+      const counts = getAllRuleCurrentCounts();
+      // Convert Map to object for JSON serialization
+      const countsObj: Record<string, number> = {};
+      counts.forEach((value, key) => {
+        countsObj[key] = value;
+      });
+      return NextResponse.json({ counts: countsObj });
     }
 
     const rules = getAllRules();

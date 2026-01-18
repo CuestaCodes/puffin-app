@@ -20,7 +20,7 @@ import {
 } from '@/components/transactions';
 import { RuleDialog } from '@/components/rules';
 import type { TransactionWithCategory } from '@/types/database';
-import { cn } from '@/lib/utils';
+import { cn, withScrollPreservation } from '@/lib/utils';
 
 interface TransactionListResponse {
   transactions: TransactionWithCategory[];
@@ -214,27 +214,17 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   };
 
   const handleTransactionSaved = async () => {
-    const scrollY = window.scrollY;
-    await fetchTransactions();
-    onCategoryChange?.();
-    // Double rAF ensures DOM is fully painted before restoring scroll
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
+    await withScrollPreservation(async () => {
+      await fetchTransactions();
+      onCategoryChange?.();
     });
   };
 
   const handleTransactionDeleted = async () => {
-    const scrollY = window.scrollY;
-    await fetchTransactions();
-    setDeletingTransaction(null);
-    onCategoryChange?.();
-    // Double rAF ensures DOM is fully painted before restoring scroll
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
+    await withScrollPreservation(async () => {
+      await fetchTransactions();
+      setDeletingTransaction(null);
+      onCategoryChange?.();
     });
   };
 
@@ -273,16 +263,12 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     if (!tx.is_split) return;
 
     try {
-      const scrollY = window.scrollY;
       const result = await api.delete(`/api/transactions/${tx.id}/split`);
 
       if (result.data) {
-        await fetchTransactions();
-        onCategoryChange?.();
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            window.scrollTo(0, scrollY);
-          });
+        await withScrollPreservation(async () => {
+          await fetchTransactions();
+          onCategoryChange?.();
         });
       }
     } catch (error) {
@@ -291,14 +277,10 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   };
 
   const handleSplitSuccess = async () => {
-    const scrollY = window.scrollY;
-    await fetchTransactions();
-    onCategoryChange?.();
-    setSplittingTransaction(null);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
+    await withScrollPreservation(async () => {
+      await fetchTransactions();
+      onCategoryChange?.();
+      setSplittingTransaction(null);
     });
   };
 
@@ -330,18 +312,14 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     if (!confirmed) return;
 
     try {
-      const scrollY = window.scrollY;
       await Promise.all(
         Array.from(selectedIds).map(id =>
           api.delete(`/api/transactions/${id}`)
         )
       );
-      await fetchTransactions();
-      onCategoryChange?.();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          window.scrollTo(0, scrollY);
-        });
+      await withScrollPreservation(async () => {
+        await fetchTransactions();
+        onCategoryChange?.();
       });
     } catch (error) {
       console.error('Failed to delete transactions:', error);
@@ -747,13 +725,9 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         onSuccess={async (_rule, appliedCount) => {
           setCreatingRuleFromTransaction(null);
           if (appliedCount && appliedCount > 0) {
-            const scrollY = window.scrollY;
-            await fetchTransactions();
-            onCategoryChange?.();
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                window.scrollTo(0, scrollY);
-              });
+            await withScrollPreservation(async () => {
+              await fetchTransactions();
+              onCategoryChange?.();
             });
           }
         }}

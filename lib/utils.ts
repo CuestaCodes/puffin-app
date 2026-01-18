@@ -69,3 +69,19 @@ export function formatCurrencyAUD(
     maximumFractionDigits: decimals,
   }).format(amount);
 }
+
+/**
+ * Execute an async function while preserving scroll position.
+ * Uses double requestAnimationFrame to ensure DOM is fully painted
+ * before restoring scroll position.
+ */
+export async function withScrollPreservation<T>(fn: () => Promise<T>): Promise<T> {
+  const scrollY = window.scrollY;
+  const result = await fn();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  });
+  return result;
+}
