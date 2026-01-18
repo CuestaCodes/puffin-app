@@ -213,15 +213,29 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     setDeletingTransaction(tx);
   };
 
-  const handleTransactionSaved = () => {
-    fetchTransactions();
+  const handleTransactionSaved = async () => {
+    const scrollY = window.scrollY;
+    await fetchTransactions();
     onCategoryChange?.();
+    // Double rAF ensures DOM is fully painted before restoring scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    });
   };
 
-  const handleTransactionDeleted = () => {
-    fetchTransactions();
+  const handleTransactionDeleted = async () => {
+    const scrollY = window.scrollY;
+    await fetchTransactions();
     setDeletingTransaction(null);
     onCategoryChange?.();
+    // Double rAF ensures DOM is fully painted before restoring scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    });
   };
 
   const handleCategoryChange = async (txId: string, newCategoryId: string | null) => {
@@ -259,21 +273,33 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     if (!tx.is_split) return;
 
     try {
+      const scrollY = window.scrollY;
       const result = await api.delete(`/api/transactions/${tx.id}/split`);
 
       if (result.data) {
-        fetchTransactions();
+        await fetchTransactions();
         onCategoryChange?.();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+          });
+        });
       }
     } catch (error) {
       console.error('Failed to unsplit transaction:', error);
     }
   };
 
-  const handleSplitSuccess = () => {
-    fetchTransactions();
+  const handleSplitSuccess = async () => {
+    const scrollY = window.scrollY;
+    await fetchTransactions();
     onCategoryChange?.();
     setSplittingTransaction(null);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    });
   };
 
   // Bulk selection
@@ -304,13 +330,19 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     if (!confirmed) return;
 
     try {
+      const scrollY = window.scrollY;
       await Promise.all(
         Array.from(selectedIds).map(id =>
           api.delete(`/api/transactions/${id}`)
         )
       );
-      fetchTransactions();
+      await fetchTransactions();
       onCategoryChange?.();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo(0, scrollY);
+        });
+      });
     } catch (error) {
       console.error('Failed to delete transactions:', error);
     }
@@ -712,11 +744,17 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
         defaultMatchText={creatingRuleFromTransaction?.description || ''}
         defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
-        onSuccess={(rule, appliedCount) => {
+        onSuccess={async (_rule, appliedCount) => {
           setCreatingRuleFromTransaction(null);
           if (appliedCount && appliedCount > 0) {
-            fetchTransactions();
+            const scrollY = window.scrollY;
+            await fetchTransactions();
             onCategoryChange?.();
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                window.scrollTo(0, scrollY);
+              });
+            });
           }
         }}
       />

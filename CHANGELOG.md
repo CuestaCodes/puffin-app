@@ -12,7 +12,7 @@ All notable changes to Puffin will be documented in this file.
 
 ### Fixed
 - Category filter in Monthly Budget view now works correctly from the Filters popover
-- Monthly Budget view now preserves scroll position when categorising transactions
+- Monthly Budget view now preserves scroll position when editing, categorising, splitting, or deleting transactions
 
 ### Improved
 
