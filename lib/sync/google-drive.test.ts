@@ -4,7 +4,7 @@
  * Tests sanitization, query building, and retry logic
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // We need to test the internal utility functions
 // Since they're not exported, we'll test them through the exported class behavior

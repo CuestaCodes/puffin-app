@@ -11,6 +11,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -23,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, ChevronRight, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { MonthPicker } from '@/components/ui/month-picker';
@@ -99,6 +104,7 @@ function MonthlyBudgetContent() {
   const [showCopyConfirm, setShowCopyConfirm] = useState(false);
   const [showAverageConfirm, setShowAverageConfirm] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // Ref for smooth scrolling to transactions
   const transactionsRef = useRef<HTMLDivElement>(null);
@@ -446,6 +452,18 @@ function MonthlyBudgetContent() {
     setSelectedCategoryName(null);
   }, []);
 
+  const toggleSection = useCallback((sectionId: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  }, []);
+
   // Handle budget refresh when transactions change
   // Memoized to prevent unnecessary re-renders of MonthlyTransactionList
   const handleCategoryChange = useCallback(async () => {
@@ -748,93 +766,129 @@ function MonthlyBudgetContent() {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Income categories (read-only) */}
+              {/* Income categories (read-only, collapsible) */}
               {incomeCategories.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-pink-500/30">
-                    <h3 className="text-sm font-semibold text-pink-400 uppercase tracking-wider">
-                      Income
-                    </h3>
+                  <button
+                    onClick={() => toggleSection('income')}
+                    className="w-full flex items-center justify-between mb-3 pb-2 border-b border-pink-500/30 hover:bg-pink-500/5 -mx-2 px-2 rounded transition-colors"
+                    aria-label={collapsedSections.has('income') ? 'Expand income section' : 'Collapse income section'}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronDown className={cn(
+                        'w-4 h-4 text-pink-400 transition-transform',
+                        collapsedSections.has('income') && '-rotate-90'
+                      )} />
+                      <h3 className="text-sm font-semibold text-pink-400 uppercase tracking-wider">
+                        Income
+                      </h3>
+                    </div>
                     <span className="text-sm text-pink-400 font-mono">
                       {formatCurrency(budgetData?.totalIncome || incomeCategories.reduce((sum, c) => sum + c.actual_amount, 0))}
                     </span>
-                  </div>
-                  <div className="space-y-2">
-                    {incomeCategories.map((category) => {
-                      const isSelected = selectedCategoryId === category.sub_category_id;
-                      
-                      return (
-                        <button
-                          key={category.sub_category_id}
-                          onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                          className={cn(
-                            'w-full p-3 rounded-lg transition-all text-left',
-                            'bg-pink-500/5 border',
-                            isSelected 
-                              ? 'bg-pink-500/10 border-pink-500/30 ring-1 ring-pink-500/20' 
-                              : 'border-pink-500/10 hover:border-pink-500/20'
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={cn(
-                              'font-medium',
-                              isSelected ? 'text-pink-300' : 'text-slate-200'
-                            )}>
-                              {category.sub_category_name}
-                            </span>
-                            <span className="font-mono text-pink-400">
-                              {formatCurrency(category.actual_amount)}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  </button>
+                  {!collapsedSections.has('income') && (
+                    <div className="space-y-2">
+                      {incomeCategories.map((category) => {
+                        const isSelected = selectedCategoryId === category.sub_category_id;
+
+                        return (
+                          <Tooltip key={category.sub_category_id}>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                className={cn(
+                                  'w-full p-3 rounded-lg transition-all text-left',
+                                  'bg-pink-500/5 border',
+                                  isSelected
+                                    ? 'bg-pink-500/10 border-pink-500/30 ring-1 ring-pink-500/20'
+                                    : 'border-pink-500/10 hover:border-pink-500/20'
+                                )}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className={cn(
+                                    'font-medium',
+                                    isSelected ? 'text-pink-300' : 'text-slate-200'
+                                  )}>
+                                    {category.sub_category_name}
+                                  </span>
+                                  <span className="font-mono text-pink-400">
+                                    {formatCurrency(category.actual_amount)}
+                                  </span>
+                                </div>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Click to filter transactions
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
               
-              {/* Transfer categories (read-only, not contributing to budget) */}
+              {/* Transfer categories (read-only, collapsible) */}
               {transferCategories.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-stone-500/30">
-                    <h3 className="text-sm font-semibold text-stone-400 uppercase tracking-wider">
-                      Transfers
-                    </h3>
+                  <button
+                    onClick={() => toggleSection('transfer')}
+                    className="w-full flex items-center justify-between mb-3 pb-2 border-b border-stone-500/30 hover:bg-stone-500/5 -mx-2 px-2 rounded transition-colors"
+                    aria-label={collapsedSections.has('transfer') ? 'Expand transfers section' : 'Collapse transfers section'}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronDown className={cn(
+                        'w-4 h-4 text-stone-400 transition-transform',
+                        collapsedSections.has('transfer') && '-rotate-90'
+                      )} />
+                      <h3 className="text-sm font-semibold text-stone-400 uppercase tracking-wider">
+                        Transfers
+                      </h3>
+                    </div>
                     <span className="text-sm text-stone-400 font-mono">
                       {formatCurrency(totalTransfers)}
                     </span>
-                  </div>
-                  <div className="space-y-2">
-                    {transferCategories.map((category) => {
-                      const isSelected = selectedCategoryId === category.sub_category_id;
-                      
-                      return (
-                        <button
-                          key={category.sub_category_id}
-                          onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                          className={cn(
-                            'w-full p-3 rounded-lg transition-all text-left',
-                            'bg-stone-500/5 border',
-                            isSelected 
-                              ? 'bg-stone-500/10 border-stone-500/30 ring-1 ring-stone-500/20' 
-                              : 'border-stone-500/10 hover:border-stone-500/20'
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={cn(
-                              'font-medium',
-                              isSelected ? 'text-stone-300' : 'text-slate-200'
-                            )}>
-                              {category.sub_category_name}
-                            </span>
-                            <span className="font-mono text-stone-400">
-                              {formatCurrency(category.actual_amount)}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  </button>
+                  {!collapsedSections.has('transfer') && (
+                    <div className="space-y-2">
+                      {transferCategories.map((category) => {
+                        const isSelected = selectedCategoryId === category.sub_category_id;
+
+                        return (
+                          <Tooltip key={category.sub_category_id}>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                className={cn(
+                                  'w-full p-3 rounded-lg transition-all text-left',
+                                  'bg-stone-500/5 border',
+                                  isSelected
+                                    ? 'bg-stone-500/10 border-stone-500/30 ring-1 ring-stone-500/20'
+                                    : 'border-stone-500/10 hover:border-stone-500/20'
+                                )}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className={cn(
+                                    'font-medium',
+                                    isSelected ? 'text-stone-300' : 'text-slate-200'
+                                  )}>
+                                    {category.sub_category_name}
+                                  </span>
+                                  <span className="font-mono text-stone-400">
+                                    {formatCurrency(category.actual_amount)}
+                                  </span>
+                                </div>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              Click to filter transactions
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
               
@@ -842,10 +896,20 @@ function MonthlyBudgetContent() {
               {groupedCategories.map((group) => (
                 <div key={group.upperCategoryName}>
                   {/* Upper category header */}
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
-                    <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-                      {group.upperCategoryName}
-                    </h3>
+                  <button
+                    onClick={() => toggleSection(`expense-${group.upperCategoryName}`)}
+                    className="w-full flex items-center justify-between mb-3 pb-2 border-b border-slate-800 hover:bg-slate-800/30 -mx-2 px-2 rounded transition-colors"
+                    aria-label={collapsedSections.has(`expense-${group.upperCategoryName}`) ? `Expand ${group.upperCategoryName} section` : `Collapse ${group.upperCategoryName} section`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronDown className={cn(
+                        'w-4 h-4 text-slate-400 transition-transform',
+                        collapsedSections.has(`expense-${group.upperCategoryName}`) && '-rotate-90'
+                      )} />
+                      <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                        {group.upperCategoryName}
+                      </h3>
+                    </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-slate-400">
                         Spent: <span className="font-mono text-slate-200">{formatCurrency(group.totalSpent)}</span>
@@ -854,9 +918,10 @@ function MonthlyBudgetContent() {
                         of <span className="font-mono text-slate-200">{formatCurrency(group.totalBudgeted)}</span>
                       </span>
                     </div>
-                  </div>
-                  
+                  </button>
+
                   {/* Sub-category rows */}
+                  {!collapsedSections.has(`expense-${group.upperCategoryName}`) && (
                   <div className="space-y-2">
                     {group.categories.map((category) => {
                       const hasBudget = category.budget_amount !== null && category.budget_amount > 0;
@@ -905,23 +970,39 @@ function MonthlyBudgetContent() {
                             className={cn(
                               'w-full p-3 rounded-lg transition-all',
                               'bg-slate-800/30 border',
-                              isSelected 
-                                ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20' 
+                              isSelected
+                                ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
                                 : 'border-transparent hover:border-slate-700'
                             )}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <button
-                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                className="flex-1 text-left"
-                              >
-                                <span className={cn(
-                                  'font-medium',
-                                  isSelected ? 'text-cyan-300' : 'text-slate-200'
-                                )}>
-                                  {category.sub_category_name}
-                                </span>
-                              </button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                    className="flex-1 text-left"
+                                  >
+                                    <span className={cn(
+                                      'font-medium',
+                                      isSelected ? 'text-cyan-300' : 'text-slate-200'
+                                    )}>
+                                      {category.sub_category_name}
+                                    </span>
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  <div className="text-center">
+                                    <div>Click to filter transactions</div>
+                                    {(category.average_3mo > 0 || category.average_6mo > 0) && (
+                                      <div className="mt-1 text-slate-400">
+                                        {category.average_3mo > 0 && `3mo avg: ${formatCurrency(category.average_3mo)}`}
+                                        {category.average_3mo > 0 && category.average_6mo > 0 && ' • '}
+                                        {category.average_6mo > 0 && `6mo avg: ${formatCurrency(category.average_6mo)}`}
+                                      </div>
+                                    )}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
                               <div className="flex items-center gap-2">
                                 <div className="flex items-center gap-3 text-sm">
                                   <span className={cn(
@@ -984,28 +1065,44 @@ function MonthlyBudgetContent() {
                           className={cn(
                             'w-full p-3 rounded-lg transition-all',
                             'bg-slate-800/20 border',
-                            isSelected 
-                              ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20' 
+                            isSelected
+                              ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
                               : 'border-slate-700/30 hover:border-slate-600'
                           )}
                         >
                           <div className="flex items-center justify-between">
-                            <button
-                              onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                              className="flex-1 text-left"
-                            >
-                              <span className={cn(
-                                'font-medium',
-                                isSelected ? 'text-cyan-300' : 'text-slate-300'
-                              )}>
-                                {category.sub_category_name}
-                              </span>
-                              {category.actual_amount > 0 && (
-                                <span className="ml-2 text-sm text-slate-500">
-                                  ({formatCurrency(category.actual_amount)} spent)
-                                </span>
-                              )}
-                            </button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                  className="flex-1 text-left"
+                                >
+                                  <span className={cn(
+                                    'font-medium',
+                                    isSelected ? 'text-cyan-300' : 'text-slate-300'
+                                  )}>
+                                    {category.sub_category_name}
+                                  </span>
+                                  {category.actual_amount > 0 && (
+                                    <span className="ml-2 text-sm text-slate-500">
+                                      ({formatCurrency(category.actual_amount)} spent)
+                                    </span>
+                                  )}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <div className="text-center">
+                                  <div>Click to filter transactions</div>
+                                  {(category.average_3mo > 0 || category.average_6mo > 0) && (
+                                    <div className="mt-1 text-slate-400">
+                                      {category.average_3mo > 0 && `3mo avg: ${formatCurrency(category.average_3mo)}`}
+                                      {category.average_3mo > 0 && category.average_6mo > 0 && ' • '}
+                                      {category.average_6mo > 0 && `6mo avg: ${formatCurrency(category.average_6mo)}`}
+                                    </div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1019,20 +1116,11 @@ function MonthlyBudgetContent() {
                               Set Budget
                             </Button>
                           </div>
-                          {(category.average_3mo > 0 || category.average_6mo > 0) && (
-                            <div className="mt-2 text-xs text-slate-500">
-                              {category.average_3mo > 0 && (
-                                <span>3mo avg: {formatCurrency(category.average_3mo)}</span>
-                              )}
-                              {category.average_6mo > 0 && category.average_3mo > 0 && (
-                                <span> • 6mo avg: {formatCurrency(category.average_6mo)}</span>
-                              )}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
                   </div>
+                  )}
                 </div>
               ))}
             </div>

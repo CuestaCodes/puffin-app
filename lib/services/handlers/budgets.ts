@@ -264,14 +264,18 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
 
 /**
  * Get category average spending over N months.
+ * Uses SUM/months (not AVG) to include months with zero spending in the calculation.
  */
 async function getCategoryAverage(categoryId: string, months: number): Promise<number> {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - months);
+  // Start from N months before current month, end at last day of previous month
+  const referenceDate = new Date();
+  const startDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - months, 1);
+  const endDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 0); // Last day of previous month
 
-  const result = await db.queryOne<{ average: number }>(`
-    SELECT COALESCE(AVG(monthly_total), 0) as average
+  // Use SUM/months instead of AVG to get true average over the full period
+  // (AVG only divides by months with data, not the total period)
+  const result = await db.queryOne<{ total: number | null }>(`
+    SELECT SUM(monthly_total) as total
     FROM (
       SELECT ABS(SUM(t.amount)) as monthly_total
       FROM "transaction" t
@@ -284,7 +288,7 @@ async function getCategoryAverage(categoryId: string, months: number): Promise<n
     )
   `, [categoryId, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]);
 
-  return result?.average || 0;
+  return (result?.total || 0) / months;
 }
 
 /**
@@ -333,27 +337,53 @@ async function getCategoriesForBudgetEntry(year: number, month: number): Promise
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-  return db.query(`
+  // Get all categories (including income and transfer) with their transaction totals
+  const subCategories = await db.query<{
+    sub_category_id: string;
+    sub_category_name: string;
+    upper_category_name: string;
+    upper_category_type: string;
+    actual_amount: number;
+  }>(`
     SELECT
       sc.id as sub_category_id,
       sc.name as sub_category_name,
       uc.name as upper_category_name,
       uc.type as upper_category_type,
-      b.id as budget_id,
-      b.amount as budget_amount,
-      COALESCE(ABS(SUM(
+      COALESCE(SUM(
         CASE WHEN t.date >= ? AND t.date <= ? AND t.is_deleted = 0 AND t.is_split = 0
         THEN t.amount ELSE 0 END
-      )), 0) as actual_amount
+      ), 0) as actual_amount
     FROM sub_category sc
     JOIN upper_category uc ON sc.upper_category_id = uc.id
-    LEFT JOIN budget b ON b.sub_category_id = sc.id AND b.year = ? AND b.month = ?
     LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
     WHERE sc.is_deleted = 0
-      AND uc.type NOT IN ('income', 'transfer')
     GROUP BY sc.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
-  `, [startDate, endDate, year, month]);
+  `, [startDate, endDate]);
+
+  // Add budget info and averages for each category
+  const results = [];
+  for (const cat of subCategories) {
+    // Get current budget for this category and month
+    const budgetResult = await db.queryOne<{ amount: number }>(
+      'SELECT amount FROM budget WHERE sub_category_id = ? AND year = ? AND month = ?',
+      [cat.sub_category_id, year, month]
+    );
+    const average3mo = await getCategoryAverage(cat.sub_category_id, 3);
+    const average6mo = await getCategoryAverage(cat.sub_category_id, 6);
+    const carryOver = await getBudgetCarryOver(cat.sub_category_id, year, month);
+
+    results.push({
+      ...cat,
+      current_budget: budgetResult?.amount ?? null,
+      average_3mo: average3mo,
+      average_6mo: average6mo,
+      carry_over: carryOver,
+    });
+  }
+
+  return results;
 }
 
 /**

@@ -202,6 +202,8 @@ Updating only the handler breaks development mode. Updating only the API route b
 - [ ] Response shape matches exactly (same field names, nesting)
 - [ ] Query param names match (e.g., `summary` not `includeSummary`)
 - [ ] Column names match schema (e.g., `is_split` not `is_split_parent`)
+- [ ] **SQL logic matches** (same WHERE filters, same JOINs, same exclusions)
+- [ ] **Aggregation formulas match** (e.g., if API uses `SUM()/count`, handler must too - not `AVG()`)
 - [ ] Pagination responses include: `total`, `page`, `limit`, `totalPages`
 - [ ] Test both dev mode (API routes) and Tauri mode (handlers) with same inputs
 
@@ -620,6 +622,17 @@ Shared test helpers are in `lib/db/test-utils.ts`:
 
 Use these instead of duplicating schema across test files.
 
+### Vitest Import Pattern
+Always import all needed utilities from vitest at the top of test files:
+```typescript
+// ✅ CORRECT - Import all utilities you use
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// ❌ WRONG - Missing vi causes TypeScript errors when using vi.fn()
+import { describe, it, expect } from 'vitest';
+```
+Common imports: `describe`, `it`, `expect`, `vi`, `beforeEach`, `afterEach`, `beforeAll`, `afterAll`.
+
 ### Sync Module Testing
 - Mock `fs` module for config/token storage tests
 - Mock `googleapis` with class-style OAuth2 constructor
@@ -666,6 +679,19 @@ for (const rule of rules) {
 }
 ```
 For 100 rules and 10k transactions, batch is ~100-300ms vs N×100ms for individual queries.
+
+### N+1 Queries in Handlers
+When adding per-item data to list endpoints (e.g., averages for each category), be aware of query multiplication:
+```typescript
+// ⚠️ N+1 PATTERN - 4 queries per category = 80 queries for 20 categories
+for (const cat of categories) {
+  const budget = await db.queryOne('SELECT ... WHERE sub_category_id = ?', [cat.id]);
+  const avg3mo = await getCategoryAverage(cat.id, 3);
+  const avg6mo = await getCategoryAverage(cat.id, 6);
+  const carryOver = await getBudgetCarryOver(cat.id, year, month);
+}
+```
+This pattern is acceptable for small datasets (~20-50 items) but document as technical debt. For larger datasets, batch into fewer queries with JOINs or subqueries.
 
 ## Important Notes
 
