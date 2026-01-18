@@ -190,8 +190,16 @@ When integrating external APIs (e.g., Google Picker), update CSP directives:
 | `connect-src` | XHR/fetch destinations (e.g., OAuth endpoints) |
 | `frame-src` | Embedded iframes (e.g., Google Picker UI) |
 
+**CRITICAL - Dual Update Requirement:**
+When adding or modifying endpoint functionality, you MUST update BOTH files in parallel:
+1. `app/api/<endpoint>/route.ts` - Next.js API route (dev mode)
+2. `lib/services/handlers/<endpoint>.ts` - Tauri handler (packaged mode)
+
+Updating only the handler breaks development mode. Updating only the API route breaks the packaged app. This is a common source of bugs caught in code review.
+
 **Handler-API Parity Checklist:**
-- [ ] Response shape matches API route exactly (same field names, nesting)
+- [ ] **Both files updated** for any new parameter, action, or response change
+- [ ] Response shape matches exactly (same field names, nesting)
 - [ ] Query param names match (e.g., `summary` not `includeSummary`)
 - [ ] Column names match schema (e.g., `is_split` not `is_split_parent`)
 - [ ] Pagination responses include: `total`, `page`, `limit`, `totalPages`
@@ -387,9 +395,13 @@ npm run build:static   # Build static export for Tauri (moves API routes tempora
 **Static Build Warning:**
 `npm run build:static` temporarily moves `app/api/` to `app/_api_backup/` during the build. If editing API routes fails with "file not found", the static build may have run. Restore with:
 ```bash
-# If _api_backup exists and api doesn't
+# Preferred - restore from git (works even with permission issues)
+git restore app/api/
+
+# Alternative - move backup folder back
 mv app/_api_backup app/api
 ```
+After restoring, delete the backup folder if it still exists: `rm -rf app/_api_backup`
 
 ### Platform-Specific Builds
 
@@ -886,20 +898,19 @@ const handleInputChange = (value: string) => {
 ```
 
 ### Scroll Position Preservation
-When refreshing data that may cause re-renders, save and restore scroll position with double `requestAnimationFrame` to ensure DOM is fully painted:
+When refreshing data that may cause re-renders, use the `withScrollPreservation` utility from `lib/utils.ts`:
 ```typescript
+import { withScrollPreservation } from '@/lib/utils';
+
 const handleRefresh = useCallback(async () => {
-  const scrollY = window.scrollY;
-  await fetchData();
-  // Double rAF ensures DOM is fully painted before restoring
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      window.scrollTo(0, scrollY);
-    });
+  await withScrollPreservation(async () => {
+    await fetchData();
+    onDataChange?.();
   });
-}, [fetchData]);
+}, [fetchData, onDataChange]);
 ```
-Single `requestAnimationFrame` may fire before React commits the new DOM. Use this pattern when users interact with lists that refresh (e.g., categorizing transactions).
+
+The utility saves scroll position before the async operation and restores it using double `requestAnimationFrame` to ensure DOM is fully painted. Use this pattern when users interact with lists that refresh (e.g., editing, categorizing, or deleting transactions).
 
 ### Fire-and-Forget API Calls
 When making API calls where you don't need to await the result, use `void` prefix and add error handling:
