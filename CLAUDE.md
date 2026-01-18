@@ -284,6 +284,20 @@ The validation schemas use legacy field names for backward compatibility:
 | `is_split` | Boolean flag for split parent transactions (1 = is a split parent) |
 | `is_deleted` | Soft delete flag (0 = active, 1 = deleted) |
 | `source_id` | FK to source (bank/account origin) |
+| `import_batch_id` | UUID grouping transactions from same import (for undo functionality) |
+
+**`is_split` Filter Usage:**
+```typescript
+// ✅ CORRECT - Use is_split = 0 for CALCULATIONS (avoid double-counting)
+SELECT SUM(amount) FROM "transaction" WHERE is_deleted = 0 AND is_split = 0
+
+// ✅ CORRECT - Do NOT filter is_split for DISPLAY (show split parents, greyed out)
+SELECT * FROM "transaction" WHERE is_deleted = 0  -- No is_split filter
+
+// ❌ WRONG - Filters out split parents from transaction lists
+SELECT * FROM "transaction" WHERE is_deleted = 0 AND is_split = 0
+```
+Split parent transactions should be **visible** in lists (greyed out) but **excluded** from totals/calculations to avoid counting both the parent amount and child amounts.
 
 ### Database Delete Order (Foreign Keys)
 When deleting all data (reset), tables must be deleted in order respecting FK constraints:
@@ -424,7 +438,7 @@ Custom commands in `.claude/commands/`:
 
 | Command | Purpose |
 |---------|---------|
-| `/dev` | Systematically work through feature tasks in `/tasks` folder with 7-phase workflow (discovery, implementation, manual testing, automated testing, code review, reflection, release). Supports fast-track for trivial fixes. |
+| `/dev` | Systematically work through feature tasks in `/tasks` folder with 7-phase workflow (discovery, implementation, manual testing, automated testing, code review, reflection, release). |
 | `/code-review <base> <feature>` | Run comprehensive code review comparing two git refs (branches or commits) |
 | `/reflection <base> <feature>` | Analyze session and suggest improvements to CLAUDE.md instructions |
 
@@ -803,6 +817,41 @@ toast.error('Sync failed', {
 - **AlertDialog**: Destructive actions requiring confirmation, blocking errors
 
 **Setup**: `<Toaster />` is rendered in `app-shell.tsx` with `position="bottom-right"`.
+
+### Time-Limited Undo Pattern
+For operations that users might want to undo (e.g., imports, bulk deletes), use localStorage with a time window:
+
+```typescript
+// lib/import-undo.ts pattern
+const STORAGE_KEY = 'puffin_last_import';
+const UNDO_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+interface LastImportInfo {
+  batchId: string;      // UUID to identify the batch
+  timestamp: number;    // Date.now() when operation completed
+  count: number;        // Number of items affected
+  sourceName: string | null;  // Context for user display
+}
+
+// Save after operation completes
+saveLastImport({ batchId, timestamp: Date.now(), count, sourceName });
+
+// Check if undo is available (within time window)
+const info = getLastImport();  // Returns null if expired
+
+// Clear after undo is performed or new operation starts
+clearLastImport();
+```
+
+**UI Pattern:**
+1. Show toast with "Undo" action button after operation
+2. Show persistent button with countdown timer (e.g., "Undo Import (4:32)")
+3. Confirmation dialog before undo if items were modified since operation
+
+**Database Pattern:**
+- Add batch ID column (e.g., `import_batch_id`) to track related records
+- Undo via soft delete: `UPDATE ... SET is_deleted = 1 WHERE import_batch_id = ?`
+- Also handle children: delete split children when undoing parent transactions
 
 ### Sync Conflict Resolution
 The app uses a **blocking modal** pattern for sync conflicts (`SyncConflictDialog`):
