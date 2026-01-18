@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   getBudgetStatus,
-  isOverBudgetThreshold,
   BUDGET_THRESHOLDS,
 } from './budget-status';
 
@@ -49,18 +48,4 @@ describe('budget-status', () => {
     });
   });
 
-  describe('isOverBudgetThreshold', () => {
-    it('returns false for percentage <= 105%', () => {
-      expect(isOverBudgetThreshold(0)).toBe(false);
-      expect(isOverBudgetThreshold(80)).toBe(false);
-      expect(isOverBudgetThreshold(100)).toBe(false);
-      expect(isOverBudgetThreshold(105)).toBe(false);
-    });
-
-    it('returns true for percentage > 105%', () => {
-      expect(isOverBudgetThreshold(105.1)).toBe(true);
-      expect(isOverBudgetThreshold(110)).toBe(true);
-      expect(isOverBudgetThreshold(200)).toBe(true);
-    });
-  });
 });

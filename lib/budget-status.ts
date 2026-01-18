@@ -38,13 +38,3 @@ export function getBudgetStatus(percentage: number): BudgetStatus {
   return 'under';
 }
 
-/**
- * Check if spending is over budget (beyond tolerance).
- * This is true only when spending exceeds 105% of budget.
- *
- * @param percentage - Spending as a percentage of budget
- * @returns true if over the 105% threshold
- */
-export function isOverBudgetThreshold(percentage: number): boolean {
-  return percentage > BUDGET_THRESHOLDS.OVER;
-}
