@@ -232,7 +232,7 @@ function CategoryList({
           autoFocus
         />
       </div>
-      <div className="max-h-64 overflow-y-auto">
+      <div className="max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
         {isLoading ? (
           <div className="p-4 text-center text-slate-500 text-sm">
             Loading categories...

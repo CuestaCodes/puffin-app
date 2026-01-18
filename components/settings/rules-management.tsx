@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { UPPER_CATEGORY_TEXT_COLORS } from '@/lib/constants';
 import { RuleDialog } from '@/components/rules';
+import { CategoryProvider } from '@/components/transactions';
 
 interface AutoCategoryRuleWithCategory {
   id: string;
@@ -250,33 +251,34 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        {onBack && (
+    <CategoryProvider>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBack}
+              className="text-slate-400 hover:text-white"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          )}
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-white">Auto-Categorisation Rules</h1>
+            <p className="text-slate-400 mt-1">
+              Create rules to automatically categorise transactions during import
+            </p>
+          </div>
           <Button
-            variant="ghost"
-            size="icon"
-            onClick={onBack}
-            className="text-slate-400 hover:text-white"
+            onClick={openNewRuleDialog}
+            className="bg-violet-600 hover:bg-violet-700 text-white"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <Plus className="w-4 h-4 mr-2" />
+            Add Rule
           </Button>
-        )}
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Auto-Categorisation Rules</h1>
-          <p className="text-slate-400 mt-1">
-            Create rules to automatically categorise transactions during import
-          </p>
         </div>
-        <Button
-          onClick={openNewRuleDialog}
-          className="bg-violet-600 hover:bg-violet-700 text-white"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Rule
-        </Button>
-      </div>
 
       {/* Rules list */}
       <Card className="border-slate-800 bg-slate-900/50">
@@ -530,6 +532,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </CategoryProvider>
   );
 }

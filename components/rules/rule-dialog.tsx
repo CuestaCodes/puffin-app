@@ -23,16 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Loader2, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
-import type { SubCategoryWithUpper } from '@/types/database';
-import { UPPER_CATEGORY_TEXT_COLORS } from '@/lib/constants';
+import { CategorySelector } from '@/components/transactions/category-selector';
 
 // Pure function - doesn't need to be inside component
 const formatCurrency = (amount: number) => {
@@ -75,8 +67,7 @@ export function RuleDialog({
 }: RuleDialogProps) {
   // Form state
   const [matchText, setMatchText] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [categories, setCategories] = useState<SubCategoryWithUpper[]>([]);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [addToTop, setAddToTop] = useState(false);
 
   // Test/preview state
@@ -131,7 +122,7 @@ export function RuleDialog({
         setCategoryId(editingRule.sub_category_id);
       } else {
         setMatchText(defaultMatchText);
-        setCategoryId(defaultCategoryId);
+        setCategoryId(defaultCategoryId || null);
       }
       setTestMatches([]);
       setError(null);
@@ -144,28 +135,6 @@ export function RuleDialog({
       }
     }
   }, [open, editingRule, defaultMatchText, defaultCategoryId, testRule]);
-
-  // Fetch categories when dialog opens
-  useEffect(() => {
-    if (open && categories.length === 0) {
-      fetchCategories();
-    }
-  }, [open, categories.length]);
-
-  const fetchCategories = async () => {
-    try {
-      const result = await api.get<{ categories: Array<{ subCategories: SubCategoryWithUpper[] }> }>('/api/categories');
-      if (result.data) {
-        const allSubs: SubCategoryWithUpper[] = [];
-        for (const group of result.data.categories) {
-          allSubs.push(...group.subCategories);
-        }
-        setCategories(allSubs);
-      }
-    } catch (err) {
-      console.error('Failed to fetch categories:', err);
-    }
-  };
 
   // Check for duplicate match_text
   const checkDuplicate = async (text: string): Promise<string | null> => {
@@ -306,26 +275,6 @@ export function RuleDialog({
     }, 300);
   };
 
-  const getTypeColor = (type: string): string => {
-    return UPPER_CATEGORY_TEXT_COLORS[type] || 'text-slate-400';
-  };
-
-  // Memoize category options to prevent re-rendering Select on every keystroke
-  const categoryOptions = useMemo(() =>
-    categories.map((cat) => (
-      <SelectItem
-        key={cat.id}
-        value={cat.id}
-        className="text-white hover:bg-slate-700"
-      >
-        <span className={getTypeColor(cat.upper_category_type)}>
-          {cat.upper_category_name}
-        </span>
-        <span className="text-slate-400 ml-1">/ {cat.name}</span>
-      </SelectItem>
-    )), [categories]
-  );
-
   // Memoize test matches display to prevent re-rendering on every keystroke
   const testMatchesDisplay = useMemo(() => {
     if (testMatches.length === 0) return null;
@@ -379,14 +328,11 @@ export function RuleDialog({
 
             <div className="space-y-2">
               <Label className="text-slate-200">Category</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                  {categoryOptions}
-                </SelectContent>
-              </Select>
+              <CategorySelector
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="Search categories..."
+              />
             </div>
 
             {/* Add to top option - only for new rules */}

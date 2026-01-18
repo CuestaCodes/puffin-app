@@ -50,6 +50,33 @@ tasks/         # Feature specification documents (implementation checklists)
 .claude/       # Claude Code configuration and custom commands
 ```
 
+### Shared Components with Context Requirements
+
+**CategorySelector** (`components/transactions/category-selector.tsx`) provides a searchable category dropdown. It requires `CategoryProvider` context:
+
+```typescript
+// ✅ CORRECT - Wrapped in CategoryProvider
+import { CategoryProvider, CategorySelector } from '@/components/transactions';
+
+function MyComponent() {
+  return (
+    <CategoryProvider>
+      <CategorySelector value={id} onChange={setId} />
+    </CategoryProvider>
+  );
+}
+
+// ❌ WRONG - Missing context causes "useCategories must be used within CategoryProvider"
+function MyComponent() {
+  return <CategorySelector value={id} onChange={setId} />;
+}
+```
+
+**Pages already wrapped in CategoryProvider:**
+- `components/pages/transactions.tsx`
+- `components/pages/monthly-budget.tsx`
+- `components/settings/rules-management.tsx`
+
 ## Key Conventions
 
 ### Amount Signs
@@ -1019,6 +1046,21 @@ const closeDialog = () => {
   });
 };
 ```
+
+### Popover Inside Dialog Scroll Fix
+When a scrollable Popover (e.g., CategorySelector) is rendered inside a Dialog, wheel events are captured by the Dialog's scroll lock, preventing mouse wheel scrolling. Add `onWheel` handler to stop propagation:
+```typescript
+// ✅ CORRECT - Wheel events work inside Dialog
+<div className="max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+  {/* scrollable content */}
+</div>
+
+// ❌ WRONG - Can't scroll with mouse wheel when inside Dialog
+<div className="max-h-64 overflow-y-auto">
+  {/* scrollable content */}
+</div>
+```
+This applies to any scrollable content in Radix Popover, Dropdown, or Combobox components when used inside Dialog or AlertDialog.
 
 ### useCallback/useEffect Declaration Order
 When a `useCallback` is used in a `useEffect` dependency array, define the callback **before** the useEffect:
