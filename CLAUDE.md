@@ -596,6 +596,17 @@ When adding new optional columns to CSV import (e.g., Notes, Tags), follow this 
    - Test validation (non-negative integer)
    - Test backward compatibility (without field)
 
+### Import Limit Constants
+Import limits used in API routes, handlers, AND UI components must be defined in `lib/validations.ts`:
+```typescript
+// lib/validations.ts
+export const MAX_IMPORT_TRANSACTIONS = 5000;
+
+// Use in API route, handler, AND UI - never hardcode the value
+import { MAX_IMPORT_TRANSACTIONS } from '@/lib/validations';
+```
+This ensures consistency when displaying limits in UI (e.g., `(max {MAX_IMPORT_TRANSACTIONS.toLocaleString()})`) and validating in backend.
+
 ## Development Phases
 
 1. **Foundation** - Project setup, database schema, authentication, basic API routes

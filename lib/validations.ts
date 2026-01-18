@@ -106,6 +106,9 @@ export const loginSchema = loginPinSchema;
 /** Maximum length for notes during import (truncated to this length) */
 export const IMPORT_NOTES_MAX_LENGTH = 250;
 
+/** Maximum transactions allowed per import */
+export const MAX_IMPORT_TRANSACTIONS = 5000;
+
 export const columnMappingSchema = z.object({
   date: z.number().int().min(0),
   description: z.number().int().min(0),

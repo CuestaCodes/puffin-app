@@ -6,6 +6,7 @@ import { getDatabase, initializeDatabase } from '@/lib/db';
 import { generateId } from '@/lib/uuid';
 import { getExistingFingerprints, generateFingerprint } from '@/lib/csv/duplicate-detector';
 import { applyRulesToDescription } from '@/lib/db/rules';
+import { MAX_IMPORT_TRANSACTIONS } from '@/lib/validations';
 import type { ImportResult } from '@/types/import';
 
 // Validation schema for import transactions
@@ -19,7 +20,7 @@ const importTransactionSchema = z.object({
 });
 
 const importRequestSchema = z.object({
-  transactions: z.array(importTransactionSchema).min(1).max(1000),
+  transactions: z.array(importTransactionSchema).min(1).max(MAX_IMPORT_TRANSACTIONS),
   skipDuplicates: z.boolean().optional().default(true),
 });
 

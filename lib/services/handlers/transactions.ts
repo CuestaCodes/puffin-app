@@ -6,6 +6,7 @@
  */
 
 import * as db from '../tauri-db';
+import { MAX_IMPORT_TRANSACTIONS } from '@/lib/validations';
 
 interface Transaction {
   id: string;
@@ -543,8 +544,8 @@ async function importTransactions(data: {
     throw new Error('No transactions to import');
   }
 
-  if (transactions.length > 1000) {
-    throw new Error('Maximum 1000 transactions per import');
+  if (transactions.length > MAX_IMPORT_TRANSACTIONS) {
+    throw new Error(`Maximum ${MAX_IMPORT_TRANSACTIONS.toLocaleString()} transactions per import`);
   }
 
   // Generate a batch ID for this import (for undo functionality)
@@ -691,10 +692,28 @@ export async function handleCheckDuplicates(ctx: HandlerContext): Promise<unknow
     existingFingerprints.add(generateFingerprint(tx));
   }
 
-  const duplicates = transactions
-    .map((tx, index) => ({ ...tx, index }))
-    .filter(tx => existingFingerprints.has(generateFingerprint(tx)))
-    .map(tx => tx.index);
+  // Check for duplicates against both DB and within the same batch
+  const duplicates: number[] = [];
+  const batchFingerprints = new Set<string>();
+
+  for (let i = 0; i < transactions.length; i++) {
+    const tx = transactions[i];
+    const fingerprint = generateFingerprint(tx);
+
+    // Check against existing database transactions
+    let isDuplicate = existingFingerprints.has(fingerprint);
+
+    // Also check against other transactions in the same batch
+    if (!isDuplicate) {
+      isDuplicate = batchFingerprints.has(fingerprint);
+    }
+
+    if (isDuplicate) {
+      duplicates.push(i);
+    }
+
+    batchFingerprints.add(fingerprint);
+  }
 
   return { duplicates };
 }

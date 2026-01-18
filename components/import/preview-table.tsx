@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Check, X, AlertCircle, CheckCircle, Copy } from 'lucide-react';
+import { Check, X, AlertCircle, CheckCircle, Copy, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ImportPreview } from '@/types/import';
 import { formatDateForDisplay } from '@/lib/csv/date-parser';
+import { MAX_IMPORT_TRANSACTIONS } from '@/lib/validations';
 
 interface PreviewTableProps {
   preview: ImportPreview;
@@ -63,13 +64,13 @@ export function PreviewTable({
           onClick={() => setFilter('all')}
           className={cn(
             'p-3 rounded-lg border text-left transition-colors',
-            filter === 'all' 
-              ? 'bg-slate-700 border-slate-500' 
+            filter === 'all'
+              ? 'bg-slate-700 border-slate-500'
               : 'bg-slate-800/50 border-slate-700 hover:bg-slate-700/50'
           )}
         >
           <p className="text-2xl font-semibold text-slate-100">{preview.rows.length}</p>
-          <p className="text-xs text-slate-400">Total rows</p>
+          <p className="text-xs text-slate-400">Total rows <span className="text-slate-500">(max {MAX_IMPORT_TRANSACTIONS.toLocaleString()})</span></p>
         </button>
         
         <button
@@ -250,17 +251,27 @@ export function PreviewTable({
         <Button variant="outline" onClick={onBack} disabled={isLoading}>
           Back
         </Button>
-        <Button
-          onClick={onContinue}
-          disabled={selectedValidCount === 0 || isLoading}
-          className="bg-emerald-600 hover:bg-emerald-700"
-        >
-          {isLoading ? (
-            'Importing...'
-          ) : (
-            <>Import {selectedValidCount} Transaction{selectedValidCount !== 1 ? 's' : ''}</>
+        <div className="flex items-center gap-3">
+          {selectedValidCount > MAX_IMPORT_TRANSACTIONS && (
+            <span className="text-sm text-red-400">
+              Exceeds {MAX_IMPORT_TRANSACTIONS.toLocaleString()} limit
+            </span>
           )}
-        </Button>
+          <Button
+            onClick={onContinue}
+            disabled={selectedValidCount === 0 || selectedValidCount > MAX_IMPORT_TRANSACTIONS || isLoading}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Importing {selectedValidCount.toLocaleString()} transaction{selectedValidCount !== 1 ? 's' : ''}...
+              </>
+            ) : (
+              <>Import {selectedValidCount.toLocaleString()} Transaction{selectedValidCount !== 1 ? 's' : ''}</>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

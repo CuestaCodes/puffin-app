@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       description: t.description || '',
     }));
     
-    const duplicateFlags = checkDuplicatesBatch(fingerprints, existingFingerprints, false);
+    const duplicateFlags = checkDuplicatesBatch(fingerprints, existingFingerprints, true);
     
     // Return row indices of duplicates
     const duplicates = transactions
