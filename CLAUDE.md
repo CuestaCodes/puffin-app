@@ -169,6 +169,17 @@ const rows = await db.select<LocalUserRow>('SELECT * FROM local_user');
 const rows = await db.select<LocalUserRow[]>('SELECT * FROM local_user');
 ```
 
+**Type Location for Shared Types:**
+Never import types directly from API route files - they're unavailable during static builds:
+```typescript
+// ❌ WRONG - Breaks Tauri build (API folder moved during static build)
+import type { UndoImportInfo } from '@/app/api/transactions/undo-import/route';
+
+// ✅ CORRECT - Define in types/ folder, import from there
+import type { UndoImportInfo } from '@/types/import';
+```
+If an API route defines types needed elsewhere, move them to `types/` folder.
+
 **Reset/Clear Operations in Tauri Mode:**
 When implementing reset or clear functionality in handlers, remember to clean up:
 - Database tables (via SQL)
@@ -1061,6 +1072,50 @@ When a scrollable Popover (e.g., CategorySelector) is rendered inside a Dialog, 
 </div>
 ```
 This applies to any scrollable content in Radix Popover, Dropdown, or Combobox components when used inside Dialog or AlertDialog.
+
+### Nested Popover Avoidance
+When a component is already rendered inside a Popover (e.g., Calendar inside date picker), don't nest another Popover inside it - use Dialog instead:
+```typescript
+// ❌ WRONG - Nested Popover doesn't work (clicks don't register)
+<Popover>  {/* outer date picker */}
+  <Calendar components={{
+    CaptionLabel: () => (
+      <Popover>  {/* inner - won't work */}
+        <PopoverTrigger>Click</PopoverTrigger>
+        <PopoverContent>...</PopoverContent>
+      </Popover>
+    )
+  }} />
+</Popover>
+
+// ✅ CORRECT - Use Dialog for nested interactive overlays
+<Popover>  {/* outer date picker */}
+  <Calendar components={{
+    CaptionLabel: () => (
+      <>
+        <button onClick={() => setOpen(true)}>Click</button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>...</DialogContent>
+        </Dialog>
+      </>
+    )
+  }} />
+</Popover>
+```
+
+### react-day-picker Calendar Caption Clicks
+The Calendar nav (prev/next buttons) uses `absolute top-0 inset-x-0` positioning that creates an invisible overlay blocking clicks on the caption. Custom caption elements need `relative z-20` to be clickable:
+```typescript
+// ✅ CORRECT - z-index makes button clickable above nav overlay
+<button className="relative z-20" onClick={handleClick}>
+  {monthYear}
+</button>
+
+// ❌ WRONG - Nav overlay blocks clicks
+<button onClick={handleClick}>
+  {monthYear}
+</button>
+```
 
 ### useCallback/useEffect Declaration Order
 When a `useCallback` is used in a `useEffect` dependency array, define the callback **before** the useEffect:
