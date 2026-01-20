@@ -34,14 +34,34 @@ export const DEFAULT_LIQUID_ASSET_FIELDS = [
 export const ALL_ASSET_FIELDS = [...DEFAULT_ASSET_FIELDS, ...DEFAULT_LIQUID_ASSET_FIELDS] as const;
 
 /**
- * Available growth rate options for projections
+ * Special value to indicate historical CAGR should be used
+ * This is a sentinel value that won't conflict with actual rates
  */
-export const GROWTH_RATE_OPTIONS = [
+export const HISTORICAL_RATE_VALUE = -1;
+
+/**
+ * Growth rate option type
+ */
+export interface GrowthRateOption {
+  value: number;
+  label: string;
+}
+
+/**
+ * Fixed growth rate options for projections
+ */
+export const FIXED_GROWTH_RATE_OPTIONS: GrowthRateOption[] = [
   { value: 0.03, label: '3% (Conservative)' },
   { value: 0.05, label: '5% (Moderate)' },
   { value: 0.07, label: '7% (Growth)' },
   { value: 0.10, label: '10% (Aggressive)' },
-] as const;
+];
+
+/**
+ * Available growth rate options for projections
+ * @deprecated Use FIXED_GROWTH_RATE_OPTIONS and build dynamic options with historical rate
+ */
+export const GROWTH_RATE_OPTIONS = FIXED_GROWTH_RATE_OPTIONS;
 
 export const DEFAULT_GROWTH_RATE = 0.05;
 

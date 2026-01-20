@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +12,11 @@ import { EntriesTable } from '@/components/net-worth/entries-table';
 import { NetWorthChart } from '@/components/net-worth/net-worth-chart';
 import type { NetWorthEntryParsed } from '@/types/net-worth';
 import {
-  GROWTH_RATE_OPTIONS,
+  FIXED_GROWTH_RATE_OPTIONS,
   DEFAULT_GROWTH_RATE,
   PROJECTION_YEARS_OPTIONS,
   DEFAULT_PROJECTION_YEARS,
+  HISTORICAL_RATE_VALUE,
 } from '@/types/net-worth';
 import {
   Select,
@@ -32,16 +33,80 @@ interface ChartData {
   compoundProjectionPoints: Array<{ date: string; liquidAssets: number }>;
 }
 
+/**
+ * Calculate historical CAGR from entries (client-side calculation)
+ * Returns null if insufficient data
+ */
+function calculateHistoricalCAGRFromEntries(entries: NetWorthEntryParsed[]): number | null {
+  if (entries.length < 2) return null;
+
+  // Filter to entries with positive liquid assets
+  const withLiquid = entries.filter(e => e.total_liquid_assets > 0);
+  if (withLiquid.length < 2) return null;
+
+  const first = withLiquid[0];
+  const last = withLiquid[withLiquid.length - 1];
+
+  const firstDate = new Date(first.recorded_at).getTime();
+  const lastDate = new Date(last.recorded_at).getTime();
+
+  // Calculate years elapsed
+  const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+  const years = (lastDate - firstDate) / msPerYear;
+
+  // Require at least ~1 month of data for meaningful calculation
+  if (years < 0.1) return null;
+
+  // Avoid division by zero or negative values
+  if (first.total_liquid_assets <= 0 || last.total_liquid_assets <= 0) return null;
+
+  // CAGR: (endValue / startValue)^(1/years) - 1
+  const cagr = Math.pow(last.total_liquid_assets / first.total_liquid_assets, 1 / years) - 1;
+
+  // Clamp to reasonable range (-50% to +100% annual)
+  return Math.max(-0.5, Math.min(1.0, cagr));
+}
+
 export function NetWorthPage() {
   const [entries, setEntries] = useState<NetWorthEntryParsed[]>([]);
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<NetWorthEntryParsed | null>(null);
-  const [growthRate, setGrowthRate] = useState(DEFAULT_GROWTH_RATE);
+  const [selectedRateValue, setSelectedRateValue] = useState<number>(DEFAULT_GROWTH_RATE);
   const [projectionYears, setProjectionYears] = useState(DEFAULT_PROJECTION_YEARS);
 
   const formatCurrency = (amount: number) => formatCurrencyAUD(amount);
+
+  // Calculate historical CAGR from chart entries (sorted ascending)
+  const historicalCAGR = useMemo(() => {
+    if (!chartData?.entries || chartData.entries.length < 2) return null;
+    return calculateHistoricalCAGRFromEntries(chartData.entries);
+  }, [chartData?.entries]);
+
+  // Build dynamic growth rate options including historical if available
+  const growthRateOptions = useMemo(() => {
+    const options = [...FIXED_GROWTH_RATE_OPTIONS];
+
+    if (historicalCAGR !== null) {
+      const pct = (historicalCAGR * 100).toFixed(1);
+      const sign = historicalCAGR >= 0 ? '+' : '';
+      options.unshift({
+        value: HISTORICAL_RATE_VALUE,
+        label: `Historical (${sign}${pct}%)`,
+      });
+    }
+
+    return options;
+  }, [historicalCAGR]);
+
+  // Resolve the actual growth rate (historical -> calculated value, otherwise use selected)
+  const effectiveGrowthRate = useMemo(() => {
+    if (selectedRateValue === HISTORICAL_RATE_VALUE && historicalCAGR !== null) {
+      return historicalCAGR;
+    }
+    return selectedRateValue;
+  }, [selectedRateValue, historicalCAGR]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -49,7 +114,7 @@ export function NetWorthPage() {
       // Fetch table data and chart data in parallel
       const [tableRes, chartRes] = await Promise.all([
         api.get<NetWorthEntryParsed[]>('/api/net-worth'),
-        api.get<ChartData>(`/api/net-worth?chart=true&growthRate=${growthRate}&years=${projectionYears}`),
+        api.get<ChartData>(`/api/net-worth?chart=true&growthRate=${effectiveGrowthRate}&years=${projectionYears}`),
       ]);
 
       if (tableRes.data) {
@@ -64,7 +129,7 @@ export function NetWorthPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [growthRate, projectionYears]);
+  }, [effectiveGrowthRate, projectionYears]);
 
   useEffect(() => {
     fetchData();
@@ -225,14 +290,14 @@ export function NetWorthPage() {
                     Rate:
                   </label>
                   <Select
-                    value={growthRate.toString()}
-                    onValueChange={(value) => setGrowthRate(parseFloat(value))}
+                    value={selectedRateValue.toString()}
+                    onValueChange={(value) => setSelectedRateValue(parseFloat(value))}
                   >
-                    <SelectTrigger id="growth-rate" className="w-[150px] bg-slate-800 border-slate-700">
+                    <SelectTrigger id="growth-rate" className="w-[170px] bg-slate-800 border-slate-700">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
-                      {GROWTH_RATE_OPTIONS.map((option) => (
+                      {growthRateOptions.map((option) => (
                         <SelectItem
                           key={option.value}
                           value={option.value.toString()}
@@ -276,7 +341,7 @@ export function NetWorthPage() {
                 projection={chartData?.projection}
                 projectionPoints={chartData?.projectionPoints || []}
                 compoundProjectionPoints={chartData?.compoundProjectionPoints || []}
-                growthRate={growthRate}
+                growthRate={effectiveGrowthRate}
                 projectionYears={projectionYears}
                 isLoading={isLoading}
               />

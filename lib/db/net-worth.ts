@@ -294,6 +294,45 @@ export function generateProjectionPoints(
 }
 
 /**
+ * Calculate historical CAGR (Compound Annual Growth Rate) from liquid asset snapshots
+ * Returns null if insufficient data (< 2 points or < 0.1 years elapsed)
+ *
+ * Formula: CAGR = (endValue / startValue)^(1/years) - 1
+ *
+ * @param entries Array of net worth entries sorted by date ascending
+ * @returns Historical CAGR as decimal (e.g., 0.08 for 8%) or null if cannot calculate
+ */
+export function calculateHistoricalCAGR(entries: NetWorthEntryParsed[]): number | null {
+  if (entries.length < 2) return null;
+
+  // Filter to entries with positive liquid assets
+  const withLiquid = entries.filter(e => e.total_liquid_assets > 0);
+  if (withLiquid.length < 2) return null;
+
+  const first = withLiquid[0];
+  const last = withLiquid[withLiquid.length - 1];
+
+  const firstDate = new Date(first.recorded_at).getTime();
+  const lastDate = new Date(last.recorded_at).getTime();
+
+  // Calculate years elapsed
+  const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+  const years = (lastDate - firstDate) / msPerYear;
+
+  // Require at least ~1 month of data for meaningful calculation
+  if (years < 0.1) return null;
+
+  // Avoid division by zero or negative values
+  if (first.total_liquid_assets <= 0 || last.total_liquid_assets <= 0) return null;
+
+  // CAGR: (endValue / startValue)^(1/years) - 1
+  const cagr = Math.pow(last.total_liquid_assets / first.total_liquid_assets, 1 / years) - 1;
+
+  // Clamp to reasonable range (-50% to +100% annual)
+  return Math.max(-0.5, Math.min(1.0, cagr));
+}
+
+/**
  * Generate compound growth projection points from liquid assets
  * Uses quarterly compounding: liquidAssets × (1 + rate/4)^quarters
  *

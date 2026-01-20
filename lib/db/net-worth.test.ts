@@ -5,6 +5,7 @@ import {
   calculateNetWorthProjection,
   generateProjectionPoints,
   generateCompoundProjection,
+  calculateHistoricalCAGR,
 } from './net-worth';
 import {
   TEST_TIMESTAMP,
@@ -504,6 +505,140 @@ describe('Net Worth Calculations', () => {
           expect(decimalPart.length).toBeLessThanOrEqual(2);
         }
       });
+    });
+  });
+
+  describe('Historical CAGR - calculateHistoricalCAGR', () => {
+    const makeEntry = (recordedAt: string, liquidAssets: number) => ({
+      id: recordedAt,
+      recorded_at: recordedAt,
+      assets: { fields: [] },
+      liabilities: { fields: [] },
+      total_assets: liquidAssets,
+      total_liabilities: 0,
+      total_liquid_assets: liquidAssets,
+      net_worth: liquidAssets,
+      notes: null,
+      created_at: '',
+      updated_at: '',
+    });
+
+    it('should return null for empty array', () => {
+      expect(calculateHistoricalCAGR([])).toBeNull();
+    });
+
+    it('should return null for single entry', () => {
+      const entries = [makeEntry('2024-01-01', 100000)];
+      expect(calculateHistoricalCAGR(entries)).toBeNull();
+    });
+
+    it('should return null for insufficient time elapsed (< 0.1 years)', () => {
+      const entries = [
+        makeEntry('2024-01-01', 100000),
+        makeEntry('2024-01-15', 101000), // Only 2 weeks apart
+      ];
+      expect(calculateHistoricalCAGR(entries)).toBeNull();
+    });
+
+    it('should return null when no entries have liquid assets', () => {
+      const entries = [
+        { ...makeEntry('2024-01-01', 0), total_liquid_assets: 0 },
+        { ...makeEntry('2024-07-01', 0), total_liquid_assets: 0 },
+      ];
+      expect(calculateHistoricalCAGR(entries)).toBeNull();
+    });
+
+    it('should calculate positive CAGR for growth', () => {
+      const entries = [
+        makeEntry('2024-01-01', 100000),
+        makeEntry('2025-01-01', 108000), // 8% growth over 1 year
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeCloseTo(0.08, 2); // ~8% annual growth
+    });
+
+    it('should calculate negative CAGR for decline', () => {
+      const entries = [
+        makeEntry('2024-01-01', 100000),
+        makeEntry('2025-01-01', 90000), // 10% decline over 1 year
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeCloseTo(-0.10, 2); // ~-10% annual growth
+    });
+
+    it('should calculate CAGR correctly over multiple years', () => {
+      // $100k growing to $121k over 2 years = ~10% CAGR
+      // CAGR = (121000/100000)^(1/2) - 1 = 1.1 - 1 = 0.10
+      const entries = [
+        makeEntry('2024-01-01', 100000),
+        makeEntry('2026-01-01', 121000),
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeCloseTo(0.10, 2);
+    });
+
+    it('should calculate CAGR with intermediate data points', () => {
+      // Uses first and last entry only for calculation
+      const entries = [
+        makeEntry('2024-01-01', 100000),
+        makeEntry('2024-06-01', 103000), // Intermediate point (ignored)
+        makeEntry('2024-09-01', 106000), // Intermediate point (ignored)
+        makeEntry('2025-01-01', 110000), // ~10% growth from first to last
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeCloseTo(0.10, 2);
+    });
+
+    it('should skip entries with zero liquid assets when finding first/last', () => {
+      const entries = [
+        { ...makeEntry('2024-01-01', 0), total_liquid_assets: 0 }, // Skipped - no liquid
+        makeEntry('2024-03-01', 100000), // First valid
+        makeEntry('2025-03-01', 105000), // Last valid
+        { ...makeEntry('2025-06-01', 0), total_liquid_assets: 0 }, // Skipped - no liquid
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeCloseTo(0.05, 2); // 5% growth over 1 year
+    });
+
+    it('should clamp extremely high growth rates', () => {
+      // 10x growth in 1 year = 900% = clamped to 100%
+      const entries = [
+        makeEntry('2024-01-01', 10000),
+        makeEntry('2025-01-01', 100000),
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeLessThanOrEqual(1.0); // Clamped to max 100%
+    });
+
+    it('should clamp extremely negative growth rates', () => {
+      // 80% decline in 1 year = clamped to -50%
+      const entries = [
+        makeEntry('2024-01-01', 100000),
+        makeEntry('2025-01-01', 20000),
+      ];
+
+      const cagr = calculateHistoricalCAGR(entries);
+
+      expect(cagr).not.toBeNull();
+      expect(cagr).toBeGreaterThanOrEqual(-0.5); // Clamped to min -50%
     });
   });
 });
