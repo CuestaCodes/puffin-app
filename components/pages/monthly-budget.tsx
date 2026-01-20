@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, ChevronRight, ChevronDown, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { MonthPicker } from '@/components/ui/month-picker';
@@ -374,8 +374,9 @@ function MonthlyBudgetContent() {
 
   // Group all categories by upper category, merging with budget data
   // Exclude income and transfer categories (they're shown separately as read-only)
-  const groupedCategories: CategoryGroup[] = allCategories.length > 0 ? 
-    Object.values(
+  const groupedCategories: CategoryGroup[] = useMemo(() => {
+    if (allCategories.length === 0) return [];
+    return Object.values(
       allCategories
         .filter(cat => cat.upper_category_type !== 'income' && cat.upper_category_type !== 'transfer') // Exclude income and transfer
         .reduce((acc, cat) => {
@@ -390,10 +391,10 @@ function MonthlyBudgetContent() {
               totalSpent: 0,
             };
           }
-          
+
           // Find matching budget if exists
           const budget = budgetData?.budgets?.find(b => b.sub_category_id === cat.sub_category_id);
-          
+
           const categoryWithBudget: CategoryWithBudget = {
             sub_category_id: cat.sub_category_id,
             sub_category_name: cat.sub_category_name,
@@ -406,13 +407,14 @@ function MonthlyBudgetContent() {
             average_6mo: cat.average_6mo,
             carry_over: cat.carry_over,
           };
-          
+
           acc[key].categories.push(categoryWithBudget);
           acc[key].totalBudgeted += categoryWithBudget.budget_amount || 0;
           acc[key].totalSpent += categoryWithBudget.actual_amount;
           return acc;
         }, {} as Record<string, CategoryGroup>)
-    ) : [];
+    );
+  }, [allCategories, budgetData]);
   
   // Get income categories with their totals
   const incomeCategories = allCategories
@@ -432,6 +434,23 @@ function MonthlyBudgetContent() {
   
   // Calculate transfer totals
   const totalTransfers = transferCategories.reduce((sum, c) => sum + c.actual_amount, 0);
+
+  // Compute all section IDs for expand/collapse all
+  const allSectionIds = useMemo(() => [
+    ...(incomeCategories.length > 0 ? ['income'] : []),
+    ...(transferCategories.length > 0 ? ['transfer'] : []),
+    ...groupedCategories.map(g => `expense-${g.upperCategoryName}`),
+  ], [incomeCategories.length, transferCategories.length, groupedCategories]);
+
+  const allExpanded = collapsedSections.size === 0;
+
+  const expandAll = useCallback(() => {
+    setCollapsedSections(new Set());
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setCollapsedSections(new Set(allSectionIds));
+  }, [allSectionIds]);
 
   const handleCategoryClick = (categoryId: string, categoryName: string) => {
     if (selectedCategoryId === categoryId) {
@@ -526,15 +545,15 @@ function MonthlyBudgetContent() {
   return (
     <div className="space-y-6" style={{ overflowAnchor: 'none' }}>
       {/* Page header with month navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Monthly Budget</h1>
           <p className="text-slate-400 mt-1">
             Track your spending against your budget
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={goToPrevMonth} className="border-slate-700 hover:bg-slate-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="icon" onClick={goToPrevMonth} className="border-slate-700 hover:bg-slate-800" aria-label="Previous month">
             <ChevronLeft className="w-4 h-4" />
           </Button>
           <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
@@ -551,12 +570,12 @@ function MonthlyBudgetContent() {
               />
             </PopoverContent>
           </Popover>
-          <Button variant="outline" size="icon" onClick={goToNextMonth} className="border-slate-700 hover:bg-slate-800">
+          <Button variant="outline" size="icon" onClick={goToNextMonth} className="border-slate-700 hover:bg-slate-800" aria-label="Next month">
             <ChevronRight className="w-4 h-4" />
           </Button>
-          
+
           {/* Quick-fill buttons */}
-          <div className="ml-4 flex items-center gap-2 border-l border-slate-700 pl-4">
+          <div className="flex flex-wrap items-center gap-2 border-l border-slate-700 pl-4 ml-2">
             <Button
               variant="outline"
               size="sm"
@@ -736,7 +755,30 @@ function MonthlyBudgetContent() {
       {/* Budget categories */}
       <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-lg text-slate-100">Budget by Category</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-lg text-slate-100">Budget by Category</CardTitle>
+            {allSectionIds.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={allExpanded ? collapseAll : expandAll}
+                className="gap-1.5 text-slate-400 hover:text-slate-200"
+                aria-label={allExpanded ? 'Collapse all sections' : 'Expand all sections'}
+              >
+                {allExpanded ? (
+                  <>
+                    <ChevronsDownUp className="w-4 h-4" />
+                    Collapse All
+                  </>
+                ) : (
+                  <>
+                    <ChevronsUpDown className="w-4 h-4" />
+                    Expand All
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {selectedCategoryName && (
               <Button
@@ -789,7 +831,7 @@ function MonthlyBudgetContent() {
                     </span>
                   </button>
                   {!collapsedSections.has('income') && (
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                       {incomeCategories.map((category) => {
                         const isSelected = selectedCategoryId === category.sub_category_id;
 
@@ -852,7 +894,7 @@ function MonthlyBudgetContent() {
                     </span>
                   </button>
                   {!collapsedSections.has('transfer') && (
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                       {transferCategories.map((category) => {
                         const isSelected = selectedCategoryId === category.sub_category_id;
 
@@ -923,7 +965,7 @@ function MonthlyBudgetContent() {
 
                   {/* Sub-category rows */}
                   {!collapsedSections.has(`expense-${group.upperCategoryName}`) && (
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                     {group.categories.map((category) => {
                       const hasBudget = category.budget_amount !== null && category.budget_amount > 0;
                       const percentage = hasBudget 

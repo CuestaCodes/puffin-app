@@ -23,6 +23,9 @@ All notable changes to Puffin will be documented in this file.
 - Category dropdown in auto-category rule dialog is now searchable
 - Categories now sorted alphabetically (A-Z) within each section in all dropdowns
 - Date pickers now allow clicking the month/year to quickly jump to any month (opens MonthPicker dialog)
+- Budget sub-categories now display in two columns for better use of screen space (responsive)
+- Added "Expand All / Collapse All" button to Monthly Budget category sections
+- Monthly Budget page header reorganized with title above action buttons (better on narrow windows)
 
 ### Fixed
 - CSV and PDF paste import now have "First row contains headers" toggle - uncheck to import files without header rows

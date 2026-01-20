@@ -1117,6 +1117,24 @@ The Calendar nav (prev/next buttons) uses `absolute top-0 inset-x-0` positioning
 </button>
 ```
 
+### Responsive Breakpoints in Tauri
+The Tauri minimum window size is configured in `src-tauri/tauri.conf.json` (currently 800×600). Choose responsive breakpoints that are actually reachable:
+
+| Breakpoint | Tailwind | Width | Reachable? |
+|------------|----------|-------|------------|
+| sm | 640px | Below min | No |
+| md | 768px | Below min | No |
+| lg | 1024px | Above min | Yes |
+| xl | 1280px | Above min | Yes |
+
+```typescript
+// ❌ WRONG - md breakpoint never triggers (800px min width)
+<div className="grid grid-cols-1 md:grid-cols-2">
+
+// ✅ CORRECT - lg breakpoint is above minimum window width
+<div className="grid grid-cols-1 lg:grid-cols-2">
+```
+
 ### useCallback/useEffect Declaration Order
 When a `useCallback` is used in a `useEffect` dependency array, define the callback **before** the useEffect:
 ```typescript
