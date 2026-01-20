@@ -129,12 +129,16 @@ export function SourceSelector({
               <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
                 {selectedSource.name}
               </span>
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={handleClear}
-                className="ml-1 text-slate-400 hover:text-slate-200"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClear(e as unknown as React.MouseEvent); }}
+                className="ml-1 text-slate-400 hover:text-slate-200 cursor-pointer"
+                aria-label="Clear source selection"
               >
                 <X className="h-3 w-3" />
-              </button>
+              </span>
             </span>
           ) : (
             <span className="text-slate-500">{placeholder}</span>
