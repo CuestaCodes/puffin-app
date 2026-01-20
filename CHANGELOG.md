@@ -10,6 +10,7 @@ All notable changes to Puffin will be documented in this file.
   - Liquid assets shown as shaded blue area in net worth chart
   - Projection line now based on liquid assets only (not total net worth)
   - User-configurable growth rate (3%, 5%, 7%, 10%) with compound quarterly calculation
+  - **Historical growth rate option** - calculates actual CAGR from your data (requires 2+ entries)
   - User-configurable projection period (5, 10, or 20 years)
 - **Undo Last Import** - 5-minute window to undo an import if you made a mistake (wrong column mapping, forgot to select source, etc.)
   - Toast notification with Undo button appears after each import
