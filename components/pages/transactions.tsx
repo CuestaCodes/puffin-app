@@ -152,16 +152,21 @@ function TransactionsPageContent() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
   // Debounced search - reset page when search changes
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    
+
     if (prevSearchQuery.current === searchQuery) return;
     prevSearchQuery.current = searchQuery;
-    
+
     const timer = setTimeout(() => setPage(1), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
