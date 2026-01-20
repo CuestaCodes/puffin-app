@@ -299,9 +299,10 @@ export async function handleChangePin(ctx: HandlerContext): Promise<unknown> {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  if (!getAuthState()) {
-    throw new Error('Not authenticated');
-  }
+  // Note: We don't check getAuthState() here because verifying the current PIN
+  // below is sufficient authentication - you can't change a PIN without knowing it.
+  // This also handles edge cases where sessionStorage auth expires but user is
+  // still in the app.
 
   const { currentPin, newPin } = body as { currentPin: string; newPin: string };
 
@@ -342,6 +343,9 @@ export async function handleChangePin(ctx: HandlerContext): Promise<unknown> {
       [newHash, now]
     );
   }
+
+  // Clear session - user will need to log in again with new PIN
+  setAuthState(false);
 
   return { success: true };
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +14,6 @@ interface SecuritySettingsProps {
 }
 
 export function SecuritySettings({ onBack }: SecuritySettingsProps) {
-  const router = useRouter();
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -52,9 +50,10 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
 
       if (result.data?.success) {
         setSuccess(true);
-        // Redirect to login after a short delay using Next.js router
+        // Redirect to login after a short delay
+        // Use window.location for reliable navigation in both dev and Tauri modes
         setTimeout(() => {
-          router.push('/');
+          window.location.href = '/';
         }, 2000);
       } else {
         setError(result.error || 'Failed to change PIN');
