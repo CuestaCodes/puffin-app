@@ -11,11 +11,25 @@ import { RecordNetWorthDialog } from '@/components/net-worth/record-dialog';
 import { EntriesTable } from '@/components/net-worth/entries-table';
 import { NetWorthChart } from '@/components/net-worth/net-worth-chart';
 import type { NetWorthEntryParsed } from '@/types/net-worth';
+import {
+  GROWTH_RATE_OPTIONS,
+  DEFAULT_GROWTH_RATE,
+  PROJECTION_YEARS_OPTIONS,
+  DEFAULT_PROJECTION_YEARS,
+} from '@/types/net-worth';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ChartData {
   entries: NetWorthEntryParsed[];
   projection: { slope: number; intercept: number; rSquared: number } | null;
   projectionPoints: Array<{ date: string; netWorth: number }>;
+  compoundProjectionPoints: Array<{ date: string; liquidAssets: number }>;
 }
 
 export function NetWorthPage() {
@@ -24,6 +38,8 @@ export function NetWorthPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEntry, setEditEntry] = useState<NetWorthEntryParsed | null>(null);
+  const [growthRate, setGrowthRate] = useState(DEFAULT_GROWTH_RATE);
+  const [projectionYears, setProjectionYears] = useState(DEFAULT_PROJECTION_YEARS);
 
   const formatCurrency = (amount: number) => formatCurrencyAUD(amount);
 
@@ -33,7 +49,7 @@ export function NetWorthPage() {
       // Fetch table data and chart data in parallel
       const [tableRes, chartRes] = await Promise.all([
         api.get<NetWorthEntryParsed[]>('/api/net-worth'),
-        api.get<ChartData>('/api/net-worth?chart=true'),
+        api.get<ChartData>(`/api/net-worth?chart=true&growthRate=${growthRate}&years=${projectionYears}`),
       ]);
 
       if (tableRes.data) {
@@ -48,7 +64,7 @@ export function NetWorthPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [growthRate, projectionYears]);
 
   useEffect(() => {
     fetchData();
@@ -97,7 +113,7 @@ export function NetWorthPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Current Net Worth */}
         <Card className="border-slate-800 bg-slate-900/50">
           <CardContent className="pt-6">
@@ -132,6 +148,22 @@ export function NetWorthPage() {
             <p className="text-2xl font-bold mt-1 tabular-nums text-emerald-400">
               {isLoading ? '—' : latestEntry ? formatCurrency(latestEntry.total_assets) : '$0'}
             </p>
+          </CardContent>
+        </Card>
+
+        {/* Liquid Assets */}
+        <Card className="border-slate-800 bg-slate-900/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <TrendingUp className="w-4 h-4 text-blue-400" />
+              </div>
+              <p className="text-sm text-slate-400">Liquid Assets</p>
+            </div>
+            <p className="text-2xl font-bold mt-1 tabular-nums text-blue-400">
+              {isLoading ? '—' : latestEntry ? formatCurrency(latestEntry.total_liquid_assets) : '$0'}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">Used for projections</p>
           </CardContent>
         </Card>
 
@@ -185,14 +217,67 @@ export function NetWorthPage() {
 
         <TabsContent value="chart" className="mt-4">
           <Card className="border-slate-800 bg-slate-900/50">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
               <CardTitle className="text-lg text-white">Net Worth Over Time</CardTitle>
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="growth-rate" className="text-sm text-slate-400">
+                    Rate:
+                  </label>
+                  <Select
+                    value={growthRate.toString()}
+                    onValueChange={(value) => setGrowthRate(parseFloat(value))}
+                  >
+                    <SelectTrigger id="growth-rate" className="w-[150px] bg-slate-800 border-slate-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      {GROWTH_RATE_OPTIONS.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value.toString()}
+                          className="text-white hover:bg-slate-700"
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="projection-years" className="text-sm text-slate-400">
+                    Projection:
+                  </label>
+                  <Select
+                    value={projectionYears.toString()}
+                    onValueChange={(value) => setProjectionYears(parseInt(value))}
+                  >
+                    <SelectTrigger id="projection-years" className="w-[110px] bg-slate-800 border-slate-700">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      {PROJECTION_YEARS_OPTIONS.map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value.toString()}
+                          className="text-white hover:bg-slate-700"
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <NetWorthChart
                 entries={chartData?.entries || []}
                 projection={chartData?.projection}
                 projectionPoints={chartData?.projectionPoints || []}
+                compoundProjectionPoints={chartData?.compoundProjectionPoints || []}
+                growthRate={growthRate}
+                projectionYears={projectionYears}
                 isLoading={isLoading}
               />
             </CardContent>

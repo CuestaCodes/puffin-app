@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import {
   calculateNetWorthProjection,
   generateProjectionPoints,
+  generateCompoundProjection,
 } from './net-worth';
 import {
   TEST_TIMESTAMP,
@@ -217,6 +218,7 @@ describe('Net Worth Calculations', () => {
           liabilities: { fields: [] },
           total_assets: 100000,
           total_liabilities: 0,
+          total_liquid_assets: 0,
           net_worth: 100000,
           notes: null,
           created_at: '2024-01-15T00:00:00Z',
@@ -235,6 +237,7 @@ describe('Net Worth Calculations', () => {
           liabilities: { fields: [] },
           total_assets: 100000,
           total_liabilities: 0,
+          total_liquid_assets: 0,
           net_worth: 100000,
           notes: null,
           created_at: '',
@@ -247,6 +250,7 @@ describe('Net Worth Calculations', () => {
           liabilities: { fields: [] },
           total_assets: 112000,
           total_liabilities: 0,
+          total_liquid_assets: 0,
           net_worth: 112000,
           notes: null,
           created_at: '',
@@ -266,13 +270,13 @@ describe('Net Worth Calculations', () => {
       // Linear growth of ~$2000/month
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100000, total_liabilities: 0, net_worth: 100000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100000, total_liabilities: 0, net_worth: 100000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-03-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 104000, total_liabilities: 0, net_worth: 104000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 104000, total_liabilities: 0, net_worth: 104000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '3', recorded_at: '2024-05-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 108000, total_liabilities: 0, net_worth: 108000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 108000, total_liabilities: 0, net_worth: 108000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '4', recorded_at: '2024-07-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 112000, total_liabilities: 0, net_worth: 112000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 112000, total_liabilities: 0, net_worth: 112000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const result = calculateNetWorthProjection(entries);
@@ -285,9 +289,9 @@ describe('Net Worth Calculations', () => {
     it('should handle negative net worth values', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 50000, total_liabilities: 100000, net_worth: -50000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 50000, total_liabilities: 100000, net_worth: -50000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-06-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 60000, total_liabilities: 90000, net_worth: -30000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 60000, total_liabilities: 90000, net_worth: -30000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const result = calculateNetWorthProjection(entries);
@@ -299,9 +303,9 @@ describe('Net Worth Calculations', () => {
     it('should handle declining net worth', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100000, total_liabilities: 0, net_worth: 100000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100000, total_liabilities: 0, net_worth: 100000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-06-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 80000, total_liabilities: 0, net_worth: 80000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 80000, total_liabilities: 0, net_worth: 80000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const result = calculateNetWorthProjection(entries);
@@ -319,7 +323,7 @@ describe('Net Worth Calculations', () => {
     it('should return empty array for single data point', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-15', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100, total_liabilities: 0, net_worth: 100, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100, total_liabilities: 0, net_worth: 100, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
       expect(generateProjectionPoints(entries)).toEqual([]);
     });
@@ -327,9 +331,9 @@ describe('Net Worth Calculations', () => {
     it('should generate quarterly projections for 5 years', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100000, total_liabilities: 0, net_worth: 100000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100000, total_liabilities: 0, net_worth: 100000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-07-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 110000, total_liabilities: 0, net_worth: 110000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 110000, total_liabilities: 0, net_worth: 110000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const projections = generateProjectionPoints(entries, 5);
@@ -349,9 +353,9 @@ describe('Net Worth Calculations', () => {
     it('should project increasing net worth for positive growth', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100000, total_liabilities: 0, net_worth: 100000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100000, total_liabilities: 0, net_worth: 100000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-07-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 120000, total_liabilities: 0, net_worth: 120000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 120000, total_liabilities: 0, net_worth: 120000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const projections = generateProjectionPoints(entries, 5);
@@ -363,9 +367,9 @@ describe('Net Worth Calculations', () => {
     it('should project decreasing net worth for negative growth', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100000, total_liabilities: 0, net_worth: 100000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100000, total_liabilities: 0, net_worth: 100000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-07-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 80000, total_liabilities: 0, net_worth: 80000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 80000, total_liabilities: 0, net_worth: 80000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const projections = generateProjectionPoints(entries, 5);
@@ -377,9 +381,9 @@ describe('Net Worth Calculations', () => {
     it('should generate less projections for shorter periods', () => {
       const entries = [
         { id: '1', recorded_at: '2024-01-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 100000, total_liabilities: 0, net_worth: 100000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 100000, total_liabilities: 0, net_worth: 100000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
         { id: '2', recorded_at: '2024-07-01', assets: { fields: [] }, liabilities: { fields: [] },
-          total_assets: 110000, total_liabilities: 0, net_worth: 110000, notes: null, created_at: '', updated_at: '' },
+          total_assets: 110000, total_liabilities: 0, net_worth: 110000, total_liquid_assets: 0, notes: null, created_at: '', updated_at: '' },
       ];
 
       const projections2Years = generateProjectionPoints(entries, 2);
@@ -388,6 +392,118 @@ describe('Net Worth Calculations', () => {
       // 2 years = 8 quarters, 1 year = 4 quarters
       expect(projections2Years).toHaveLength(8);
       expect(projections1Year).toHaveLength(4);
+    });
+  });
+
+  describe('Compound Projection - generateCompoundProjection', () => {
+    it('should return empty array for zero liquid assets', () => {
+      const result = generateCompoundProjection(0, 0.05, new Date('2024-01-01'), 10);
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array for negative liquid assets', () => {
+      const result = generateCompoundProjection(-10000, 0.05, new Date('2024-01-01'), 10);
+      expect(result).toEqual([]);
+    });
+
+    it('should generate quarterly projections for specified years', () => {
+      const result = generateCompoundProjection(100000, 0.05, new Date('2024-01-01'), 10);
+
+      // 10 years * 4 quarters = 40 points
+      expect(result).toHaveLength(40);
+    });
+
+    it('should generate 5 years of projections (20 quarters)', () => {
+      const result = generateCompoundProjection(100000, 0.05, new Date('2024-01-01'), 5);
+      expect(result).toHaveLength(20);
+    });
+
+    it('should generate 20 years of projections (80 quarters)', () => {
+      const result = generateCompoundProjection(100000, 0.05, new Date('2024-01-01'), 20);
+      expect(result).toHaveLength(80);
+    });
+
+    it('should calculate correct compound growth at 5% annual rate', () => {
+      const principal = 100000;
+      const annualRate = 0.05;
+      const years = 10;
+
+      const result = generateCompoundProjection(principal, annualRate, new Date('2024-01-01'), years);
+
+      // After 10 years with 5% annual (quarterly compounding):
+      // P * (1 + 0.05/4)^40 = 100000 * 1.0125^40 ≈ 164,361.95
+      const finalValue = result[result.length - 1].liquidAssets;
+      expect(finalValue).toBeCloseTo(164361.95, 0); // Allow rounding to nearest dollar
+    });
+
+    it('should calculate correct compound growth at 3% annual rate', () => {
+      const principal = 100000;
+      const annualRate = 0.03;
+      const years = 10;
+
+      const result = generateCompoundProjection(principal, annualRate, new Date('2024-01-01'), years);
+
+      // P * (1 + 0.03/4)^40 = 100000 * 1.0075^40 ≈ 134,834.86
+      const finalValue = result[result.length - 1].liquidAssets;
+      expect(finalValue).toBeCloseTo(134834.86, 0);
+    });
+
+    it('should calculate correct compound growth at 7% annual rate', () => {
+      const principal = 100000;
+      const annualRate = 0.07;
+      const years = 10;
+
+      const result = generateCompoundProjection(principal, annualRate, new Date('2024-01-01'), years);
+
+      // P * (1 + 0.07/4)^40 = 100000 * 1.0175^40 ≈ 200,159.73
+      const finalValue = result[result.length - 1].liquidAssets;
+      expect(finalValue).toBeCloseTo(200159.73, 0);
+    });
+
+    it('should calculate correct compound growth at 10% annual rate', () => {
+      const principal = 100000;
+      const annualRate = 0.10;
+      const years = 10;
+
+      const result = generateCompoundProjection(principal, annualRate, new Date('2024-01-01'), years);
+
+      // P * (1 + 0.10/4)^40 = 100000 * 1.025^40 ≈ 268,506.39
+      const finalValue = result[result.length - 1].liquidAssets;
+      expect(finalValue).toBeCloseTo(268506.39, 0);
+    });
+
+    it('should have increasing values at each quarter', () => {
+      const result = generateCompoundProjection(100000, 0.05, new Date('2024-01-01'), 5);
+
+      for (let i = 1; i < result.length; i++) {
+        expect(result[i].liquidAssets).toBeGreaterThan(result[i - 1].liquidAssets);
+      }
+    });
+
+    it('should have correctly formatted dates', () => {
+      const startDate = new Date('2024-01-01');
+      const result = generateCompoundProjection(100000, 0.05, startDate, 2);
+
+      // First projection should be 3 months (1 quarter) after start
+      expect(result[0].date).toBe('2024-04-01');
+      // Second projection should be 6 months after start
+      expect(result[1].date).toBe('2024-07-01');
+      // Third projection should be 9 months after start
+      expect(result[2].date).toBe('2024-10-01');
+      // Fourth projection should be 12 months after start
+      expect(result[3].date).toBe('2025-01-01');
+    });
+
+    it('should return values rounded to 2 decimal places', () => {
+      const result = generateCompoundProjection(100000, 0.05, new Date('2024-01-01'), 1);
+
+      result.forEach(p => {
+        // Check that value has at most 2 decimal places
+        const decimalPart = p.liquidAssets.toString().split('.')[1];
+        if (decimalPart) {
+          expect(decimalPart.length).toBeLessThanOrEqual(2);
+        }
+      });
     });
   });
 });

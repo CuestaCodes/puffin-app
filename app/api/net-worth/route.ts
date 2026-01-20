@@ -8,6 +8,7 @@ import {
   createNetWorthEntry,
   generateProjectionPoints,
   calculateNetWorthProjection,
+  generateCompoundProjection,
 } from '@/lib/db/net-worth';
 import { createNetWorthSchema } from '@/lib/validations';
 
@@ -28,10 +29,25 @@ export async function GET(request: NextRequest) {
       const projection = calculateNetWorthProjection(entries);
       const projectionPoints = generateProjectionPoints(entries, 5);
 
+      // Generate compound projection from latest entry's liquid assets
+      const growthRate = parseFloat(searchParams.get('growthRate') || '0.05');
+      const projectionYears = parseInt(searchParams.get('years') || '10');
+      let compoundProjectionPoints: Array<{ date: string; liquidAssets: number }> = [];
+      if (entries.length > 0) {
+        const latestEntry = entries[entries.length - 1];
+        compoundProjectionPoints = generateCompoundProjection(
+          latestEntry.total_liquid_assets,
+          growthRate,
+          new Date(latestEntry.recorded_at),
+          projectionYears
+        );
+      }
+
       return NextResponse.json({
         entries,
         projection,
         projectionPoints,
+        compoundProjectionPoints,
       });
     }
 

@@ -2,8 +2,9 @@
 
 import { useMemo } from 'react';
 import {
-  LineChart,
+  ComposedChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,21 +12,29 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Loader2, TrendingUp } from 'lucide-react';
 import { formatCurrencyAUD } from '@/lib/utils';
 import type { NetWorthEntryParsed } from '@/types/net-worth';
 
 interface NetWorthChartProps {
   entries: NetWorthEntryParsed[];
+  /** @deprecated Linear projection - kept for backward compatibility */
   projectionPoints?: Array<{ date: string; netWorth: number }>;
+  compoundProjectionPoints?: Array<{ date: string; liquidAssets: number }>;
+  /** @deprecated Linear projection - kept for backward compatibility */
   projection?: { slope: number; intercept: number; rSquared: number } | null;
+  growthRate?: number;
+  projectionYears?: number;
   isLoading?: boolean;
 }
 
 export function NetWorthChart({
   entries,
-  projectionPoints = [],
-  projection,
+  projectionPoints: _projectionPoints = [],
+  compoundProjectionPoints = [],
+  projection: _projection,
+  growthRate = 0.05,
+  projectionYears = 10,
   isLoading,
 }: NetWorthChartProps) {
   const formatCurrency = (value: number) => formatCurrencyAUD(value, { compact: true });
@@ -58,26 +67,27 @@ export function NetWorthChart({
       timestamp: dateToTimestamp(entry.recorded_at),
       date: entry.recorded_at,
       netWorth: entry.net_worth,
+      liquidAssets: entry.total_liquid_assets,
       totalAssets: entry.total_assets,
       totalLiabilities: entry.total_liabilities,
       isProjection: false,
     }));
 
-    // Only add projection line if we have 2+ data points
-    if (entries.length >= 2 && projectionPoints.length > 0) {
-      const projectionData = projectionPoints.map(p => ({
+    // Add compound projection line for liquid assets if we have data
+    if (entries.length > 0 && compoundProjectionPoints.length > 0) {
+      const projectionData = compoundProjectionPoints.map(p => ({
         timestamp: dateToTimestamp(p.date),
         date: p.date,
-        projectedNetWorth: p.netWorth,
+        projectedLiquidAssets: p.liquidAssets,
         isProjection: true,
       }));
 
-      // Add the last historical point as the start of projection
+      // Add the last historical liquid assets value as the start of projection
       const lastHistorical = historicalData[historicalData.length - 1];
       const projectionStart = {
         timestamp: lastHistorical.timestamp,
         date: lastHistorical.date,
-        projectedNetWorth: lastHistorical.netWorth,
+        projectedLiquidAssets: lastHistorical.liquidAssets,
         isProjection: true,
       };
 
@@ -85,7 +95,7 @@ export function NetWorthChart({
     }
 
     return historicalData;
-  }, [entries, projectionPoints]);
+  }, [entries, compoundProjectionPoints]);
 
   // Calculate domain for X axis
   const xDomain = useMemo(() => {
@@ -119,23 +129,29 @@ export function NetWorthChart({
     return ticks;
   }, [xDomain, chartData.length]);
 
-  // Calculate trend info
-  const trendInfo = useMemo(() => {
-    if (!projection || entries.length < 2) return null;
+  // Calculate projection info for liquid assets
+  const projectionInfo = useMemo(() => {
+    if (entries.length === 0) return null;
 
-    // Slope is per day, convert to per year
-    const yearlyGrowth = projection.slope * 365;
-    const percentage = entries[0].net_worth > 0
-      ? (yearlyGrowth / entries[0].net_worth) * 100
-      : 0;
+    const lastEntry = entries[entries.length - 1];
+    const liquidAssets = lastEntry.total_liquid_assets;
+
+    if (liquidAssets <= 0) return null;
+
+    // Calculate projected value with quarterly compounding
+    const quarterlyRate = growthRate / 4;
+    const quarters = projectionYears * 4;
+    const projectedValue = liquidAssets * Math.pow(1 + quarterlyRate, quarters);
+    const projectedGrowth = projectedValue - liquidAssets;
 
     return {
-      yearlyGrowth,
-      percentage,
-      isPositive: yearlyGrowth >= 0,
-      rSquared: projection.rSquared,
+      currentLiquid: liquidAssets,
+      projectedValue,
+      projectedGrowth,
+      growthPercentage: growthRate * 100,
+      years: projectionYears,
     };
-  }, [projection, entries]);
+  }, [entries, growthRate, projectionYears]);
 
   if (isLoading) {
     return (
@@ -155,25 +171,18 @@ export function NetWorthChart({
 
   return (
     <div className="space-y-4">
-      {/* Trend Summary - Only show if we have enough data for regression */}
-      {trendInfo && (
+      {/* Projection Summary - Show compound growth projection */}
+      {projectionInfo && (
         <div className="flex items-center gap-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
           <div className="flex items-center gap-2">
-            {trendInfo.isPositive ? (
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-            ) : (
-              <TrendingDown className="w-5 h-5 text-red-400" />
-            )}
-            <span className="text-slate-400 text-sm">Projected Annual Growth:</span>
-            <span className={`font-bold ${trendInfo.isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-              {trendInfo.isPositive ? '+' : ''}{formatCurrency(trendInfo.yearlyGrowth)}
-              <span className="text-xs ml-1">
-                ({trendInfo.isPositive ? '+' : ''}{trendInfo.percentage.toFixed(1)}%)
+            <TrendingUp className="w-5 h-5 text-blue-400" />
+            <span className="text-slate-400 text-sm">{projectionInfo.years}-Year Projection ({projectionInfo.growthPercentage.toFixed(0)}% annual):</span>
+            <span className="font-bold text-blue-400">
+              {formatCurrency(projectionInfo.currentLiquid)} → {formatCurrency(projectionInfo.projectedValue)}
+              <span className="text-xs ml-1 text-emerald-400">
+                (+{formatCurrency(projectionInfo.projectedGrowth)})
               </span>
             </span>
-          </div>
-          <div className="text-xs text-slate-500">
-            R² = {(trendInfo.rSquared * 100).toFixed(1)}%
           </div>
         </div>
       )}
@@ -181,7 +190,7 @@ export function NetWorthChart({
       {/* Chart */}
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
+          <ComposedChart
             data={chartData}
             margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
           >
@@ -218,9 +227,14 @@ export function NetWorthChart({
                   minimumFractionDigits: 0,
                 }).format(numValue);
 
-                const label = name === 'projectedNetWorth' ? 'Projected' : 
-                              name === 'netWorth' ? 'Net Worth' :
-                              name === 'totalAssets' ? 'Assets' : 'Liabilities';
+                const labelMap: Record<string, string> = {
+                  projectedLiquidAssets: 'Projected Liquid',
+                  liquidAssets: 'Liquid Assets',
+                  netWorth: 'Net Worth',
+                  totalAssets: 'Total Assets',
+                  totalLiabilities: 'Liabilities',
+                };
+                const label = labelMap[String(name)] || String(name);
 
                 return [formatted, label];
               }}
@@ -241,38 +255,56 @@ export function NetWorthChart({
               connectNulls={false}
             />
 
-            {/* Projection line - dashed, only appears when 2+ data points */}
-            {entries.length >= 2 && projectionPoints.length > 0 && (
+            {/* Historical liquid assets area (shaded) */}
+            <Area
+              type="monotone"
+              dataKey="liquidAssets"
+              name="Liquid Assets"
+              fill="#3b82f6"
+              fillOpacity={0.2}
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={{ fill: '#3b82f6', strokeWidth: 2, r: 3 }}
+              activeDot={{ r: 5, fill: '#3b82f6' }}
+              connectNulls={false}
+            />
+
+            {/* Compound projection line for liquid assets - dashed */}
+            {entries.length > 0 && compoundProjectionPoints.length > 0 && (
               <Line
                 type="monotone"
-                dataKey="projectedNetWorth"
-                name="Projected Net Worth"
-                stroke="#06b6d4"
+                dataKey="projectedLiquidAssets"
+                name="Projected Liquid Assets"
+                stroke="#3b82f6"
                 strokeWidth={2}
                 strokeDasharray="8 4"
                 dot={false}
                 connectNulls
               />
             )}
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 text-sm text-slate-400">
+      <div className="flex items-center justify-center gap-6 text-sm text-slate-400 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-8 h-0.5 bg-cyan-500"></div>
-          <span>Actual Net Worth</span>
+          <span>Net Worth</span>
         </div>
-        {entries.length >= 2 && (
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-0.5 bg-blue-500"></div>
+          <span>Liquid Assets</span>
+        </div>
+        {entries.length > 0 && compoundProjectionPoints.length > 0 && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-0.5 border-b-2 border-dashed border-cyan-500"></div>
-            <span>5-Year Projection</span>
+            <div className="w-8 h-0.5 border-b-2 border-dashed border-blue-500"></div>
+            <span>Projected ({Math.round(growthRate * 100)}% annual)</span>
           </div>
         )}
-        {entries.length < 2 && (
+        {projectionInfo === null && entries.length > 0 && (
           <div className="text-xs text-slate-500 italic">
-            Add 2+ entries to see projection trend line
+            Add liquid assets to see projection
           </div>
         )}
       </div>

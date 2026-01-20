@@ -24,6 +24,7 @@ interface NetWorthField {
   key: string;
   label: string;
   value: number;
+  isLiquid?: boolean;
 }
 
 interface AssetsData {
@@ -41,6 +42,7 @@ interface NetWorthEntryParsed {
   liabilities: LiabilitiesData;
   total_assets: number;
   total_liabilities: number;
+  total_liquid_assets: number;
   net_worth: number;
   notes: string | null;
   created_at: string;
@@ -62,16 +64,29 @@ function calculateTotal(data: AssetsData | LiabilitiesData): number {
 }
 
 /**
+ * Calculate total of liquid assets only
+ */
+function calculateLiquidTotal(data: AssetsData): number {
+  return data.fields
+    .filter(field => field.isLiquid === true)
+    .reduce((sum, field) => sum + (field.value || 0), 0);
+}
+
+/**
  * Parse a raw database entry into a parsed entry with deserialized JSON
  */
 function parseEntry(entry: NetWorthEntry): NetWorthEntryParsed {
+  const assets = JSON.parse(entry.assets_data) as AssetsData;
+  const liabilities = JSON.parse(entry.liabilities_data) as LiabilitiesData;
+
   return {
     id: entry.id,
     recorded_at: entry.recorded_at,
-    assets: JSON.parse(entry.assets_data) as AssetsData,
-    liabilities: JSON.parse(entry.liabilities_data) as LiabilitiesData,
+    assets,
+    liabilities,
     total_assets: entry.total_assets,
     total_liabilities: entry.total_liabilities,
+    total_liquid_assets: calculateLiquidTotal(assets),
     net_worth: entry.net_worth,
     notes: entry.notes,
     created_at: entry.created_at,
@@ -153,6 +168,38 @@ function generateProjectionPoints(
 }
 
 /**
+ * Generate compound growth projection points from liquid assets
+ * Uses quarterly compounding: liquidAssets × (1 + rate/4)^quarters
+ */
+function generateCompoundProjection(
+  liquidAssets: number,
+  annualRate: number,
+  startDate: Date,
+  yearsAhead: number = 10
+): Array<{ date: string; liquidAssets: number }> {
+  if (liquidAssets <= 0) return [];
+
+  const quarterlyRate = annualRate / 4;
+  const totalQuarters = yearsAhead * 4;
+  const projections: Array<{ date: string; liquidAssets: number }> = [];
+
+  for (let quarter = 1; quarter <= totalQuarters; quarter++) {
+    const projectionDate = new Date(startDate);
+    projectionDate.setMonth(projectionDate.getMonth() + quarter * 3);
+
+    // Compound growth formula: P × (1 + r)^n
+    const projectedValue = liquidAssets * Math.pow(1 + quarterlyRate, quarter);
+
+    projections.push({
+      date: projectionDate.toISOString().split('T')[0],
+      liquidAssets: Math.round(projectedValue * 100) / 100,
+    });
+  }
+
+  return projections;
+}
+
+/**
  * Main net worth handler - /api/net-worth
  */
 export async function handleNetWorth(ctx: HandlerContext): Promise<unknown> {
@@ -206,6 +253,8 @@ export async function handleNetWorthEntry(ctx: HandlerContext): Promise<unknown>
  */
 async function getNetWorthEntries(params: Record<string, string>): Promise<unknown> {
   const forChart = params.chart === 'true';
+  const growthRate = params.growthRate ? parseFloat(params.growthRate) : 0.05;
+  const projectionYears = params.years ? parseInt(params.years) : 10;
 
   if (forChart) {
     const entries = await db.query<NetWorthEntry>(
@@ -215,10 +264,23 @@ async function getNetWorthEntries(params: Record<string, string>): Promise<unkno
     const projection = calculateNetWorthProjection(parsedEntries);
     const projectionPoints = generateProjectionPoints(parsedEntries, 5);
 
+    // Generate compound projection from latest entry's liquid assets
+    let compoundProjectionPoints: Array<{ date: string; liquidAssets: number }> = [];
+    if (parsedEntries.length > 0) {
+      const latestEntry = parsedEntries[parsedEntries.length - 1];
+      compoundProjectionPoints = generateCompoundProjection(
+        latestEntry.total_liquid_assets,
+        growthRate,
+        new Date(latestEntry.recorded_at),
+        projectionYears
+      );
+    }
+
     return {
       entries: parsedEntries,
       projection,
       projectionPoints,
+      compoundProjectionPoints,
     };
   }
 

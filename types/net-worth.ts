@@ -1,23 +1,60 @@
 // Net Worth types for tracking financial position over time
 
 /**
- * Default asset field labels
+ * Default asset field labels (non-liquid)
  * Users can customize these labels when recording
  */
 export const DEFAULT_ASSET_FIELDS = [
-  { key: 'home', label: 'Home (at purchase)' },
-  { key: 'car', label: 'Car (current value)' },
-  { key: 'stocks1', label: 'Stocks 1' },
-  { key: 'stocks2', label: 'Stocks 2' },
-  { key: 'super1', label: 'Superannuation 1' },
-  { key: 'super2', label: 'Superannuation 2' },
-  { key: 'cash', label: 'Cash' },
-  { key: 'offset', label: 'Offset' },
-  { key: 'asset1', label: 'Asset 1' },
-  { key: 'asset2', label: 'Asset 2' },
-  { key: 'asset3', label: 'Asset 3' },
-  { key: 'asset4', label: 'Asset 4' },
+  { key: 'home', label: 'Home (at purchase)', isLiquid: false },
+  { key: 'car', label: 'Car (current value)', isLiquid: false },
+  { key: 'asset1', label: 'Other Asset 1', isLiquid: false },
+  { key: 'asset2', label: 'Other Asset 2', isLiquid: false },
 ] as const;
+
+/**
+ * Default liquid asset field labels
+ * Liquid assets are used for growth projections
+ */
+export const DEFAULT_LIQUID_ASSET_FIELDS = [
+  { key: 'stocks1', label: 'Stocks 1', isLiquid: true },
+  { key: 'stocks2', label: 'Stocks 2', isLiquid: true },
+  { key: 'super1', label: 'Superannuation 1', isLiquid: true },
+  { key: 'super2', label: 'Superannuation 2', isLiquid: true },
+  { key: 'cash', label: 'Cash', isLiquid: true },
+  { key: 'offset', label: 'Offset', isLiquid: true },
+  { key: 'liquid1', label: 'Liquid Asset 1', isLiquid: true },
+  { key: 'liquid2', label: 'Liquid Asset 2', isLiquid: true },
+  { key: 'liquid3', label: 'Liquid Asset 3', isLiquid: true },
+  { key: 'liquid4', label: 'Liquid Asset 4', isLiquid: true },
+] as const;
+
+/**
+ * All asset fields combined (for backward compatibility)
+ */
+export const ALL_ASSET_FIELDS = [...DEFAULT_ASSET_FIELDS, ...DEFAULT_LIQUID_ASSET_FIELDS] as const;
+
+/**
+ * Available growth rate options for projections
+ */
+export const GROWTH_RATE_OPTIONS = [
+  { value: 0.03, label: '3% (Conservative)' },
+  { value: 0.05, label: '5% (Moderate)' },
+  { value: 0.07, label: '7% (Growth)' },
+  { value: 0.10, label: '10% (Aggressive)' },
+] as const;
+
+export const DEFAULT_GROWTH_RATE = 0.05;
+
+/**
+ * Available projection year options
+ */
+export const PROJECTION_YEARS_OPTIONS = [
+  { value: 5, label: '5 Years' },
+  { value: 10, label: '10 Years' },
+  { value: 20, label: '20 Years' },
+] as const;
+
+export const DEFAULT_PROJECTION_YEARS = 10;
 
 /**
  * Default liability field labels
@@ -40,6 +77,7 @@ export interface NetWorthField {
   key: string;
   label: string;
   value: number;
+  isLiquid?: boolean;
 }
 
 /**
@@ -82,6 +120,7 @@ export interface NetWorthEntryParsed {
   liabilities: LiabilitiesData;
   total_assets: number;
   total_liabilities: number;
+  total_liquid_assets: number;
   net_worth: number;
   notes: string | null;
   created_at: string;

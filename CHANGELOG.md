@@ -5,6 +5,12 @@ All notable changes to Puffin will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Liquid Assets Tracking** in Net Worth - track liquid assets (stocks, super, cash, offset) separately with dedicated subtotal
+  - Predefined liquid asset fields: Stocks 1/2, Super 1/2, Cash, Offset, plus 4 custom liquid asset slots
+  - Liquid assets shown as shaded blue area in net worth chart
+  - Projection line now based on liquid assets only (not total net worth)
+  - User-configurable growth rate (3%, 5%, 7%, 10%) with compound quarterly calculation
+  - User-configurable projection period (5, 10, or 20 years)
 - **Undo Last Import** - 5-minute window to undo an import if you made a mistake (wrong column mapping, forgot to select source, etc.)
   - Toast notification with Undo button appears after each import
   - "Undo Import" button in Transactions page header with countdown timer
