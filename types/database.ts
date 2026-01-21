@@ -115,6 +115,21 @@ export interface SyncLog {
   completed_at: string | null;
 }
 
+export interface Note {
+  id: string;
+  title: string;
+  content: string | null;
+  tags: string | null; // JSON array of tag strings, e.g. '["financial", "goals"]'
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Parsed Note with tags as array
+export interface NoteParsed extends Omit<Note, 'tags'> {
+  tags: string[];
+}
+
 // Types for API responses and forms
 export interface TransactionWithCategory extends Transaction {
   sub_category_name?: string;
@@ -167,6 +182,14 @@ export interface CreateAutoRuleInput {
   match_text: string;
   sub_category_id: string;
 }
+
+export interface CreateNoteInput {
+  title: string;
+  content?: string | null;
+  tags?: string[];
+}
+
+export type UpdateNoteInput = Partial<CreateNoteInput>;
 
 
 

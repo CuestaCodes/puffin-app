@@ -115,6 +115,17 @@ CREATE TABLE IF NOT EXISTS net_worth_entry (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Notes for financial planning and reminders
+CREATE TABLE IF NOT EXISTS note (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT,
+  tags TEXT,
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_transaction_date ON "transaction"(date);
 CREATE INDEX IF NOT EXISTS idx_transaction_sub_category ON "transaction"(sub_category_id);
@@ -127,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_budget_period ON budget(year, month);
 CREATE INDEX IF NOT EXISTS idx_auto_rule_priority ON auto_category_rule(priority);
 CREATE INDEX IF NOT EXISTS idx_sync_log_action ON sync_log(action, started_at);
 CREATE INDEX IF NOT EXISTS idx_net_worth_recorded_at ON net_worth_entry(recorded_at);
+CREATE INDEX IF NOT EXISTS idx_note_deleted ON note(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_note_updated ON note(updated_at);
 `;
 
 // Default upper categories to seed

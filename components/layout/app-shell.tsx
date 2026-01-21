@@ -9,12 +9,13 @@ import { Dashboard } from '@/components/pages/dashboard';
 import { TransactionsPage } from '@/components/pages/transactions';
 import { MonthlyBudgetPage } from '@/components/pages/monthly-budget';
 import { NetWorthPage } from '@/components/pages/net-worth';
+import { NotesPage } from '@/components/pages/notes';
 import { SettingsPage } from '@/components/pages/settings';
 import { SyncConflictDialog } from '@/components/sync-conflict-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'net-worth' | 'settings';
+export type PageId = 'dashboard' | 'transactions' | 'monthly' | 'net-worth' | 'notes' | 'settings';
 
 /**
  * Get initial page from URL params (for OAuth callback navigation)
@@ -51,6 +52,8 @@ function AppShellContent() {
         return <MonthlyBudgetPage />;
       case 'net-worth':
         return <NetWorthPage />;
+      case 'notes':
+        return <NotesPage />;
       case 'settings':
         return <SettingsPage />;
       default:

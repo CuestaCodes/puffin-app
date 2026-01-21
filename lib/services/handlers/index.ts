@@ -231,4 +231,15 @@ export function initializeTauriHandlers(): void {
     const { handleNetWorthEntry } = await import('./net-worth');
     return handleNetWorthEntry;
   });
+
+  // Notes handlers
+  registerHandler('/api/notes', async () => {
+    const { handleNotes } = await import('./notes');
+    return handleNotes;
+  });
+
+  registerHandler('/api/notes/[id]', async () => {
+    const { handleNote } = await import('./notes');
+    return handleNote;
+  });
 }

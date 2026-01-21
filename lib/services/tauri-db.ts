@@ -79,7 +79,7 @@ let dbPromise: Promise<TauriDatabase> | null = null;
 let isInitialized = false;
 
 // Current schema version - increment when adding new migrations
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 /**
  * Get the database path based on environment.
@@ -323,6 +323,29 @@ async function runMigrations(database: TauriDatabase): Promise<void> {
     }
 
     await setSchemaVersion(database, 4);
+  }
+
+  // Migration 5: Add note table for financial planning notes
+  if (currentVersion < 5) {
+    await database.execute(`
+      CREATE TABLE IF NOT EXISTS note (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT,
+        tags TEXT,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    await database.execute(`
+      CREATE INDEX IF NOT EXISTS idx_note_deleted ON note(is_deleted)
+    `);
+    await database.execute(`
+      CREATE INDEX IF NOT EXISTS idx_note_updated ON note(updated_at)
+    `);
+
+    await setSchemaVersion(database, 5);
   }
 
   // Verify migrations completed successfully

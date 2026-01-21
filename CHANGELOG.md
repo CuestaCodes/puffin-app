@@ -5,6 +5,12 @@ All notable changes to Puffin will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Notes Page** - create, edit, and delete financial planning notes with tags
+  - Appears in sidebar navigation between Net Worth and Settings
+  - Search notes by title or content
+  - Filter notes by tag
+  - URLs in note content are clickable and open in default browser
+  - Tags stored as JSON array, displayed as pills
 - **Liquid Assets Tracking** in Net Worth - track liquid assets (stocks, super, cash, offset) separately with dedicated subtotal
   - Predefined liquid asset fields: Stocks 1/2, Super 1/2, Cash, Offset, plus 4 custom liquid asset slots
   - Liquid assets shown as shaded blue area in net worth chart

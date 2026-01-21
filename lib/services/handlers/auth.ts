@@ -489,6 +489,7 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
   await db.execute('DELETE FROM local_user');
   await db.execute('DELETE FROM sync_log');
   await db.execute('DELETE FROM net_worth_entry');
+  await db.execute('DELETE FROM note');
 
   // Delete all local backups (full reset means starting completely fresh)
   try {

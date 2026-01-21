@@ -52,7 +52,7 @@ export function SyncBeforeCloseModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent
-        className="sm:max-w-[450px] bg-slate-900 border-slate-700"
+        className="w-full max-w-[500px] sm:max-w-[500px] bg-slate-900 border-slate-700"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           e.preventDefault();
@@ -86,12 +86,12 @@ export function SyncBeforeCloseModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
           <Button
             variant="ghost"
             onClick={onCancel}
             disabled={isSyncing}
-            className="text-slate-400 hover:text-slate-300"
+            className="text-slate-400 hover:text-slate-300 w-full sm:w-auto"
           >
             Cancel
           </Button>
@@ -99,15 +99,15 @@ export function SyncBeforeCloseModal({
             variant="outline"
             onClick={onSkip}
             disabled={isSyncing}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 w-full sm:w-auto"
           >
             <X className="w-4 h-4 mr-2" />
-            Close Without Syncing
+            Skip Sync
           </Button>
           <Button
             onClick={handleSync}
             disabled={isSyncing}
-            className="bg-cyan-600 hover:bg-cyan-500"
+            className="bg-cyan-600 hover:bg-cyan-500 w-full sm:w-auto"
           >
             {isSyncing ? (
               <>

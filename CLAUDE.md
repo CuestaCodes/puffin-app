@@ -76,7 +76,14 @@ const result = await api.get('/api/transactions');
 
 **Type Location:** Define shared types in `types/` folder, never import from API route files (unavailable in static builds).
 
-**Tauri DB Select:** `select<T>()` returns `T[]`, pass row type not array type.
+**Tauri DB Functions:**
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `query<T>(sql, params)` | `T[]` | Pass row type, not array |
+| `queryOne<T>(sql, params)` | `T \| null` | Single row |
+| `execute(sql, params)` | `{ changes, lastInsertRowId }` | Use `.changes` not `.rowsAffected` |
+
+**API Client Methods:** `api.get()`, `api.post()`, `api.patch()`, `api.delete()` (not `api.del`).
 
 ### Database Connection
 - `getDatabase()` - Get connection
@@ -85,6 +92,9 @@ const result = await api.get('/api/transactions');
 
 ### SQLite WAL Mode
 Before reading/copying DB file: `db.pragma('wal_checkpoint(TRUNCATE)')`.
+
+### Schema Migrations
+When adding migrations to `tauri-db.ts`, also update `CURRENT_SCHEMA_VERSION` constant.
 
 ## Data Models
 
@@ -96,6 +106,7 @@ Before reading/copying DB file: `db.pragma('wal_checkpoint(TRUNCATE)')`.
 | Budget | Monthly budget amounts per sub-category |
 | AutoCategoryRule | Rules for automatic categorisation |
 | NetWorthEntry | Point-in-time asset/liability snapshots |
+| Note | Financial planning notes and reminders |
 
 **Primary Keys:** TEXT with UUID (`crypto.randomUUID()`), not auto-increment.
 
@@ -129,6 +140,7 @@ DELETE FROM source;
 DELETE FROM local_user;
 DELETE FROM sync_log;
 DELETE FROM net_worth_entry;
+DELETE FROM note;
 ```
 
 ## Sync

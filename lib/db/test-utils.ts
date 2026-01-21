@@ -118,6 +118,16 @@ export const TEST_SCHEMA = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS note (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT,
+    tags TEXT,
+    is_deleted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_transaction_date ON "transaction"(date);
   CREATE INDEX IF NOT EXISTS idx_transaction_sub_category ON "transaction"(sub_category_id);
   CREATE INDEX IF NOT EXISTS idx_transaction_source ON "transaction"(source_id);
