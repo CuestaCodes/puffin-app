@@ -2,7 +2,7 @@
 
 All notable changes to Puffin will be documented in this file.
 
-## [Unreleased]
+## [2.0.0] - 2026-01-21
 
 ### Added
 - **Notes Page** - create, edit, and delete financial planning notes with tags
