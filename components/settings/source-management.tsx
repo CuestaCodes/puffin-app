@@ -18,6 +18,7 @@ import {
   Plus, Edit2, Trash2, Loader2, AlertTriangle, Wallet 
 } from 'lucide-react';
 import type { Source } from '@/types/database';
+import { MAX_SOURCE_NAME_LENGTH } from '@/lib/validations';
 
 interface SourceManagementProps {
   className?: string;
@@ -232,6 +233,7 @@ export function SourceManagement({ className }: SourceManagementProps) {
                       size="icon-sm"
                       onClick={() => handleEditSource(source)}
                       className="text-slate-400 hover:text-slate-200"
+                      aria-label="Edit source"
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
@@ -240,6 +242,7 @@ export function SourceManagement({ className }: SourceManagementProps) {
                       size="icon-sm"
                       onClick={() => setDeletingSource(source)}
                       className="text-slate-400 hover:text-red-400"
+                      aria-label="Delete source"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -268,6 +271,7 @@ export function SourceManagement({ className }: SourceManagementProps) {
               onChange={(e) => setEditingName(e.target.value)}
               className="mt-2 bg-slate-800/50 border-slate-700 text-slate-100"
               placeholder="Source name"
+              maxLength={MAX_SOURCE_NAME_LENGTH}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSaveSourceName();
               }}
@@ -310,6 +314,7 @@ export function SourceManagement({ className }: SourceManagementProps) {
               onChange={(e) => setNewName(e.target.value)}
               className="mt-2 bg-slate-800/50 border-slate-700 text-slate-100"
               placeholder="e.g., Bendigo Bank, Credit Card"
+              maxLength={MAX_SOURCE_NAME_LENGTH}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreateSource();

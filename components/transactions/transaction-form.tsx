@@ -25,6 +25,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { CategorySelector } from './category-selector';
 import { SourceSelector } from './source-selector';
 import type { TransactionWithCategory } from '@/types/database';
+import { MAX_TRANSACTION_DESCRIPTION_LENGTH, MAX_TRANSACTION_NOTES_LENGTH } from '@/lib/validations';
 
 interface TransactionFormProps {
   open: boolean;
@@ -220,6 +221,7 @@ export function TransactionForm({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="e.g., Grocery shopping"
+                maxLength={MAX_TRANSACTION_DESCRIPTION_LENGTH}
                 className={cn(
                   'bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500',
                   errors.description && 'border-red-500'
@@ -307,6 +309,7 @@ export function TransactionForm({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Add any additional notes..."
+                maxLength={MAX_TRANSACTION_NOTES_LENGTH}
                 className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500"
               />
             </div>

@@ -337,11 +337,11 @@ export function NotesPage() {
                   </p>
                 )}
                 {note.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-3">
+                  <div className="flex flex-wrap gap-1 mb-3 overflow-hidden">
                     {note.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-1.5 py-0.5 text-[10px] rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                        className="px-1.5 py-0.5 text-[10px] rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 max-w-full truncate"
                       >
                         {tag}
                       </span>

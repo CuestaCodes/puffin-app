@@ -394,7 +394,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack}>
+          <Button variant="ghost" size="icon" onClick={onBack} aria-label="Go back">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -416,7 +416,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} className="text-slate-400 hover:text-white">
+          <Button variant="ghost" size="icon" onClick={onBack} className="text-slate-400 hover:text-white" aria-label="Go back">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -439,7 +439,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={onBack} className="text-slate-400 hover:text-white">
+        <Button variant="ghost" size="icon" onClick={onBack} className="text-slate-400 hover:text-white" aria-label="Go back">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>

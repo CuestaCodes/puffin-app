@@ -669,7 +669,7 @@ function MonthlyBudgetContent() {
       </div>
 
       {/* Budget overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Income tile */}
         <Card className="border-slate-800 bg-slate-900/50">
           <CardContent className="pt-6">
@@ -848,14 +848,14 @@ function MonthlyBudgetContent() {
                                     : 'border-pink-500/10 hover:border-pink-500/20'
                                 )}
                               >
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-2">
                                   <span className={cn(
-                                    'font-medium',
+                                    'font-medium truncate',
                                     isSelected ? 'text-pink-300' : 'text-slate-200'
                                   )}>
                                     {category.sub_category_name}
                                   </span>
-                                  <span className="font-mono text-pink-400">
+                                  <span className="font-mono text-pink-400 shrink-0">
                                     {formatCurrency(category.actual_amount)}
                                   </span>
                                 </div>
@@ -911,14 +911,14 @@ function MonthlyBudgetContent() {
                                     : 'border-stone-500/10 hover:border-stone-500/20'
                                 )}
                               >
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between gap-2">
                                   <span className={cn(
-                                    'font-medium',
+                                    'font-medium truncate',
                                     isSelected ? 'text-stone-300' : 'text-slate-200'
                                   )}>
                                     {category.sub_category_name}
                                   </span>
-                                  <span className="font-mono text-stone-400">
+                                  <span className="font-mono text-stone-400 shrink-0">
                                     {formatCurrency(category.actual_amount)}
                                   </span>
                                 </div>
@@ -1018,15 +1018,15 @@ function MonthlyBudgetContent() {
                                 : 'border-transparent hover:border-slate-700'
                             )}
                           >
-                            <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center justify-between gap-2 mb-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <button
                                     onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                    className="flex-1 text-left"
+                                    className="flex-1 text-left min-w-0"
                                   >
                                     <span className={cn(
-                                      'font-medium',
+                                      'font-medium truncate block',
                                       isSelected ? 'text-cyan-300' : 'text-slate-200'
                                     )}>
                                       {category.sub_category_name}
@@ -1046,8 +1046,8 @@ function MonthlyBudgetContent() {
                                   </div>
                                 </TooltipContent>
                               </Tooltip>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-3 text-sm">
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1 text-sm">
                                   <span className={cn(
                                     'font-mono',
                                     isOverBudget ? 'text-red-400' : 'text-slate-300'
@@ -1071,6 +1071,7 @@ function MonthlyBudgetContent() {
                                     }
                                   }}
                                   className="h-7 w-7 p-0"
+                                  aria-label="Edit budget"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </Button>
@@ -1113,21 +1114,21 @@ function MonthlyBudgetContent() {
                               : 'border-slate-700/30 hover:border-slate-600'
                           )}
                         >
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
                                   onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                  className="flex-1 text-left"
+                                  className="flex-1 text-left min-w-0"
                                 >
                                   <span className={cn(
-                                    'font-medium',
+                                    'font-medium truncate block',
                                     isSelected ? 'text-cyan-300' : 'text-slate-300'
                                   )}>
                                     {category.sub_category_name}
                                   </span>
                                   {category.actual_amount > 0 && (
-                                    <span className="ml-2 text-sm text-slate-500">
+                                    <span className="text-sm text-slate-500 truncate block">
                                       ({formatCurrency(category.actual_amount)} spent)
                                     </span>
                                   )}
@@ -1153,7 +1154,7 @@ function MonthlyBudgetContent() {
                                 e.stopPropagation();
                                 handleCreateBudget(category.sub_category_id);
                               }}
-                              className="gap-1.5 text-xs"
+                              className="gap-1.5 text-xs shrink-0"
                             >
                               <Plus className="w-3 h-3" />
                               Set Budget

@@ -94,6 +94,7 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
           size="icon"
           onClick={onBack}
           className="text-slate-400 hover:text-white hover:bg-slate-800"
+          aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>

@@ -169,6 +169,7 @@ export function Dashboard() {
             size="icon"
             onClick={() => setYear(year - 1)}
             className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 w-8"
+            aria-label="Previous year"
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -181,6 +182,7 @@ export function Dashboard() {
             onClick={() => setYear(year + 1)}
             disabled={year >= new Date().getFullYear()}
             className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 w-8 disabled:opacity-50"
+            aria-label="Next year"
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
@@ -188,7 +190,7 @@ export function Dashboard() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <SummaryCard
           title="Total Income"
           value={formatCurrency(summary.totalIncome)}

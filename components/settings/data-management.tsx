@@ -407,6 +407,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
             size="icon"
             onClick={onBack}
             className="text-slate-400 hover:text-white"
+            aria-label="Go back"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

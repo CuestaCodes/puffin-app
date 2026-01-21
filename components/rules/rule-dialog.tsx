@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Loader2, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
 import { CategorySelector } from '@/components/transactions/category-selector';
+import { MAX_RULE_MATCH_TEXT_LENGTH } from '@/lib/validations';
 
 // Pure function - doesn't need to be inside component
 const formatCurrency = (amount: number) => {
@@ -319,6 +320,7 @@ export function RuleDialog({
                 value={matchText}
                 onChange={(e) => handleMatchTextChange(e.target.value)}
                 placeholder="e.g., COLES, NETFLIX, UBER"
+                maxLength={MAX_RULE_MATCH_TEXT_LENGTH}
                 className="bg-slate-800 border-slate-700 text-white"
               />
               <p className="text-xs text-slate-500">

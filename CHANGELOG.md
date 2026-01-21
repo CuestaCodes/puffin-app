@@ -31,6 +31,8 @@ All notable changes to Puffin will be documented in this file.
 - Renamed "Import CSV" button to "Import" (covers both CSV and PDF paste methods)
 
 ### Improved
+- Responsive layout for tiles on Dashboard, Monthly Budget, and Net Worth pages (no longer break at 800px minimum window)
+- Category rules text no longer overlaps action buttons at narrow widths (uses 2x2 grid layout)
 - Budget progress bars now show orange warning up to 105% of limit instead of turning red immediately at 100%
 - Import limit increased from 1,000 to 5,000 transactions with loading indicator and within-file duplicate detection
 - Category dropdown in auto-category rule dialog is now searchable
@@ -41,6 +43,7 @@ All notable changes to Puffin will be documented in this file.
 - Monthly Budget page header reorganized with title above action buttons (better on narrow windows)
 
 ### Fixed
+- Upper category renaming now works in Tauri mode (was only updating sub-categories)
 - CSV and PDF paste import now have "First row contains headers" toggle - uncheck to import files without header rows
 - Category filter in Monthly Budget view now works correctly from the Filters popover
 - Monthly Budget view now preserves scroll position when editing, categorising, splitting, or deleting transactions

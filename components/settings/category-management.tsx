@@ -26,6 +26,7 @@ import {
   Loader2, AlertTriangle, ArrowLeft 
 } from 'lucide-react';
 import type { UpperCategory, SubCategoryWithUpper } from '@/types/database';
+import { MAX_CATEGORY_NAME_LENGTH } from '@/lib/validations';
 import { cn } from '@/lib/utils';
 import { SourceManagement } from './source-management';
 
@@ -332,6 +333,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
             size="icon"
             onClick={onBack}
             className="text-slate-400 hover:text-white"
+            aria-label="Go back"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -385,7 +387,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
                   )}>
                     {group.type}
                   </span>
-                  <span className="text-sm text-slate-500">
+                  <span className="text-sm text-slate-500 whitespace-nowrap">
                     ({group.subCategories.length} categories)
                   </span>
                 </button>
@@ -432,6 +434,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
                             size="icon-sm"
                             onClick={() => handleEditSub(sub)}
                             className="text-slate-400 hover:text-slate-200"
+                            aria-label="Edit category"
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
@@ -440,6 +443,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
                             size="icon-sm"
                             onClick={() => handleDeleteClick(sub)}
                             className="text-slate-400 hover:text-red-400"
+                            aria-label="Delete category"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -471,6 +475,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
               onChange={(e) => setEditingUpperName(e.target.value)}
               className="mt-2 bg-slate-800/50 border-slate-700 text-slate-100"
               placeholder="Category group name"
+              maxLength={MAX_CATEGORY_NAME_LENGTH}
             />
           </div>
           <DialogFooter>
@@ -510,6 +515,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
               onChange={(e) => setEditingSubName(e.target.value)}
               className="mt-2 bg-slate-800/50 border-slate-700 text-slate-100"
               placeholder="Category name"
+              maxLength={MAX_CATEGORY_NAME_LENGTH}
             />
           </div>
           <DialogFooter>
@@ -549,6 +555,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
               onChange={(e) => setNewSubName(e.target.value)}
               className="mt-2 bg-slate-800/50 border-slate-700 text-slate-100"
               placeholder="Category name"
+              maxLength={MAX_CATEGORY_NAME_LENGTH}
               autoFocus
             />
           </div>

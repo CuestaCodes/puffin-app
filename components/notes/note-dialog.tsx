@@ -13,6 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { NoteParsed } from '@/types/database';
+import {
+  MAX_NOTE_TITLE_LENGTH,
+  MAX_NOTE_TAG_LENGTH,
+  MAX_NOTE_CONTENT_LENGTH,
+} from '@/lib/validations';
 
 interface NoteDialogProps {
   open: boolean;
@@ -47,7 +52,7 @@ export function NoteDialog({ open, onOpenChange, note, onSave }: NoteDialogProps
   }, [open, note]);
 
   const handleAddTag = () => {
-    const trimmed = tagInput.trim().toLowerCase();
+    const trimmed = tagInput.trim().toLowerCase().substring(0, MAX_NOTE_TAG_LENGTH);
     if (trimmed && !tags.includes(trimmed)) {
       setTags([...tags, trimmed]);
       setTagInput('');
@@ -103,6 +108,7 @@ export function NoteDialog({ open, onOpenChange, note, onSave }: NoteDialogProps
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Note title..."
               className="bg-slate-800/50 border-slate-700 text-white"
+              maxLength={MAX_NOTE_TITLE_LENGTH}
               autoFocus
             />
           </div>
@@ -118,6 +124,7 @@ export function NoteDialog({ open, onOpenChange, note, onSave }: NoteDialogProps
               placeholder="Write your note..."
               rows={8}
               className="bg-slate-800/50 border-slate-700 text-white resize-none"
+              maxLength={MAX_NOTE_CONTENT_LENGTH}
             />
           </div>
 
@@ -133,6 +140,7 @@ export function NoteDialog({ open, onOpenChange, note, onSave }: NoteDialogProps
                 onKeyDown={handleKeyDown}
                 placeholder="Add a tag..."
                 className="bg-slate-800/50 border-slate-700 text-white"
+                maxLength={MAX_NOTE_TAG_LENGTH}
               />
               <Button
                 type="button"
@@ -148,9 +156,9 @@ export function NoteDialog({ open, onOpenChange, note, onSave }: NoteDialogProps
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 max-w-full"
                   >
-                    {tag}
+                    <span className="truncate">{tag}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveTag(tag)}

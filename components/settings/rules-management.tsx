@@ -261,6 +261,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
               size="icon"
               onClick={onBack}
               className="text-slate-400 hover:text-white"
+              aria-label="Go back"
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
@@ -305,7 +306,7 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragEnd={handleDragEnd}
                   className={cn(
-                    'flex items-center gap-3 p-3 rounded-lg border transition-colors',
+                    'flex items-start gap-3 p-3 rounded-lg border transition-colors',
                     dragOverIndex === index
                       ? 'border-violet-500 bg-violet-500/10'
                       : 'border-slate-700 bg-slate-800/50 hover:border-slate-600',
@@ -313,26 +314,26 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                   )}
                 >
                   {/* Drag handle */}
-                  <div className="cursor-grab text-slate-500 hover:text-slate-300">
+                  <div className="cursor-grab text-slate-500 hover:text-slate-300 mt-1">
                     <GripVertical className="w-5 h-5" />
                   </div>
 
                   {/* Priority badge */}
-                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-slate-300">
+                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-medium text-slate-300 shrink-0">
                     {index + 1}
                   </div>
 
                   {/* Rule content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm text-white bg-slate-700 px-2 py-0.5 rounded">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm text-white bg-slate-700 px-2 py-0.5 rounded truncate max-w-[200px]" title={rule.match_text}>
                         {rule.match_text}
                       </span>
                       <span className="text-slate-500">→</span>
-                      <span className={cn('text-sm font-medium', getTypeColor(rule.upper_category_type))}>
+                      <span className={cn('text-sm font-medium truncate', getTypeColor(rule.upper_category_type))}>
                         {rule.upper_category_name}
                       </span>
-                      <span className="text-slate-400 text-sm">
+                      <span className="text-slate-400 text-sm truncate">
                         / {rule.sub_category_name}
                       </span>
                     </div>
@@ -341,38 +342,41 @@ export function RulesManagement({ onBack }: RulesManagementProps) {
                     </div>
                   </div>
 
-                  {/* Active toggle */}
-                  <Switch
-                    checked={rule.is_active}
-                    onCheckedChange={() => handleToggleActive(rule)}
-                  />
-
-                  {/* Actions */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openApplyDialog(rule)}
-                    className="text-slate-400 hover:text-violet-400"
-                    title="Apply to existing transactions"
-                  >
-                    <Zap className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEditRuleDialog(rule)}
-                    className="text-slate-400 hover:text-white"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeletingRule(rule)}
-                    className="text-slate-400 hover:text-red-400"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {/* Actions - 2x2 grid */}
+                  <div className="grid grid-cols-2 gap-1 shrink-0 items-center">
+                    <Switch
+                      checked={rule.is_active}
+                      onCheckedChange={() => handleToggleActive(rule)}
+                      aria-label={rule.is_active ? 'Disable rule' : 'Enable rule'}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openApplyDialog(rule)}
+                      className="text-slate-400 hover:text-violet-400 h-8 w-8"
+                      aria-label="Apply to existing transactions"
+                    >
+                      <Zap className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditRuleDialog(rule)}
+                      className="text-slate-400 hover:text-white h-8 w-8"
+                      aria-label="Edit rule"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeletingRule(rule)}
+                      className="text-slate-400 hover:text-red-400 h-8 w-8"
+                      aria-label="Delete rule"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

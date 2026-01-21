@@ -59,11 +59,33 @@ export async function handleCategory(ctx: HandlerContext): Promise<unknown> {
   }
 
   switch (method) {
-    case 'GET':
-      return getCategoryById(id);
+    case 'GET': {
+      // Try sub-category first, then upper category
+      const subCategory = await getCategoryById(id);
+      if (subCategory) {
+        return { category: subCategory, type: 'sub' };
+      }
+      const upperCategory = await getUpperCategoryById(id);
+      if (upperCategory) {
+        return { category: upperCategory, type: 'upper' };
+      }
+      throw new Error('Category not found');
+    }
     case 'PUT':
-    case 'PATCH':
+    case 'PATCH': {
+      // Check if it's an upper category first
+      const upperCategory = await getUpperCategoryById(id);
+      if (upperCategory) {
+        const data = body as { name?: string };
+        if (!data.name) {
+          throw new Error('Name is required for upper category update');
+        }
+        const updated = await updateUpperCategory(id, data.name);
+        return { category: updated, type: 'upper' };
+      }
+      // Otherwise update sub-category
       return updateCategory(id, body as Partial<SubCategory>);
+    }
     case 'DELETE':
       return deleteCategory(id);
     default:
@@ -121,6 +143,16 @@ async function getCategories(params: Record<string, string>): Promise<{
 }
 
 /**
+ * Get an upper category by ID.
+ */
+async function getUpperCategoryById(id: string): Promise<UpperCategory | null> {
+  return db.queryOne<UpperCategory>(
+    'SELECT * FROM upper_category WHERE id = ?',
+    [id]
+  );
+}
+
+/**
  * Get a single category by ID.
  */
 async function getCategoryById(id: string): Promise<SubCategory | null> {
@@ -158,6 +190,22 @@ async function createCategory(data: { name: string; upper_category_id: string })
   const category = await getCategoryById(id);
   if (!category) {
     throw new Error('Failed to create category');
+  }
+  return category;
+}
+
+/**
+ * Update an upper category name.
+ */
+async function updateUpperCategory(id: string, name: string): Promise<UpperCategory> {
+  await db.execute(
+    'UPDATE upper_category SET name = ? WHERE id = ?',
+    [name, id]
+  );
+
+  const category = await getUpperCategoryById(id);
+  if (!category) {
+    throw new Error('Upper category not found');
   }
   return category;
 }

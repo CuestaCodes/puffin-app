@@ -74,6 +74,14 @@ const result = await api.get('/api/transactions');
 - SQL logic must match (same filters, JOINs, aggregations)
 - Test both modes with same inputs
 
+**Upper vs Sub Category Operations:**
+Category handlers must check whether an ID refers to an upper or sub-category:
+```typescript
+const upperCat = await getUpperCategoryById(id);
+if (upperCat) return updateUpperCategory(id, data.name);
+return updateSubCategory(id, data);
+```
+
 **Type Location:** Define shared types in `types/` folder, never import from API route files (unavailable in static builds).
 
 **Tauri DB Functions:**
@@ -268,6 +276,26 @@ Custom caption elements need `relative z-20` to be clickable above nav overlay.
 
 ### Responsive Breakpoints
 Tauri min window: 800×600. Use `lg:` (1024px) not `md:` (768px) for breakpoints.
+
+### Text Overflow & Truncation
+For text that should truncate with ellipsis:
+- Add `truncate` class to the text element
+- Add `min-w-0` to flex containers (allows children to shrink below content size)
+- Add `shrink-0` to fixed-width siblings (prevents them from shrinking)
+- Use `whitespace-nowrap` for text that must stay on one line (e.g., "(5 categories)")
+
+```tsx
+<div className="flex items-center gap-2 min-w-0">
+  <span className="truncate">{longCategoryName}</span>
+  <span className="shrink-0 font-mono">{amount}</span>
+</div>
+```
+
+### Action Button Groups
+When multiple action buttons overflow at narrow widths:
+- **2x2 grid:** `grid grid-cols-2 gap-1` for 4 buttons
+- **Separate row:** Buttons below content on narrow screens
+- Always add `shrink-0` to button containers to prevent squishing
 
 ### Hook Order
 Define `useCallback` before `useEffect` that uses it.

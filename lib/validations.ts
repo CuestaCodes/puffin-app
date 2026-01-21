@@ -7,6 +7,16 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 // Date string pattern (YYYY-MM-DD)
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
+// Character limits for UI elements (prevents overflow)
+export const MAX_SOURCE_NAME_LENGTH = 50;
+export const MAX_CATEGORY_NAME_LENGTH = 50;
+export const MAX_NOTE_TITLE_LENGTH = 200;
+export const MAX_NOTE_TAG_LENGTH = 30;
+export const MAX_NOTE_CONTENT_LENGTH = 50000;
+export const MAX_TRANSACTION_DESCRIPTION_LENGTH = 500;
+export const MAX_TRANSACTION_NOTES_LENGTH = 1000;
+export const MAX_RULE_MATCH_TEXT_LENGTH = 200;
+
 // Transaction schemas
 export const createTransactionSchema = z.object({
   date: z.string().regex(datePattern, 'Date must be in YYYY-MM-DD format'),
@@ -37,16 +47,16 @@ export const splitTransactionSchema = z.object({
 // Category schemas
 export const createSubCategorySchema = z.object({
   upper_category_id: z.enum(['income', 'expense', 'saving', 'bill', 'debt', 'sinking', 'transfer']),
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  name: z.string().min(1, 'Name is required').max(MAX_CATEGORY_NAME_LENGTH, `Name must be ${MAX_CATEGORY_NAME_LENGTH} characters or less`),
 });
 
 export const updateSubCategorySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long').optional(),
+  name: z.string().min(1, 'Name is required').max(MAX_CATEGORY_NAME_LENGTH, `Name must be ${MAX_CATEGORY_NAME_LENGTH} characters or less`).optional(),
   sort_order: z.number().int().min(0).optional(),
 });
 
 export const updateUpperCategorySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  name: z.string().min(1, 'Name is required').max(MAX_CATEGORY_NAME_LENGTH, `Name must be ${MAX_CATEGORY_NAME_LENGTH} characters or less`),
 });
 
 // Budget schemas
@@ -101,6 +111,29 @@ export const loginPinSchema = z.object({
 // Backward-compatible aliases (deprecated, use setupPinSchema/loginPinSchema)
 export const setupPasswordSchema = setupPinSchema;
 export const loginSchema = loginPinSchema;
+
+// Source schemas
+export const createSourceSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(MAX_SOURCE_NAME_LENGTH, `Name must be ${MAX_SOURCE_NAME_LENGTH} characters or less`),
+});
+
+export const updateSourceSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(MAX_SOURCE_NAME_LENGTH, `Name must be ${MAX_SOURCE_NAME_LENGTH} characters or less`).optional(),
+  sort_order: z.number().int().min(0).optional(),
+});
+
+// Note schemas
+export const createNoteSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(MAX_NOTE_TITLE_LENGTH, `Title must be ${MAX_NOTE_TITLE_LENGTH} characters or less`),
+  content: z.string().max(MAX_NOTE_CONTENT_LENGTH, `Content must be ${MAX_NOTE_CONTENT_LENGTH} characters or less`).nullable().optional(),
+  tags: z.array(z.string().max(MAX_NOTE_TAG_LENGTH, `Tag must be ${MAX_NOTE_TAG_LENGTH} characters or less`)).optional(),
+});
+
+export const updateNoteSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(MAX_NOTE_TITLE_LENGTH, `Title must be ${MAX_NOTE_TITLE_LENGTH} characters or less`).optional(),
+  content: z.string().max(MAX_NOTE_CONTENT_LENGTH, `Content must be ${MAX_NOTE_CONTENT_LENGTH} characters or less`).nullable().optional(),
+  tags: z.array(z.string().max(MAX_NOTE_TAG_LENGTH, `Tag must be ${MAX_NOTE_TAG_LENGTH} characters or less`)).optional(),
+});
 
 // Import schemas
 /** Maximum length for notes during import (truncated to this length) */
