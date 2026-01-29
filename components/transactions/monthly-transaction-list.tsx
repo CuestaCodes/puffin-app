@@ -88,11 +88,8 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
 
   // Sync categoryFilter prop into filters state on mount and when it changes
   // so the FiltersPopover shows the correct category when set via budget click
-  // Only sync truthy values to preserve user's popover selections when clearing
   useEffect(() => {
-    if (categoryFilter !== null) {
-      setFilters(prev => ({ ...prev, categoryId: categoryFilter }));
-    }
+    setFilters(prev => ({ ...prev, categoryId: categoryFilter }));
   }, [categoryFilter]);
 
   // Modals

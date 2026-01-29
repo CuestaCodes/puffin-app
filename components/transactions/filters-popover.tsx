@@ -50,7 +50,7 @@ export function FiltersPopover({ filters, onChange, children, hideDateRange, hid
     if (open) {
       setLocal(filters);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit `filters` to avoid syncing during edits
   }, [open]);
 
   const handleApply = () => {
