@@ -6,6 +6,7 @@ All notable changes to Puffin will be documented in this file.
 
 ### Added
 - Delete button for budget templates in Monthly Budget view
+- Collapsible upper categories in Dashboard Monthly Breakdown table with Collapse/Expand All button
 
 ### Fixed
 - Category filter X button now correctly clears the selected category in Transactions and Monthly Budget filter dialogs
