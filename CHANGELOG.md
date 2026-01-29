@@ -2,7 +2,7 @@
 
 All notable changes to Puffin will be documented in this file.
 
-## [Unreleased]
+## [2.1.0] - 2026-01-29
 
 ### Added
 - Delete button for budget templates in Monthly Budget view
