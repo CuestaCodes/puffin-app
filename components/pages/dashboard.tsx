@@ -532,8 +532,8 @@ export function Dashboard() {
                       outerRadius={DONUT_CHART.OUTER_RADIUS}
                       innerRadius={DONUT_CHART.INNER_RADIUS}
                       paddingAngle={1}
-                      label={({ name, percent }) => (percent ?? 0) > 0.01 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
-                      labelLine={({ percent }) => (percent ?? 0) > 0.01}
+                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                      labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
                     >
                       {chartData.map((item, index) => (
                         <Cell
