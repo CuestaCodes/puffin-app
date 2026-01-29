@@ -520,18 +520,16 @@ export function Dashboard() {
               <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
                   <Pie
-                    data={data.expenseBreakdown.slice(0, 8)}
+                    data={data.expenseBreakdown.slice(0, 10)}
                     dataKey="amount"
                     nameKey="categoryName"
                     cx="50%"
-                    cy="45%"
+                    cy="40%"
                     outerRadius={DONUT_CHART.OUTER_RADIUS}
                     innerRadius={DONUT_CHART.INNER_RADIUS}
-                    paddingAngle={1}
-                    label={({ name, percent }) => (percent ?? 0) > 0.05 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
-                    labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
+                    paddingAngle={2}
                   >
-                    {data.expenseBreakdown.slice(0, 8).map((item, index) => (
+                    {data.expenseBreakdown.slice(0, 10).map((item, index) => (
                       <Cell
                         key={`cat-${item.categoryId}`}
                         fill={CHART_COLORS[index]}
@@ -562,8 +560,11 @@ export function Dashboard() {
                   />
                   <Legend
                     verticalAlign="bottom"
-                    wrapperStyle={{ maxHeight: 80, overflowY: 'auto' }}
-                    formatter={(value) => <span className="text-slate-300 text-xs">{value}</span>}
+                    wrapperStyle={{ maxHeight: 100, overflowY: 'auto', fontSize: 11 }}
+                    formatter={(value, entry) => {
+                      const percent = ((entry.payload as { percent?: number })?.percent ?? 0) * 100;
+                      return <span className="text-slate-300">{value} ({percent.toFixed(0)}%)</span>;
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
