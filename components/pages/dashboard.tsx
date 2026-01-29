@@ -546,14 +546,12 @@ export function Dashboard() {
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const item = payload[0];
-                          const amount = item.value as number;
-                          const percent = total > 0 ? ((amount / total) * 100).toFixed(0) : '0';
                           const color = item.payload.fill || '#64748b';
                           return (
                             <div className="bg-slate-800 border border-slate-700 rounded-lg p-2">
                               <p className="text-slate-100 font-medium">{item.name}</p>
                               <p style={{ color }} className="font-semibold">
-                                {formatCurrency(amount)} ({percent}%)
+                                {formatCurrency(item.value as number)}
                               </p>
                             </div>
                           );
