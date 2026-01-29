@@ -10,7 +10,6 @@ All notable changes to Puffin will be documented in this file.
 
 ### Fixed
 - Category filter X button now correctly clears the selected category in Transactions and Monthly Budget filter dialogs
-- Spending by Category chart no longer overflows its tile when there are many categories
 
 ### Improved
 - Page filter and sort states now persist during navigation within a session
