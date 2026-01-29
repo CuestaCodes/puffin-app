@@ -4,8 +4,14 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Delete button for budget templates in Monthly Budget view
+
 ### Fixed
 - Category filter X button now correctly clears the selected category in Transactions and Monthly Budget filter dialogs
+
+### Improved
+- Template save/apply/delete notifications now use themed toast messages instead of native alerts
 
 ## [2.0.0] - 2026-01-21
 
