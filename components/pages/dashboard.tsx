@@ -515,23 +515,23 @@ export function Dashboard() {
           <CardHeader>
             <CardTitle className="text-lg text-slate-100">Spending by Category</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-hidden">
             {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={350}>
                 <PieChart>
                   <Pie
-                    data={data.expenseBreakdown.slice(0, 12)}
+                    data={data.expenseBreakdown.slice(0, 8)}
                     dataKey="amount"
                     nameKey="categoryName"
                     cx="50%"
-                    cy="50%"
+                    cy="45%"
                     outerRadius={DONUT_CHART.OUTER_RADIUS}
                     innerRadius={DONUT_CHART.INNER_RADIUS}
                     paddingAngle={1}
                     label={({ name, percent }) => (percent ?? 0) > 0.05 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
                     labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
                   >
-                    {data.expenseBreakdown.slice(0, 12).map((item, index) => (
+                    {data.expenseBreakdown.slice(0, 8).map((item, index) => (
                       <Cell
                         key={`cat-${item.categoryId}`}
                         fill={CHART_COLORS[index]}
@@ -562,7 +562,7 @@ export function Dashboard() {
                   />
                   <Legend
                     verticalAlign="bottom"
-                    height={36}
+                    wrapperStyle={{ maxHeight: 80, overflowY: 'auto' }}
                     formatter={(value) => <span className="text-slate-300 text-xs">{value}</span>}
                   />
                 </PieChart>
