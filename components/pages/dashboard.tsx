@@ -517,8 +517,9 @@ export function Dashboard() {
           </CardHeader>
           <CardContent>
             {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (() => {
-              const chartData = data.expenseBreakdown.slice(0, 12);
-              const total = chartData.reduce((sum, item) => sum + item.amount, 0);
+              const allData = data.expenseBreakdown.slice(0, 12);
+              const total = allData.reduce((sum, item) => sum + item.amount, 0);
+              const chartData = allData.filter(item => total > 0 && (item.amount / total) > 0.02);
               return (
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
@@ -531,8 +532,8 @@ export function Dashboard() {
                       outerRadius={DONUT_CHART.OUTER_RADIUS}
                       innerRadius={DONUT_CHART.INNER_RADIUS}
                       paddingAngle={1}
-                      label={({ name, percent }) => (percent ?? 0) > 0.05 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
-                      labelLine={{ stroke: '#64748b', strokeWidth: 1 }}
+                      label={({ name, percent }) => (percent ?? 0) > 0.01 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ''}
+                      labelLine={({ percent }) => (percent ?? 0) > 0.01}
                     >
                       {chartData.map((item, index) => (
                         <Cell
