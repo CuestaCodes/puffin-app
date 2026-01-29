@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, PiggyBank, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, PiggyBank, Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -21,6 +21,7 @@ import {
   Area,
 } from 'recharts';
 import { CHART_COLORS, UPPER_CATEGORY_COLORS, DONUT_CHART } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 
 interface DashboardSummary {
   totalIncome: number;
@@ -100,6 +101,19 @@ export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = useCallback((category: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -555,8 +569,41 @@ export function Dashboard() {
 
       {/* Monthly Category Totals Table */}
       <Card className="border-slate-800 bg-slate-900/50">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-lg text-slate-100">Monthly Breakdown</CardTitle>
+          {data?.monthlyCategoryTotals && data.monthlyCategoryTotals.length > 0 && (() => {
+            const allCategories = [...new Set(data.monthlyCategoryTotals.map(item => item.upperCategory))];
+            const allExpanded = collapsedCategories.size === 0;
+            const allCollapsed = allCategories.length > 0 && allCategories.every(cat => collapsedCategories.has(cat));
+
+            return (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (allExpanded || !allCollapsed) {
+                    setCollapsedCategories(new Set(allCategories));
+                  } else {
+                    setCollapsedCategories(new Set());
+                  }
+                }}
+                className="gap-1.5 text-slate-400 hover:text-slate-200"
+                aria-label={allCollapsed ? 'Expand all categories' : 'Collapse all categories'}
+              >
+                {allCollapsed ? (
+                  <>
+                    <ChevronsUpDown className="w-4 h-4" />
+                    Expand All
+                  </>
+                ) : (
+                  <>
+                    <ChevronsDownUp className="w-4 h-4" />
+                    Collapse All
+                  </>
+                )}
+              </Button>
+            );
+          })()}
         </CardHeader>
         <CardContent>
           {data?.monthlyCategoryTotals && data.monthlyCategoryTotals.length > 0 ? (
@@ -602,40 +649,55 @@ export function Dashboard() {
                       transfer: 'text-stone-400',
                     };
 
-                    return Object.entries(grouped).map(([upperCat, group]) => (
-                      <Fragment key={upperCat}>
-                        {/* Upper category header row */}
-                        <tr className="bg-slate-800/50 border-t border-slate-700">
-                          <td className={`py-2 px-2 font-semibold sticky left-0 bg-slate-800/50 ${typeColors[group.type] || 'text-slate-200'}`}>
-                            {upperCat}
-                          </td>
-                          {group.monthlyTotals.map((total, idx) => (
-                            <td key={idx} className={`py-2 px-2 text-right font-medium ${typeColors[group.type] || 'text-slate-200'}`}>
-                              {total > 0 ? formatCurrency(total) : '-'}
+                    return Object.entries(grouped).map(([upperCat, group]) => {
+                      const isCollapsed = collapsedCategories.has(upperCat);
+                      return (
+                        <Fragment key={upperCat}>
+                          {/* Upper category header row */}
+                          <tr
+                            className="bg-slate-800 border-t border-slate-700 cursor-pointer hover:bg-slate-700"
+                            onClick={() => toggleCategory(upperCat)}
+                            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${upperCat}`}
+                          >
+                            <td className={`py-2 px-2 font-semibold sticky left-0 bg-slate-800 ${typeColors[group.type] || 'text-slate-200'}`}>
+                              <div className="flex items-center gap-1.5">
+                                <ChevronDown
+                                  className={cn(
+                                    'w-4 h-4 transition-transform duration-200',
+                                    isCollapsed && '-rotate-90'
+                                  )}
+                                />
+                                {upperCat}
+                              </div>
                             </td>
-                          ))}
-                          <td className={`py-2 px-2 text-right font-bold ${typeColors[group.type] || 'text-slate-200'}`}>
-                            {formatCurrency(group.yearTotal)}
-                          </td>
-                        </tr>
-                        {/* Subcategory rows */}
-                        {group.items.map((item) => (
-                          <tr key={`${upperCat}-${item.subCategory}`} className="hover:bg-slate-800/30">
-                            <td className="py-1.5 px-2 pl-6 text-slate-400 sticky left-0 bg-slate-900">
-                              {item.subCategory}
-                            </td>
-                            {item.monthlyTotals.map((total, idx) => (
-                              <td key={idx} className="py-1.5 px-2 text-right text-slate-300 font-mono text-xs">
+                            {group.monthlyTotals.map((total, idx) => (
+                              <td key={idx} className={`py-2 px-2 text-right font-medium ${typeColors[group.type] || 'text-slate-200'}`}>
                                 {total > 0 ? formatCurrency(total) : '-'}
                               </td>
                             ))}
-                            <td className="py-1.5 px-2 text-right text-slate-200 font-mono text-xs font-medium">
-                              {formatCurrency(item.yearTotal)}
+                            <td className={`py-2 px-2 text-right font-bold ${typeColors[group.type] || 'text-slate-200'}`}>
+                              {formatCurrency(group.yearTotal)}
                             </td>
                           </tr>
-                        ))}
-                      </Fragment>
-                    ));
+                          {/* Subcategory rows */}
+                          {!isCollapsed && group.items.map((item) => (
+                            <tr key={`${upperCat}-${item.subCategory}`} className="hover:bg-slate-800/30">
+                              <td className="py-1.5 px-2 pl-8 text-slate-400 sticky left-0 bg-slate-900">
+                                {item.subCategory}
+                              </td>
+                              {item.monthlyTotals.map((total, idx) => (
+                                <td key={idx} className="py-1.5 px-2 text-right text-slate-300 font-mono text-xs">
+                                  {total > 0 ? formatCurrency(total) : '-'}
+                                </td>
+                              ))}
+                              <td className="py-1.5 px-2 text-right text-slate-200 font-mono text-xs font-medium">
+                                {formatCurrency(item.yearTotal)}
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      );
+                    });
                   })()}
                 </tbody>
               </table>
