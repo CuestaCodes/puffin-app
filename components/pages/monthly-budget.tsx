@@ -483,10 +483,12 @@ function MonthlyBudgetContent() {
 
   const expandAll = useCallback(() => {
     setCollapsedSections(new Set());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedSections is stable (useCallback wrapper)
   }, []);
 
   const collapseAll = useCallback(() => {
     setCollapsedSections(new Set(allSectionIds));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCollapsedSections is stable (useCallback wrapper)
   }, [allSectionIds]);
 
   const handleCategoryClick = (categoryId: string, categoryName: string) => {
@@ -507,6 +509,7 @@ function MonthlyBudgetContent() {
   const clearCategoryFilter = useCallback(() => {
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setSelectedCategoryId is stable (useCallback wrapper)
   }, []);
 
   const toggleSection = useCallback((sectionId: string) => {

@@ -14,6 +14,7 @@ All notable changes to Puffin will be documented in this file.
 ### Improved
 - Page filter and sort states now persist during navigation within a session
 - Template save/apply/delete notifications now use themed toast messages instead of native alerts
+- Transaction search now includes notes field
 
 ## [2.0.0] - 2026-01-21
 

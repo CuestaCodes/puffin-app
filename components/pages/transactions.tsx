@@ -162,6 +162,7 @@ function TransactionsPageContent() {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
   }, [filters]);
 
   // Debounced search - reset page when search changes
@@ -176,6 +177,7 @@ function TransactionsPageContent() {
 
     const timer = setTimeout(() => setPage(1), 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
   }, [searchQuery]);
 
   // Clear selection when data changes
