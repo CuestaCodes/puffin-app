@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTransactionsState, type SortField, type SortOrder } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';

@@ -12,6 +12,7 @@ All notable changes to Puffin will be documented in this file.
 - Category filter X button now correctly clears the selected category in Transactions and Monthly Budget filter dialogs
 
 ### Improved
+- Page filter and sort states now persist during navigation within a session
 - Template save/apply/delete notifications now use themed toast messages instead of native alerts
 
 ## [2.0.0] - 2026-01-21
