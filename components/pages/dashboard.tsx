@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useDashboardState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,22 +99,30 @@ const formatYAxis = (value: number): string => {
 };
 
 export function Dashboard() {
+  // Persisted state from context (survives navigation)
+  const { collapsedCategories, year, setDashboardState } = useDashboardState();
+
+  // Wrapper setters for convenience
+  const setCollapsedCategories = useCallback((categories: Set<string>) => {
+    setDashboardState({ collapsedCategories: categories });
+  }, [setDashboardState]);
+  const setYear = useCallback((newYear: number) => {
+    setDashboardState({ year: newYear });
+  }, [setDashboardState]);
+
+  // Local state (not persisted)
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const toggleCategory = useCallback((category: string) => {
-    setCollapsedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(category)) {
-        next.delete(category);
-      } else {
-        next.add(category);
-      }
-      return next;
-    });
-  }, []);
+    const next = new Set(collapsedCategories);
+    if (next.has(category)) {
+      next.delete(category);
+    } else {
+      next.add(category);
+    }
+    setCollapsedCategories(next);
+  }, [collapsedCategories, setCollapsedCategories]);
 
   const fetchDashboardData = useCallback(async () => {
     setIsLoading(true);

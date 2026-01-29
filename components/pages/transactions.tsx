@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTransactionsState, type SortField, type SortOrder } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,18 +55,6 @@ interface TransactionListResponse {
   totalPages: number;
 }
 
-type SortField = 'date' | 'description' | 'amount';
-type SortOrder = 'asc' | 'desc';
-
-const emptyFilters: FilterValues = {
-  startDate: null,
-  endDate: null,
-  categoryId: null,
-  sourceId: null,
-  minAmount: null,
-  maxAmount: null,
-  uncategorized: false,
-};
 
 // Moved outside component to prevent recreation on every render
 function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
@@ -76,10 +65,33 @@ function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: Sort
 }
 
 function TransactionsPageContent() {
-  // Search and filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<FilterValues>(emptyFilters);
-  
+  // Persisted state from context (survives navigation)
+  const {
+    filters,
+    searchQuery,
+    page,
+    sortBy,
+    sortOrder,
+    setTransactionsState,
+  } = useTransactionsState();
+
+  // Wrapper setters for convenience
+  const setFilters = useCallback((newFilters: FilterValues) => {
+    setTransactionsState({ filters: newFilters });
+  }, [setTransactionsState]);
+  const setSearchQuery = useCallback((query: string) => {
+    setTransactionsState({ searchQuery: query });
+  }, [setTransactionsState]);
+  const setPage = useCallback((newPage: number) => {
+    setTransactionsState({ page: newPage });
+  }, [setTransactionsState]);
+  const setSortBy = useCallback((field: SortField) => {
+    setTransactionsState({ sortBy: field });
+  }, [setTransactionsState]);
+  const setSortOrder = useCallback((order: SortOrder) => {
+    setTransactionsState({ sortOrder: order });
+  }, [setTransactionsState]);
+
   // Modals
   const [showImport, setShowImport] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -87,20 +99,15 @@ function TransactionsPageContent() {
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
   const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
   const [creatingRuleFromTransaction, setCreatingRuleFromTransaction] = useState<TransactionWithCategory | null>(null);
-  
+
   // Data
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Pagination
-  const [page, setPage] = useState(1);
+
+  // Pagination (local - totalPages/total come from API response)
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 20;
-  
-  // Sorting
-  const [sortBy, setSortBy] = useState<SortField>('date');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -191,7 +198,7 @@ function TransactionsPageContent() {
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setSortBy(field);
       setSortOrder('desc');
@@ -723,7 +730,7 @@ function TransactionsPageContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        onClick={() => setPage(Math.max(1, page - 1))}
                         disabled={page === 1}
                         className="border-slate-700"
                       >
@@ -733,7 +740,7 @@ function TransactionsPageContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        onClick={() => setPage(Math.min(totalPages, page + 1))}
                         disabled={page === totalPages}
                         className="border-slate-700"
                       >

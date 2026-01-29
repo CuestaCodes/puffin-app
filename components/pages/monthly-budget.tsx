@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
+import { useMonthlyBudgetState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,10 +80,28 @@ interface CategoryGroup {
 }
 
 function MonthlyBudgetContent() {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Persisted state from context (survives navigation)
+  const {
+    currentDate,
+    selectedCategoryId,
+    collapsedSections,
+    setMonthlyBudgetState,
+  } = useMonthlyBudgetState();
+
+  // Wrapper setters for convenience
+  const setCurrentDate = useCallback((date: Date) => {
+    setMonthlyBudgetState({ currentDate: date });
+  }, [setMonthlyBudgetState]);
+  const setSelectedCategoryId = useCallback((id: string | null) => {
+    setMonthlyBudgetState({ selectedCategoryId: id });
+  }, [setMonthlyBudgetState]);
+  const setCollapsedSections = useCallback((sections: Set<string>) => {
+    setMonthlyBudgetState({ collapsedSections: sections });
+  }, [setMonthlyBudgetState]);
+
+  // Local state (not persisted)
   const [budgetData, setBudgetData] = useState<BudgetSummaryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [creatingBudgetForCategory, setCreatingBudgetForCategory] = useState<string | null>(null);
@@ -107,7 +126,6 @@ function MonthlyBudgetContent() {
   const [showCopyConfirm, setShowCopyConfirm] = useState(false);
   const [showAverageConfirm, setShowAverageConfirm] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // Ref for smooth scrolling to transactions
   const transactionsRef = useRef<HTMLDivElement>(null);
@@ -145,7 +163,7 @@ function MonthlyBudgetContent() {
 
   const goToPrevMonth = () => {
     prepareForNavigation();
-    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
     setEditingBudgetId(null);
@@ -154,7 +172,7 @@ function MonthlyBudgetContent() {
 
   const goToNextMonth = () => {
     prepareForNavigation();
-    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
     setEditingBudgetId(null);
@@ -492,16 +510,14 @@ function MonthlyBudgetContent() {
   }, []);
 
   const toggleSection = useCallback((sectionId: string) => {
-    setCollapsedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) {
-        next.delete(sectionId);
-      } else {
-        next.add(sectionId);
-      }
-      return next;
-    });
-  }, []);
+    const next = new Set(collapsedSections);
+    if (next.has(sectionId)) {
+      next.delete(sectionId);
+    } else {
+      next.add(sectionId);
+    }
+    setCollapsedSections(next);
+  }, [collapsedSections, setCollapsedSections]);
 
   // Handle budget refresh when transactions change
   // Memoized to prevent unnecessary re-renders of MonthlyTransactionList

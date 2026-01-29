@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { SyncProvider, useSyncContext } from '@/hooks/use-sync-context';
+import { PageStateProvider } from '@/hooks/use-page-state';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { Dashboard } from '@/components/pages/dashboard';
@@ -99,8 +100,10 @@ export function AppShell() {
   return (
     <SyncProvider>
       <TooltipProvider>
-        <AppShellContent />
-        <Toaster position="bottom-right" />
+        <PageStateProvider>
+          <AppShellContent />
+          <Toaster position="bottom-right" />
+        </PageStateProvider>
       </TooltipProvider>
     </SyncProvider>
   );
