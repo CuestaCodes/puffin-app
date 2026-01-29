@@ -86,8 +86,7 @@ export function CategorySelector({
     setSearch('');
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClear = () => {
     onChange(null);
   };
 
@@ -143,57 +142,62 @@ export function CategorySelector({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            'w-full justify-between',
-            'bg-slate-800/50 border-slate-700 text-slate-100 hover:bg-slate-800 hover:text-slate-50',
-            !selectedCategory && 'text-slate-500',
-            className
-          )}
-        >
-          {selectedCategory ? (
-            <span className="flex items-center gap-2 truncate">
-              <span className={cn('text-xs', getCategoryTypeColor(selectedCategory.upper_category_type))}>
-                {selectedCategory.upper_category_name}
+    <div className={cn('flex items-center gap-2', className)}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              'flex-1 justify-between',
+              'bg-slate-800/50 border-slate-700 text-slate-100 hover:bg-slate-800 hover:text-slate-50',
+              !selectedCategory && 'text-slate-500'
+            )}
+          >
+            {selectedCategory ? (
+              <span className="flex items-center gap-2 truncate">
+                <span className={cn('text-xs', getCategoryTypeColor(selectedCategory.upper_category_type))}>
+                  {selectedCategory.upper_category_name}
+                </span>
+                <span className="text-slate-400">/</span>
+                <span className="truncate">{selectedCategory.name}</span>
               </span>
-              <span className="text-slate-400">/</span>
-              <span className="truncate">{selectedCategory.name}</span>
-            </span>
-          ) : (
-            placeholder
-          )}
-          <div className="flex items-center gap-1">
-            {selectedCategory && (
-              <X
-                className="w-4 h-4 text-slate-500 hover:text-slate-300"
-                onClick={handleClear}
-              />
+            ) : (
+              placeholder
             )}
             <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
-          </div>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-0 bg-slate-900 border-slate-700">
+          <CategoryList
+            search={search}
+            setSearch={setSearch}
+            filteredCategories={filteredCategories}
+            categories={categories}
+            value={value}
+            handleSelect={handleSelect}
+            getCategoryTypeColor={getCategoryTypeColor}
+            isLoading={isLoading}
+            error={error}
+            onRetry={refetch}
+          />
+        </PopoverContent>
+      </Popover>
+      {selectedCategory && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleClear}
+          disabled={disabled}
+          className="shrink-0 h-10 w-10 text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+          aria-label="Clear category selection"
+        >
+          <X className="w-4 h-4" />
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-0 bg-slate-900 border-slate-700">
-        <CategoryList
-          search={search}
-          setSearch={setSearch}
-          filteredCategories={filteredCategories}
-          categories={categories}
-          value={value}
-          handleSelect={handleSelect}
-          getCategoryTypeColor={getCategoryTypeColor}
-          isLoading={isLoading}
-          error={error}
-          onRetry={refetch}
-        />
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
 

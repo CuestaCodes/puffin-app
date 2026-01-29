@@ -85,7 +85,16 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   // Search and filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterValues>(emptyFilters);
-  
+
+  // Sync categoryFilter prop into filters state on mount and when it changes
+  // so the FiltersPopover shows the correct category when set via budget click
+  // Only sync truthy values to preserve user's popover selections when clearing
+  useEffect(() => {
+    if (categoryFilter !== null) {
+      setFilters(prev => ({ ...prev, categoryId: categoryFilter }));
+    }
+  }, [categoryFilter]);
+
   // Modals
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
@@ -390,9 +399,16 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                 </button>
               )}
             </div>
-            <FiltersPopover 
-              filters={filters} 
-              onChange={setFilters}
+            <FiltersPopover
+              filters={filters}
+              onChange={(newFilters) => {
+                // If user changed category via popover, clear the parent's categoryFilter
+                // so the popover selection takes effect (categoryFilter has priority otherwise)
+                if (newFilters.categoryId !== categoryFilter) {
+                  onClearCategoryFilter?.();
+                }
+                setFilters(newFilters);
+              }}
               hideDateRange
             >
               <Button variant="outline" className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
@@ -400,11 +416,16 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                 Filters
               </Button>
             </FiltersPopover>
-            {categoryFilter && onClearCategoryFilter && (
+            {(categoryFilter || filters.categoryId) && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onClearCategoryFilter}
+                onClick={() => {
+                  // Clear parent's category filter (from clicking budget categories)
+                  onClearCategoryFilter?.();
+                  // Also clear local popover filter
+                  setFilters(prev => ({ ...prev, categoryId: null }));
+                }}
                 className="gap-1.5 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
               >
                 <X className="w-3 h-3" />

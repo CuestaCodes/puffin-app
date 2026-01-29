@@ -43,9 +43,15 @@ export function FiltersPopover({ filters, onChange, children, hideDateRange, hid
   const [startCalOpen, setStartCalOpen] = useState(false);
   const [endCalOpen, setEndCalOpen] = useState(false);
 
+  // Reset local state to match parent filters when popover opens
+  // This is intentional: we sync on open transition to show current applied filters,
+  // but don't sync on filters change to preserve in-progress edits within the popover
   useEffect(() => {
-    setLocal(filters);
-  }, [filters]);
+    if (open) {
+      setLocal(filters);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleApply = () => {
     onChange(local);
