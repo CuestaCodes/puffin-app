@@ -516,59 +516,61 @@ export function Dashboard() {
             <CardTitle className="text-lg text-slate-100">Spending by Category</CardTitle>
           </CardHeader>
           <CardContent className="overflow-hidden">
-            {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={data.expenseBreakdown.slice(0, 10)}
-                    dataKey="amount"
-                    nameKey="categoryName"
-                    cx="50%"
-                    cy="40%"
-                    outerRadius={DONUT_CHART.OUTER_RADIUS}
-                    innerRadius={DONUT_CHART.INNER_RADIUS}
-                    paddingAngle={2}
-                  >
-                    {data.expenseBreakdown.slice(0, 10).map((item, index) => (
-                      <Cell
-                        key={`cat-${item.categoryId}`}
-                        fill={CHART_COLORS[index]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '8px',
-                    }}
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const item = payload[0];
-                        const color = item.payload.fill || '#64748b';
-                        return (
-                          <div className="bg-slate-800 border border-slate-700 rounded-lg p-2">
-                            <p className="text-slate-100 font-medium">{item.name}</p>
-                            <p style={{ color }} className="font-semibold">
-                              {formatCurrency(item.value as number)}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    wrapperStyle={{ maxHeight: 100, overflowY: 'auto', fontSize: 11 }}
-                    formatter={(value, entry) => {
-                      const percent = ((entry.payload as { percent?: number })?.percent ?? 0) * 100;
-                      return <span className="text-slate-300">{value} ({percent.toFixed(0)}%)</span>;
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
+            {data?.expenseBreakdown && data.expenseBreakdown.length > 0 ? (() => {
+              const chartData = [...data.expenseBreakdown].sort((a, b) => b.amount - a.amount).slice(0, 10);
+              const total = chartData.reduce((sum, item) => sum + item.amount, 0);
+              return (
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      dataKey="amount"
+                      nameKey="categoryName"
+                      cx="50%"
+                      cy="40%"
+                      outerRadius={DONUT_CHART.OUTER_RADIUS}
+                      innerRadius={DONUT_CHART.INNER_RADIUS}
+                      paddingAngle={2}
+                    >
+                      {chartData.map((item, index) => (
+                        <Cell
+                          key={`cat-${item.categoryId}`}
+                          fill={CHART_COLORS[index]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const item = payload[0];
+                          const amount = item.value as number;
+                          const percent = total > 0 ? (amount / total) * 100 : 0;
+                          const color = item.payload.fill || '#64748b';
+                          return (
+                            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2">
+                              <p className="text-slate-100 font-medium">{item.name}</p>
+                              <p style={{ color }} className="font-semibold">
+                                {formatCurrency(amount)} ({percent.toFixed(0)}%)
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      wrapperStyle={{ maxHeight: 100, overflowY: 'auto', fontSize: 11 }}
+                      formatter={(value, entry) => {
+                        const amount = (entry.payload as { amount?: number })?.amount ?? 0;
+                        const percent = total > 0 ? (amount / total) * 100 : 0;
+                        return <span className="text-slate-300">{value} ({percent.toFixed(0)}%)</span>;
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              );
+            })() : (
               <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
                 <p>No category data for this period</p>
               </div>
