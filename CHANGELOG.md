@@ -2,6 +2,11 @@
 
 All notable changes to Puffin will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Category filter X button now correctly clears the selected category in Transactions and Monthly Budget filter dialogs
+
 ## [2.0.0] - 2026-01-21
 
 ### Added
