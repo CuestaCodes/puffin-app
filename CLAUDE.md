@@ -234,6 +234,12 @@ Omit error param if unused: `catch { console.warn('failed'); }`
 - Remove debug logs before commit
 - Keep error logs for unexpected failures
 
+### ESLint Disable Comments
+When disabling ESLint rules, always explain which dependency is omitted and why:
+```typescript
+// eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally omit `filters` to avoid syncing during edits
+```
+
 ## UI Patterns
 
 ### Components
@@ -305,6 +311,33 @@ Guard optional ID checks: `editingId !== null && editingId === item.id`.
 
 ### Derive from Props
 Prefer deriving values from props over useState + useEffect sync.
+
+### Sticky Table Columns
+For sticky columns that scroll horizontally, use **solid backgrounds** (not semi-transparent):
+```tsx
+// Good - solid background covers scrolled content
+<td className="sticky left-0 bg-slate-800">...</td>
+
+// Bad - content shows through when scrolling
+<td className="sticky left-0 bg-slate-800/50">...</td>
+```
+
+### Collapsible Sections
+For collapsible category/section lists, follow the pattern in `monthly-budget.tsx`:
+```tsx
+const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+const toggle = useCallback((key: string) => {
+  setCollapsed(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+}, []);
+
+// ChevronDown with rotation for visual indicator
+<ChevronDown className={cn('w-4 h-4 transition-transform', collapsed.has(key) && '-rotate-90')} />
+```
 
 ### Accessibility
 - Icon-only buttons MUST have `aria-label`
