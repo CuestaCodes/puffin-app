@@ -561,11 +561,11 @@ export function Dashboard() {
                     <Legend
                       verticalAlign="bottom"
                       wrapperStyle={{ maxHeight: 100, overflowY: 'auto', fontSize: 11 }}
-                      formatter={(value, entry) => {
-                        const amount = (entry.payload as { amount?: number })?.amount ?? 0;
-                        const percent = total > 0 ? (amount / total) * 100 : 0;
-                        return <span className="text-slate-300">{value} ({percent.toFixed(0)}%)</span>;
-                      }}
+                      payload={chartData.map((item, index) => ({
+                        value: `${item.categoryName} (${total > 0 ? ((item.amount / total) * 100).toFixed(0) : 0}%)`,
+                        type: 'square',
+                        color: CHART_COLORS[index],
+                      }))}
                     />
                   </PieChart>
                 </ResponsiveContainer>
