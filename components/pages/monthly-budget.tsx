@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/services';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -25,10 +26,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown, Calendar, X, TrendingDown, TrendingUp, Wallet, Edit2, Plus, Save, Copy, BarChart2, Trash2 } from 'lucide-react';
 import { CategoryProvider, MonthlyTransactionList } from '@/components/transactions';
 import { InlineBudgetEditor } from '@/components/budgets/inline-budget-editor';
 import { MonthPicker } from '@/components/ui/month-picker';
@@ -102,6 +102,8 @@ function MonthlyBudgetContent() {
   const [templateName, setTemplateName] = useState('');
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
+  const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
+  const [deletingTemplate, setDeletingTemplate] = useState<BudgetTemplate | null>(null);
   const [showCopyConfirm, setShowCopyConfirm] = useState(false);
   const [showAverageConfirm, setShowAverageConfirm] = useState(false);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
@@ -273,7 +275,7 @@ function MonthlyBudgetContent() {
 
   const handleSaveAsTemplate = async () => {
     if (!templateName.trim()) {
-      alert('Please enter a template name');
+      toast.error('Please enter a template name');
       return;
     }
 
@@ -289,13 +291,13 @@ function MonthlyBudgetContent() {
         setTemplateDialogOpen(false);
         setTemplateName('');
         await fetchTemplates();
-        alert('Template saved successfully!');
+        toast.success(`Template "${templateName.trim()}" saved`);
       } else {
-        alert('Failed to save template: ' + (result.error || 'Unknown error'));
+        toast.error('Failed to save template', { description: result.error || 'Unknown error' });
       }
     } catch (error) {
       console.error('Error saving template:', error);
-      alert('Failed to save template');
+      toast.error('Failed to save template');
     } finally {
       setIsSavingTemplate(false);
     }
@@ -313,15 +315,32 @@ function MonthlyBudgetContent() {
 
       if (result.data) {
         await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
-        alert(`Template applied to ${result.data.appliedCount} categories`);
+        toast.success(`Template applied to ${result.data.appliedCount} categories`);
       } else {
-        alert('Failed to apply template: ' + (result.error || 'Unknown error'));
+        toast.error('Failed to apply template', { description: result.error || 'Unknown error' });
       }
     } catch (error) {
       console.error('Error applying template:', error);
-      alert('Failed to apply template');
+      toast.error('Failed to apply template');
     } finally {
       setIsApplyingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (template: BudgetTemplate) => {
+    try {
+      const result = await api.delete<{ success: boolean }>(`/api/budgets/templates?id=${template.id}`);
+      if (result.data?.success) {
+        await fetchTemplates();
+        toast.success(`Template "${template.name}" deleted`);
+      } else {
+        toast.error('Failed to delete template', { description: result.error || 'Unknown error' });
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast.error('Failed to delete template');
+    } finally {
+      setDeletingTemplate(null);
     }
   };
 
@@ -599,22 +618,50 @@ function MonthlyBudgetContent() {
             </Button>
             
             {templates.length > 0 && (
-              <Select
-                value=""
-                onValueChange={handleApplyTemplate}
-                disabled={isApplyingTemplate}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Apply template..." />
-                </SelectTrigger>
-                <SelectContent>
+              <Popover open={templatePopoverOpen} onOpenChange={setTemplatePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-[180px] justify-between"
+                    disabled={isApplyingTemplate}
+                  >
+                    Apply template...
+                    <ChevronDown className="w-3.5 h-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] p-1" align="start">
                   {templates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      {template.name}
-                    </SelectItem>
+                    <div
+                      key={template.id}
+                      className="flex items-center justify-between gap-1 rounded-sm hover:bg-slate-800"
+                    >
+                      <button
+                        className="flex-1 px-2 py-1.5 text-left text-sm"
+                        onClick={() => {
+                          handleApplyTemplate(template.id);
+                          setTemplatePopoverOpen(false);
+                        }}
+                      >
+                        {template.name}
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-slate-500 hover:text-red-400 hover:bg-red-500/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingTemplate(template);
+                          setTemplatePopoverOpen(false);
+                        }}
+                        aria-label={`Delete template ${template.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
+                </PopoverContent>
+              </Popover>
             )}
             
             <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
@@ -1216,6 +1263,27 @@ function MonthlyBudgetContent() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleUse12MonthAverage}>
               Apply Averages
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Template Confirmation */}
+      <AlertDialog open={deletingTemplate !== null} onOpenChange={(open) => !open && setDeletingTemplate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the template &quot;{deletingTemplate?.name}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingTemplate && handleDeleteTemplate(deletingTemplate)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
