@@ -298,9 +298,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
         source_id: selectedSourceId,
       }));
 
+      // Trust the user's selection in the preview — duplicates the user explicitly ticked
+      // should be imported. The preview UI is the source of truth for what to send.
       const result = await api.post<ImportResult>('/api/transactions/import', {
         transactions,
-        skipDuplicates: true,
+        skipDuplicates: false,
       });
 
       if (result.error) {

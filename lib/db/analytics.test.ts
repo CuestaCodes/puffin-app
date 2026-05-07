@@ -8,10 +8,20 @@
  * - Monthly category totals table
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
+
+// Active test DB reference — beforeEach assigns the per-test db to this.
+// Mocking `./index` lets production functions (e.g. getDashboardSummary) use the same db.
+let activeTestDb: Database.Database | null = null;
+vi.mock('./index', () => ({
+  getDatabase: () => activeTestDb!,
+  initializeDatabase: () => {},
+}));
+
+import { getDashboardSummary } from './analytics';
 
 const TEST_DB_DIR = path.join(process.cwd(), 'data', 'test');
 const TEST_DB_PATH = path.join(TEST_DB_DIR, 'analytics-test.db');
@@ -75,6 +85,7 @@ describe('Analytics Functions', () => {
     db = new Database(TEST_DB_PATH);
     db.pragma('foreign_keys = ON');
     db.exec(TEST_SCHEMA);
+    activeTestDb = db;
 
     // Insert upper categories
     const insertUpperCat = db.prepare(`
@@ -105,6 +116,7 @@ describe('Analytics Functions', () => {
 
   afterEach(() => {
     db.close();
+    activeTestDb = null;
 
     // Clean up test files
     if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
@@ -138,7 +150,7 @@ describe('Analytics Functions', () => {
       expect(result.total_income).toBe(11000);
     });
 
-    it('should calculate total spending correctly (expense + bill + debt + saving)', () => {
+    it('should calculate total spending correctly (expense + bill + debt, savings excluded)', () => {
       const insertTx = db.prepare(`
         INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
@@ -147,23 +159,23 @@ describe('Analytics Functions', () => {
       insertTx.run('tx-1', '2025-01-10', 'Lunch', -50, 'sc-food', now, now);
       insertTx.run('tx-2', '2025-01-12', 'Bus', -20, 'sc-transport', now, now);
       insertTx.run('tx-3', '2025-01-15', 'Groceries', -300, 'sc-groceries', now, now);
-      insertTx.run('tx-4', '2025-01-20', 'Invest', -500, 'sc-invest', now, now);
+      insertTx.run('tx-4', '2025-01-20', 'Invest', -500, 'sc-invest', now, now); // saving — excluded
       insertTx.run('tx-5', '2025-01-25', 'Mortgage', -1500, 'sc-mortgage', now, now);
 
       // Query total spending for 2025
       const result = db.prepare(`
-        SELECT COALESCE(SUM(ABS(t.amount)), 0) as total_spend
+        SELECT COALESCE(-SUM(t.amount), 0) as total_spend
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
         WHERE strftime('%Y', t.date) = '2025'
           AND t.is_deleted = 0
           AND t.is_split = 0
-          AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+          AND uc.type IN ('expense', 'bill', 'debt')
       `).get() as { total_spend: number };
 
-      // 50 + 20 + 300 + 500 + 1500 = 2370
-      expect(result.total_spend).toBe(2370);
+      // 50 + 20 + 300 + 1500 = 1870 (savings of 500 excluded)
+      expect(result.total_spend).toBe(1870);
     });
 
     it('should exclude transfer category from spending calculations', () => {
@@ -174,16 +186,16 @@ describe('Analytics Functions', () => {
       insertTx.run('tx-1', '2025-01-10', 'Food', -100, 'sc-food', now, now);
       insertTx.run('tx-2', '2025-01-15', 'Transfer to savings', -500, 'sc-transfer-out', now, now);
 
-      // Query spending excluding transfers
+      // Query spending excluding transfers (and savings)
       const result = db.prepare(`
-        SELECT COALESCE(SUM(ABS(t.amount)), 0) as total_spend
+        SELECT COALESCE(-SUM(t.amount), 0) as total_spend
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
         WHERE strftime('%Y', t.date) = '2025'
           AND t.is_deleted = 0
           AND t.is_split = 0
-          AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+          AND uc.type IN ('expense', 'bill', 'debt')
       `).get() as { total_spend: number };
 
       // Only food (100), transfer is excluded
@@ -199,7 +211,7 @@ describe('Analytics Functions', () => {
       insertTx.run('tx-2', '2025-01-15', 'Deleted expense', -200, 'sc-food', 1, now, now);
 
       const result = db.prepare(`
-        SELECT COALESCE(SUM(ABS(t.amount)), 0) as total
+        SELECT COALESCE(-SUM(t.amount), 0) as total
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -224,7 +236,7 @@ describe('Analytics Functions', () => {
       insertTx.run('tx-child-2', '2025-01-10', 'Child 2', -40, 'sc-food', 0, 'tx-parent', now, now);
 
       const result = db.prepare(`
-        SELECT COALESCE(SUM(ABS(t.amount)), 0) as total
+        SELECT COALESCE(-SUM(t.amount), 0) as total
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -260,7 +272,7 @@ describe('Analytics Functions', () => {
 
       // Get savings
       const savingsResult = db.prepare(`
-        SELECT COALESCE(SUM(ABS(t.amount)), 0) as total
+        SELECT COALESCE(-SUM(t.amount), 0) as total
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -275,6 +287,89 @@ describe('Analytics Functions', () => {
         : 0;
 
       expect(savingsRate).toBe(10); // 500 / 5000 = 10%
+    });
+
+    it('should reduce total spend when a positive transaction (refund) appears in an expense category', () => {
+      const insertTx = db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
+      `);
+      insertTx.run('tx-1', '2025-01-10', 'Lunch', -50, 'sc-food', now, now);
+      insertTx.run('tx-2', '2025-01-15', 'Groceries', -300, 'sc-groceries', now, now); // bill
+      insertTx.run('tx-3', '2025-01-20', 'Refund', 100, 'sc-food', now, now); // +$100 refund in expense
+
+      const result = db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses,
+          COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN -t.amount ELSE 0 END), 0) as bills
+        FROM "transaction" t
+        JOIN sub_category sc ON t.sub_category_id = sc.id
+        JOIN upper_category uc ON sc.upper_category_id = uc.id
+        WHERE strftime('%Y', t.date) = '2025'
+          AND t.is_deleted = 0
+          AND t.is_split = 0
+      `).get() as { expenses: number; bills: number };
+
+      // Expenses: -(-50 + 100) = -50 → refund exceeded the lunch, net is a credit
+      expect(result.expenses).toBe(-50);
+      // Bills: -(-300) = 300
+      expect(result.bills).toBe(300);
+    });
+
+    it('should reduce savings tile when a positive transaction (withdrawal) appears in a saving category', () => {
+      const insertTx = db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
+      `);
+      insertTx.run('tx-1', '2025-01-10', 'Deposit', -500, 'sc-invest', now, now);
+      insertTx.run('tx-2', '2025-01-20', 'Withdrawal', 200, 'sc-invest', now, now);
+
+      const result = db.prepare(`
+        SELECT COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN -t.amount ELSE 0 END), 0) as savings
+        FROM "transaction" t
+        JOIN sub_category sc ON t.sub_category_id = sc.id
+        JOIN upper_category uc ON sc.upper_category_id = uc.id
+        WHERE strftime('%Y', t.date) = '2025'
+          AND t.is_deleted = 0
+          AND t.is_split = 0
+      `).get() as { savings: number };
+
+      // -(-500 + 200) = 300 net set aside
+      expect(result.savings).toBe(300);
+    });
+
+    it('should exclude pie-chart categories that net out to a credit', () => {
+      const insertTx = db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
+      `);
+      // Food: -50, +200 → net +150 (credit) → should be excluded
+      insertTx.run('tx-1', '2025-01-10', 'Lunch', -50, 'sc-food', now, now);
+      insertTx.run('tx-2', '2025-01-12', 'Big refund', 200, 'sc-food', now, now);
+      // Transport: -100 → net -100 (real spend) → included
+      insertTx.run('tx-3', '2025-01-15', 'Bus', -100, 'sc-transport', now, now);
+
+      const results = db.prepare(`
+        SELECT
+          uc.type,
+          COALESCE(-SUM(t.amount), 0) as amount
+        FROM "transaction" t
+        JOIN sub_category sc ON t.sub_category_id = sc.id
+        JOIN upper_category uc ON sc.upper_category_id = uc.id
+        WHERE strftime('%Y', t.date) = '2025'
+          AND t.is_deleted = 0
+          AND t.is_split = 0
+          AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
+        GROUP BY uc.type
+        HAVING SUM(t.amount) < 0
+        ORDER BY amount DESC
+      `).all() as Array<{ type: string; amount: number }>;
+
+      // Only one row: expense type, net spend = -(-50 + 200 + -100) = -50. But that's one type only.
+      // Actually both Food and Transport are 'expense' type. Group SUM = -50+200+-100 = 50 (positive in DB, net credit)
+      // -SUM = -50, which is < 0 in HAVING SUM(t.amount) < 0 → excluded.
+      // So result should be empty.
+      expect(results).toHaveLength(0);
     });
   });
 
@@ -311,7 +406,7 @@ describe('Analytics Functions', () => {
         SELECT
           strftime('%Y-%m', t.date) as month,
           COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-          COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses
+          COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -346,25 +441,25 @@ describe('Analytics Functions', () => {
       const result = db.prepare(`
         SELECT
           uc.type,
-          COALESCE(SUM(ABS(t.amount)), 0) as amount
+          COALESCE(-SUM(t.amount), 0) as amount
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
         WHERE strftime('%Y', t.date) = '2025'
           AND t.is_deleted = 0
           AND t.is_split = 0
-          AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+          AND uc.type IN ('expense', 'bill', 'debt')
         GROUP BY uc.type
-        HAVING SUM(ABS(t.amount)) > 0
+        HAVING SUM(t.amount) < 0
         ORDER BY amount DESC
       `).all() as Array<{ type: string; amount: number }>;
 
-      expect(result).toHaveLength(4);
-      // debt: 1000, saving: 500, bill: 300, expense: 150
+      expect(result).toHaveLength(3);
+      // debt: 1000, bill: 300, expense: 150 (saving of 500 excluded)
       expect(result[0].type).toBe('debt');
       expect(result[0].amount).toBe(1000);
-      expect(result[1].type).toBe('saving');
-      expect(result[1].amount).toBe(500);
+      expect(result[1].type).toBe('bill');
+      expect(result[1].amount).toBe(300);
     });
 
     it('should calculate percentages correctly', () => {
@@ -378,14 +473,14 @@ describe('Analytics Functions', () => {
       const result = db.prepare(`
         SELECT
           uc.type,
-          COALESCE(SUM(ABS(t.amount)), 0) as amount
+          COALESCE(-SUM(t.amount), 0) as amount
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
         WHERE strftime('%Y', t.date) = '2025'
           AND t.is_deleted = 0
           AND t.is_split = 0
-          AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+          AND uc.type IN ('expense', 'bill', 'debt')
         GROUP BY uc.type
       `).all() as Array<{ type: string; amount: number }>;
 
@@ -417,16 +512,16 @@ describe('Analytics Functions', () => {
           sc.name as category_name,
           uc.name as upper_category_name,
           uc.type as upper_category_type,
-          COALESCE(SUM(ABS(t.amount)), 0) as amount
+          COALESCE(-SUM(t.amount), 0) as amount
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
         WHERE strftime('%Y', t.date) = '2025'
           AND t.is_deleted = 0
           AND t.is_split = 0
-          AND uc.type IN ('expense', 'bill', 'debt', 'saving')
+          AND uc.type IN ('expense', 'bill', 'debt')
         GROUP BY sc.id
-        HAVING SUM(ABS(t.amount)) > 0
+        HAVING SUM(t.amount) < 0
         ORDER BY amount DESC
       `).all() as Array<{ category_name: string; amount: number }>;
 
@@ -454,7 +549,7 @@ describe('Analytics Functions', () => {
           uc.type as upper_category_type,
           sc.name as sub_category,
           CAST(strftime('%m', t.date) AS INTEGER) as month_num,
-          COALESCE(SUM(ABS(t.amount)), 0) as amount
+          COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE -t.amount END), 0) as amount
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -521,7 +616,7 @@ describe('Analytics Functions', () => {
       const result = db.prepare(`
         SELECT
           sc.name as sub_category,
-          COALESCE(SUM(ABS(t.amount)), 0) as year_total
+          COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE -t.amount END), 0) as year_total
         FROM "transaction" t
         JOIN sub_category sc ON t.sub_category_id = sc.id
         JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -596,6 +691,39 @@ describe('Analytics Functions', () => {
       const names = result.map(r => r.subcategory_name);
       expect(names).toContain('Salary');
       expect(names).not.toContain('Food');
+    });
+  });
+
+  describe('getDashboardSummary (production function)', () => {
+    it('end-to-end: refunds reduce totalSpend; savings withdrawal reduces totalSavings', () => {
+      // Drives the actual production SQL the dashboard uses, not an inline copy.
+      // Catches drift between this file's SQL fixtures and lib/db/analytics.ts.
+      const insertTx = db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
+      `);
+      // Income +5000
+      insertTx.run('tx-1', '2025-03-15', 'Salary', 5000, 'sc-salary', now, now);
+      // Expense -200, refund +50 → net 150
+      insertTx.run('tx-2', '2025-03-05', 'Lunch', -200, 'sc-food', now, now);
+      insertTx.run('tx-3', '2025-03-10', 'Refund', 50, 'sc-food', now, now);
+      // Savings deposit -500, withdrawal +100 → net 400
+      insertTx.run('tx-4', '2025-03-20', 'Invest', -500, 'sc-invest', now, now);
+      insertTx.run('tx-5', '2025-03-25', 'Withdraw', 100, 'sc-invest', now, now);
+
+      const summary = getDashboardSummary(
+        '2025-03-01', '2025-03-31',
+        '2025-02-01', '2025-02-28', // empty previous period
+      );
+
+      expect(summary.totalIncome).toBe(5000);
+      // totalSpend EXCLUDES savings (dashboard rule). Net expenses = 150.
+      expect(summary.totalSpend).toBe(150);
+      expect(summary.totalSavings).toBe(400);
+      // Net = income - spend (savings already accounted for via savings rate, not netBalance)
+      expect(summary.netBalance).toBe(4850);
+      // Savings rate = 400 / 5000 = 8.0%
+      expect(summary.savingsRate).toBe(8);
     });
   });
 });

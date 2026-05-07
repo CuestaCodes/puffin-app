@@ -439,7 +439,9 @@ function MonthlyBudgetContent() {
             upper_category_type: cat.upper_category_type,
             budget_id: budget?.id || null,
             budget_amount: budget?.amount ?? cat.current_budget,
-            actual_amount: Math.abs(cat.actual_amount), // Expenses are negative, so take absolute value
+            // Negate the signed sum so a -$1000 expense reads as $1000 spent and a +$200 refund reads as -$200 (a credit).
+            // Normalise to 0 (not -0) so empty rows format as "$0.00", not "-$0.00".
+            actual_amount: cat.actual_amount === 0 ? 0 : -cat.actual_amount,
             average_3mo: cat.average_3mo,
             average_6mo: cat.average_6mo,
             carry_over: cat.carry_over,
@@ -781,8 +783,7 @@ function MonthlyBudgetContent() {
                   <div 
                     className={cn(
                       'h-full rounded-full transition-all duration-500',
-                      spentPercentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' :
-                      spentPercentage > BUDGET_THRESHOLDS.WARNING ? 'bg-amber-500' : 'bg-emerald-500'
+                      spentPercentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' : 'bg-emerald-500'
                     )}
                     style={{ width: `${Math.min(100, spentPercentage)}%` }}
                   />
@@ -1034,9 +1035,11 @@ function MonthlyBudgetContent() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                     {group.categories.map((category) => {
                       const hasBudget = category.budget_amount !== null && category.budget_amount > 0;
-                      const percentage = hasBudget 
-                        ? (category.actual_amount / category.budget_amount!) * 100 
+                      const rawPercentage = hasBudget
+                        ? (category.actual_amount / category.budget_amount!) * 100
                         : 0;
+                      // Floor at 0: a credit (negative spend) reads as "0% used", not a negative percentage.
+                      const percentage = Math.max(0, rawPercentage);
                       const isOverBudget = hasBudget && percentage > BUDGET_THRESHOLDS.OVER;
                       const isSelected = selectedCategoryId === category.sub_category_id;
                       const isEditing = editingBudgetId !== null && editingBudgetId === category.budget_id;
@@ -1148,7 +1151,6 @@ function MonthlyBudgetContent() {
                                 className={cn(
                                   'h-full rounded-full transition-all duration-300',
                                   percentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' :
-                                  percentage > BUDGET_THRESHOLDS.WARNING ? 'bg-amber-500' :
                                   isSelected ? 'bg-cyan-400' : 'bg-cyan-500'
                                 )}
                                 style={{ width: `${Math.min(100, percentage)}%` }}
@@ -1193,7 +1195,7 @@ function MonthlyBudgetContent() {
                                   )}>
                                     {category.sub_category_name}
                                   </span>
-                                  {category.actual_amount > 0 && (
+                                  {category.actual_amount !== 0 && (
                                     <span className="text-sm text-slate-500 truncate block">
                                       ({formatCurrency(category.actual_amount)} spent)
                                     </span>

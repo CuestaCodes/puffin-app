@@ -2,7 +2,21 @@
 
 All notable changes to Puffin will be documented in this file.
 
-## [2.1.0] - 2026-01-29
+## [Unreleased]
+
+### Fixed
+- Drag-and-drop of CSV files onto the import drop zone now works in the Windows desktop app (Tauri was intercepting OS-level drops before they reached the page).
+- Manually ticking a flagged duplicate in the import preview now actually imports it; the override checkbox was being ignored.
+- Monthly Budget: a refund (positive transaction in an expense-side sub-category) now displays as a credit (e.g. `-$200 spent`) instead of as additional spending; the progress bar floors at 0% rather than going negative.
+- Monthly Budget: the "Total Spent" tile now equals the sum of the visible group totals (Expenses + Savings + Bills + Debts + Sinking). It now includes unbudgeted categories with spend and treats refunds as reductions, matching the per-row display.
+- Dashboard: "Total Spent" tile, "Savings" tile, Spending Trends graph, both pie charts, and the Monthly Category Totals table no longer inflate when refunds or savings withdrawals are present — refunds correctly reduce the totals.
+- Pie charts now omit categories whose net is a credit for the period (e.g. refund-only) instead of showing them as positive slices.
+- Empty budget rows now display as `$0.00` instead of `-$0.00`.
+
+### Changed
+- Monthly Budget progress bars are now two-tiered: red above 105% of budget, normal (emerald/cyan) below. The amber 80–105% tier has been removed.
+- Dashboard "Total Spent" now excludes Savings (savings represents money set aside, not money spent). The Savings tile and savings rate are unchanged. Monthly Budget "Total Spent" still includes Savings because that view shows a Savings group total.
+
 
 ### Added
 - Delete button for budget templates in Monthly Budget view

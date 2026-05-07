@@ -5,7 +5,7 @@ import type { TransactionWithCategory } from '@/types/database';
 
 export interface DashboardSummary {
   totalIncome: number;
-  totalSpend: number; // Includes expenses, bills, debt, sinking funds, AND savings
+  totalSpend: number; // expenses + bills + debt + sinking (savings excluded)
   netBalance: number;
   totalSavings: number;
   savingsRate: number; // Savings / Income * 100
@@ -43,16 +43,6 @@ export interface CategoryBreakdown {
   percentage: number;
 }
 
-export interface UpperCategoryTrend {
-  month: string;
-  monthLabel: string;
-  expense: number;
-  saving: number;
-  bill: number;
-  debt: number;
-  sinking: number;
-}
-
 export interface MonthlyIncomeBySubcategory {
   month: string;
   monthLabel: string;
@@ -68,7 +58,14 @@ export interface MonthlyCategoryTotal {
 }
 
 /**
- * Get dashboard summary for a date range
+ * Get dashboard summary for a date range.
+ *
+ * **Savings rule:** `totalSpend` here EXCLUDES Savings (delegated to `calculateTotalSpend`
+ * in lib/utils.ts). The dashboard's "Total Spent" tile is meant to read as money burned;
+ * savings is shown separately via `totalSavings`. This intentionally diverges from the
+ * monthly-budget view's "Total Spent" tile, which INCLUDES Savings because that page
+ * renders a Savings group total and the headline must equal the sum of visible groups.
+ * See `getBudgetSummary` in lib/db/budgets.ts for the other side of the contract.
  */
 export function getDashboardSummary(
   startDate: string,
@@ -80,14 +77,17 @@ export function getDashboardSummary(
 
   // Current period totals
   // Exclude split parents (is_split = 1) and transfer categories from calculations
+  // Spend-side totals are computed as `-SUM(t.amount)` so refunds (positive amounts in
+  // an expense-side category) reduce the total instead of inflating it. Income stays as
+  // raw SUM (positive). Mirrors the convention used in monthly-budget per-row display.
   const currentQuery = `
     SELECT
       COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
-      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
-      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
-      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
+      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN -t.amount ELSE 0 END), 0) as savings,
+      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN -t.amount ELSE 0 END), 0) as bills,
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN -t.amount ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN -t.amount ELSE 0 END), 0) as sinking
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -117,7 +117,6 @@ export function getDashboardSummary(
   };
 
   // Calculate totals and changes
-  // Total Spend includes expenses, bills, debt, sinking funds, AND savings
   const totalIncome = current.income || 0;
   const totalSavings = current.savings || 0;
   const totalSpend = calculateTotalSpend(current);
@@ -167,11 +166,11 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
     SELECT
       ? || '-' || printf('%02d', m.month_num) as month,
       COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
-      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
-      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
-      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
+      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN -t.amount ELSE 0 END), 0) as savings,
+      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN -t.amount ELSE 0 END), 0) as bills,
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN -t.amount ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN -t.amount ELSE 0 END), 0) as sinking
     FROM months m
     LEFT JOIN "transaction" t ON strftime('%Y', t.date) = ?
       AND CAST(strftime('%m', t.date) AS INTEGER) = m.month_num
@@ -223,19 +222,21 @@ export function getUpperCategoryBreakdown(startDate: string, _endDate: string): 
   // Extract year from startDate (format: YYYY-MM-DD)
   const year = startDate.substring(0, 4);
 
+  // Net spend: -SUM(t.amount) so refunds reduce. HAVING SUM(t.amount) < 0 excludes
+  // categories whose net is a credit (refund-only) — they wouldn't show as a meaningful slice.
   const query = `
     SELECT
       uc.type,
-      COALESCE(SUM(ABS(t.amount)), 0) as amount
+      COALESCE(-SUM(t.amount), 0) as amount
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND uc.type IN ('expense', 'bill', 'debt', 'sinking', 'saving')
+      AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
     GROUP BY uc.type
-    HAVING SUM(ABS(t.amount)) > 0
+    HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
   `;
 
@@ -251,7 +252,6 @@ export function getUpperCategoryBreakdown(startDate: string, _endDate: string): 
     bill: 'Bills',
     debt: 'Debt',
     sinking: 'Sinking Funds',
-    saving: 'Savings',
   };
 
   return results.map(row => ({
@@ -272,22 +272,24 @@ export function getExpenseBreakdown(startDate: string, _endDate: string): Catego
   // Extract year from startDate (format: YYYY-MM-DD)
   const year = startDate.substring(0, 4);
 
+  // Net spend per sub-category: -SUM(t.amount). HAVING SUM(t.amount) < 0 excludes
+  // sub-categories that net out to a credit (refund-only).
   const query = `
     SELECT
       sc.id as category_id,
       sc.name as category_name,
       uc.name as upper_category_name,
       uc.type as upper_category_type,
-      COALESCE(SUM(ABS(t.amount)), 0) as amount
+      COALESCE(-SUM(t.amount), 0) as amount
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND uc.type IN ('expense', 'bill', 'debt', 'sinking', 'saving')
+      AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
     GROUP BY sc.id
-    HAVING SUM(ABS(t.amount)) > 0
+    HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
   `;
 
@@ -365,13 +367,15 @@ export function getIncomeBreakdown(startDate: string, endDate: string): Category
 export function getMonthlyCategoryTotals(year: number): MonthlyCategoryTotal[] {
   const db = getDatabase();
 
+  // Per-cell amount: for income rows, raw signed sum (already positive); for spend-side
+  // rows, -SUM so spends read positive and refunds reduce the cell.
   const query = `
     SELECT
       uc.name as upper_category,
       uc.type as upper_category_type,
       sc.name as sub_category,
       CAST(strftime('%m', t.date) AS INTEGER) as month_num,
-      COALESCE(SUM(ABS(t.amount)), 0) as amount
+      COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE -t.amount END), 0) as amount
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -492,63 +496,6 @@ export function getMonthlyIncomeTrendsBySubcategory(year: number): MonthlyIncome
     monthLabel: monthNames[index],
     subcategories,
   }));
-}
-
-/**
- * Get upper category spending trends over time
- */
-export function getUpperCategoryTrends(months: number = 6): UpperCategoryTrend[] {
-  const db = getDatabase();
-
-  const query = `
-    WITH RECURSIVE months AS (
-      SELECT date('now', 'start of month', '-' || (? - 1) || ' months') as month_start
-      UNION ALL
-      SELECT date(month_start, '+1 month')
-      FROM months
-      WHERE month_start < date('now', 'start of month')
-    )
-    SELECT
-      strftime('%Y-%m', m.month_start) as month,
-      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expense,
-      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as saving,
-      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bill,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
-      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
-    FROM months m
-    LEFT JOIN "transaction" t ON strftime('%Y-%m', t.date) = strftime('%Y-%m', m.month_start)
-      AND t.is_deleted = 0
-      AND t.is_split = 0
-    LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
-    LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
-    GROUP BY strftime('%Y-%m', m.month_start)
-    ORDER BY month ASC
-  `;
-
-  const results = db.prepare(query).all(months) as Array<{
-    month: string;
-    expense: number;
-    saving: number;
-    bill: number;
-    debt: number;
-    sinking: number;
-  }>;
-
-  return results.map(row => {
-    const [year, monthNum] = row.month.split('-');
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthLabel = `${monthNames[parseInt(monthNum) - 1]} ${year}`;
-
-    return {
-      month: row.month,
-      monthLabel,
-      expense: row.expense || 0,
-      saving: row.saving || 0,
-      bill: row.bill || 0,
-      debt: row.debt || 0,
-      sinking: row.sinking || 0,
-    };
-  });
 }
 
 /**

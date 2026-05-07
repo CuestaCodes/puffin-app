@@ -289,8 +289,19 @@ export function copyBudgetsToMonth(
 }
 
 /**
- * Get budget summary with actual spending for a month
- * Includes total income from income categories and excludes income from budget calculations
+ * Get budget summary with actual spending for a month.
+ *
+ * **Savings rule:** `totalSpent` here INCLUDES Savings (alongside Expenses, Bills, Debts,
+ * Sinking — every non-income, non-transfer type). The monthly-budget page renders a
+ * Savings group total visible to the user, so the headline tile must equal the sum of
+ * those visible groups. This intentionally diverges from `getDashboardSummary` in
+ * lib/db/analytics.ts, where `totalSpend` EXCLUDES Savings (because the dashboard shows
+ * savings as its own tile, not as part of "Total Spent"). Don't unify — the two views
+ * have different semantics for what "spent" means.
+ *
+ * `totalSpent` is computed via signed sum negated: a refund (positive transaction in a
+ * spend-side category) reduces the total, matching the per-row negation in
+ * components/pages/monthly-budget.tsx.
  */
 export function getBudgetSummary(year: number, month: number): {
   budgets: Array<BudgetWithCategory & { actual_amount: number }>;
@@ -382,9 +393,27 @@ export function getBudgetSummary(year: number, month: number): {
     upper_category_type: string;
     actual_amount: number;
   }>;
-  
+
+  // Total spent: sum signed transaction amounts across ALL spend-side sub-categories
+  // (budgeted or not), then negate so refunds reduce the total. This matches the
+  // page's per-group totals, which include unbudgeted categories with spend and use
+  // the same negation convention.
+  const totalSpentQuery = `
+    SELECT COALESCE(SUM(t.amount), 0) as total_spend
+    FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE t.date >= ? AND t.date <= ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+      AND sc.is_deleted = 0
+      AND uc.type NOT IN ('income', 'transfer')
+  `;
+  const spendResult = db.prepare(totalSpentQuery).get(startDate, endDate) as { total_spend: number };
+  const rawSpend = spendResult.total_spend || 0;
+
   const totalBudgeted = budgets.reduce((sum, b) => sum + b.amount, 0);
-  const totalSpent = budgets.reduce((sum, b) => sum + b.actual_amount, 0);
+  const totalSpent = rawSpend === 0 ? 0 : -rawSpend;
   
   return {
     budgets,

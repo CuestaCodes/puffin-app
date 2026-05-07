@@ -297,7 +297,12 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         source_id: selectedSourceId,
       }));
       
-      const result = await api.post<ImportResult>('/api/transactions/import', { transactions });
+      // Trust the user's selection in the preview table — including any duplicates they
+      // explicitly ticked to override. The server defaults to skipDuplicates=true otherwise.
+      const result = await api.post<ImportResult>('/api/transactions/import', {
+        transactions,
+        skipDuplicates: false,
+      });
 
       if (result.error) {
         throw new Error(result.error || 'Import failed');

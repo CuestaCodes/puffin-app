@@ -250,8 +250,23 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `, [startDate, endDate]);
 
+  // Total spent: sum signed transaction amounts across ALL spend-side sub-categories
+  // (budgeted or not), then negate so refunds reduce the total. Mirrors lib/db/budgets.ts.
+  const spendResult = await db.queryOne<{ total_spend: number }>(`
+    SELECT COALESCE(SUM(t.amount), 0) as total_spend
+    FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    JOIN upper_category uc ON sc.upper_category_id = uc.id
+    WHERE t.date >= ? AND t.date <= ?
+      AND t.is_deleted = 0
+      AND t.is_split = 0
+      AND sc.is_deleted = 0
+      AND uc.type NOT IN ('income', 'transfer')
+  `, [startDate, endDate]);
+  const rawSpend = spendResult?.total_spend || 0;
+
   const totalBudgeted = budgets.reduce((sum, b) => sum + b.amount, 0);
-  const totalSpent = budgets.reduce((sum, b) => sum + b.actual_amount, 0);
+  const totalSpent = rawSpend === 0 ? 0 : -rawSpend;
 
   return {
     budgets,

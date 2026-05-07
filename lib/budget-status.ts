@@ -6,13 +6,11 @@
  */
 
 /** Budget status for visual display */
-export type BudgetStatus = 'under' | 'warning' | 'over';
+export type BudgetStatus = 'under' | 'over';
 
 /** Threshold percentages for budget status */
 export const BUDGET_THRESHOLDS = {
-  /** Below this percentage = "under" (green/cyan) */
-  WARNING: 80,
-  /** Above this percentage = "over" (red). Between WARNING and OVER = "warning" (amber) */
+  /** Above this percentage = "over" (red); at or below = "under" (normal) */
   OVER: 105,
 } as const;
 
@@ -20,21 +18,8 @@ export const BUDGET_THRESHOLDS = {
  * Get the budget status based on spending percentage.
  *
  * @param percentage - Spending as a percentage of budget (e.g., 95 for 95%)
- * @returns 'under' (≤80%), 'warning' (80-105%), or 'over' (>105%)
- *
- * @example
- * getBudgetStatus(75)   // 'under'
- * getBudgetStatus(95)   // 'warning'
- * getBudgetStatus(102)  // 'warning' (within 5% tolerance)
- * getBudgetStatus(110)  // 'over'
+ * @returns 'over' (>105%) or 'under' (≤105%)
  */
 export function getBudgetStatus(percentage: number): BudgetStatus {
-  if (percentage > BUDGET_THRESHOLDS.OVER) {
-    return 'over';
-  }
-  if (percentage > BUDGET_THRESHOLDS.WARNING) {
-    return 'warning';
-  }
-  return 'under';
+  return percentage > BUDGET_THRESHOLDS.OVER ? 'over' : 'under';
 }
-

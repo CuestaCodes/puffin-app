@@ -343,6 +343,106 @@ describe('Budget Operations', () => {
       // Should only count the child transaction, not the parent
       expect(summary.totalSpent).toBe(100.00);
     });
+
+    it('should count spending from unbudgeted categories in totalSpent', () => {
+      const db = getTestDatabase();
+
+      // Budget only categoryId1
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 1,
+        amount: 500.00,
+      });
+
+      const now = new Date().toISOString();
+      // Spend in budgeted category
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-1', '2025-01-15', 'Groceries', -150.00, ?, 0, 0, ?, ?)
+      `).run(categoryId1, now, now);
+
+      // Spend in UNBUDGETED category — must still count toward total
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-2', '2025-01-20', 'Bus fare', -80.00, ?, 0, 0, ?, ?)
+      `).run(categoryId2, now, now);
+
+      const summary = getBudgetSummary(2025, 1);
+      // Only one budget row, but totalSpent covers both categories: 150 + 80 = 230
+      expect(summary.budgets).toHaveLength(1);
+      expect(summary.totalSpent).toBe(230.00);
+    });
+
+    it('should reduce totalSpent when a positive transaction (refund) appears in a spend category', () => {
+      const db = getTestDatabase();
+
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 1,
+        amount: 500.00,
+      });
+
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-1', '2025-01-15', 'Groceries', -300.00, ?, 0, 0, ?, ?)
+      `).run(categoryId1, now, now);
+
+      // +$100 refund in same category
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-2', '2025-01-20', 'Refund', 100.00, ?, 0, 0, ?, ?)
+      `).run(categoryId1, now, now);
+
+      const summary = getBudgetSummary(2025, 1);
+      // Net spend = 300 - 100 = 200
+      expect(summary.totalSpent).toBe(200.00);
+    });
+
+    it('should yield 0 (not -0) when no spending exists', () => {
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 1,
+        amount: 500.00,
+      });
+
+      const summary = getBudgetSummary(2025, 1);
+      expect(summary.totalSpent).toBe(0);
+      expect(Object.is(summary.totalSpent, -0)).toBe(false);
+    });
+
+    it('end-to-end: getBudgetSummary returns the contracted shape with mixed-sign transactions', () => {
+      // Production-function regression test: drives the actual SQL the app uses, not an
+      // inline copy. Catches drift between this file's fixtures and lib/db/budgets.ts.
+      const db = getTestDatabase();
+      upsertBudget({ sub_category_id: categoryId1, year: 2025, month: 2, amount: 400.00 });
+
+      const now = new Date().toISOString();
+      // Budgeted category: -200 expense, +50 refund → net 150
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-a', '2025-02-05', 'Groceries', -200, ?, 0, 0, ?, ?)
+      `).run(categoryId1, now, now);
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-b', '2025-02-10', 'Refund', 50, ?, 0, 0, ?, ?)
+      `).run(categoryId1, now, now);
+      // Unbudgeted category: -75 → +75 to total (net 225 spend)
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-c', '2025-02-15', 'Bus', -75, ?, 0, 0, ?, ?)
+      `).run(categoryId2, now, now);
+
+      const summary = getBudgetSummary(2025, 2);
+
+      expect(summary.totalBudgeted).toBe(400.00);
+      expect(summary.totalSpent).toBe(225.00); // 150 (budgeted) + 75 (unbudgeted)
+      expect(summary.budgets).toHaveLength(1);
+      expect(summary.budgets[0].sub_category_id).toBe(categoryId1);
+    });
   });
 
   describe('Historical Averages', () => {

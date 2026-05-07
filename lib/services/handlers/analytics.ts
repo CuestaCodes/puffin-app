@@ -6,6 +6,7 @@
  */
 
 import * as db from '../tauri-db';
+import { calculateTotalSpend } from '@/lib/utils';
 
 interface HandlerContext {
   method: string;
@@ -113,14 +114,15 @@ async function getDashboardSummary(
   prevStartDate: string,
   prevEndDate: string
 ): Promise<DashboardSummary> {
+  // Spend-side totals use `-SUM(t.amount)` so refunds reduce; income stays raw. Mirrors lib/db/analytics.ts.
   const currentQuery = `
     SELECT
       COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
-      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
-      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
-      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
+      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN -t.amount ELSE 0 END), 0) as savings,
+      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN -t.amount ELSE 0 END), 0) as bills,
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN -t.amount ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN -t.amount ELSE 0 END), 0) as sinking
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -148,17 +150,14 @@ async function getDashboardSummary(
     sinking: number;
   }>(currentQuery, [prevStartDate, prevEndDate]);
 
-  const calculateTotalSpend = (data: { expenses: number; savings: number; bills: number; debt: number; sinking: number }) =>
-    (data.expenses || 0) + (data.savings || 0) + (data.bills || 0) + (data.debt || 0) + (data.sinking || 0);
-
   const totalIncome = current?.income || 0;
   const totalSavings = current?.savings || 0;
-  const totalSpend = calculateTotalSpend(current || { expenses: 0, savings: 0, bills: 0, debt: 0, sinking: 0 });
+  const totalSpend = calculateTotalSpend(current || { expenses: 0, bills: 0, debt: 0, sinking: 0 });
   const netBalance = totalIncome - totalSpend;
 
   const prevIncome = previous?.income || 0;
   const prevSavings = previous?.savings || 0;
-  const prevSpend = calculateTotalSpend(previous || { expenses: 0, savings: 0, bills: 0, debt: 0, sinking: 0 });
+  const prevSpend = calculateTotalSpend(previous || { expenses: 0, bills: 0, debt: 0, sinking: 0 });
   const prevNet = prevIncome - prevSpend;
 
   const calcChange = (curr: number, prev: number): number => {
@@ -202,11 +201,11 @@ async function getMonthlyTrendsByYear(year: number): Promise<MonthlyTrend[]> {
     SELECT
       CAST(strftime('%m', t.date) AS INTEGER) as month_num,
       COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN ABS(t.amount) ELSE 0 END), 0) as expenses,
-      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN ABS(t.amount) ELSE 0 END), 0) as savings,
-      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN ABS(t.amount) ELSE 0 END), 0) as bills,
-      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN ABS(t.amount) ELSE 0 END), 0) as debt,
-      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN ABS(t.amount) ELSE 0 END), 0) as sinking
+      COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN uc.type = 'saving' THEN -t.amount ELSE 0 END), 0) as savings,
+      COALESCE(SUM(CASE WHEN uc.type = 'bill' THEN -t.amount ELSE 0 END), 0) as bills,
+      COALESCE(SUM(CASE WHEN uc.type = 'debt' THEN -t.amount ELSE 0 END), 0) as debt,
+      COALESCE(SUM(CASE WHEN uc.type = 'sinking' THEN -t.amount ELSE 0 END), 0) as sinking
     FROM "transaction" t
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
@@ -237,7 +236,7 @@ async function getMonthlyTrendsByYear(year: number): Promise<MonthlyTrend[]> {
       debt: 0,
       sinking: 0,
     };
-    const totalSpending = data.expenses + data.savings + data.bills + data.debt + data.sinking;
+    const totalSpending = data.expenses + data.bills + data.debt + data.sinking;
 
     trends.push({
       month: `${year}-${monthStr}`,
@@ -261,19 +260,20 @@ async function getMonthlyTrendsByYear(year: number): Promise<MonthlyTrend[]> {
 async function getUpperCategoryBreakdown(year: number): Promise<UpperCategoryBreakdown[]> {
   const yearStr = year.toString();
 
+  // Net spend per type. HAVING SUM(t.amount) < 0 excludes types whose net is a credit.
   const results = await db.query<{ type: string; amount: number }>(`
     SELECT
       uc.type,
-      COALESCE(SUM(ABS(t.amount)), 0) as amount
+      COALESCE(-SUM(t.amount), 0) as amount
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND uc.type IN ('expense', 'bill', 'debt', 'sinking', 'saving')
+      AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
     GROUP BY uc.type
-    HAVING SUM(ABS(t.amount)) > 0
+    HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
   `, [yearStr]);
 
@@ -284,7 +284,6 @@ async function getUpperCategoryBreakdown(year: number): Promise<UpperCategoryBre
     bill: 'Bills',
     debt: 'Debt',
     sinking: 'Sinking Funds',
-    saving: 'Savings',
   };
 
   return results.map(row => ({
@@ -313,16 +312,16 @@ async function getExpenseBreakdown(year: number): Promise<CategoryBreakdown[]> {
       sc.name as category_name,
       uc.name as upper_category_name,
       uc.type as upper_category_type,
-      COALESCE(SUM(ABS(t.amount)), 0) as amount
+      COALESCE(-SUM(t.amount), 0) as amount
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND uc.type IN ('expense', 'bill', 'debt', 'sinking', 'saving')
+      AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
     GROUP BY sc.id
-    HAVING SUM(ABS(t.amount)) > 0
+    HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
   `, [yearStr]);
 
@@ -356,7 +355,7 @@ async function getMonthlyCategoryTotals(year: number): Promise<MonthlyCategoryTo
       uc.type as upper_category_type,
       sc.name as sub_category,
       CAST(strftime('%m', t.date) AS INTEGER) as month_num,
-      COALESCE(SUM(ABS(t.amount)), 0) as amount
+      COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE -t.amount END), 0) as amount
     FROM "transaction" t
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id

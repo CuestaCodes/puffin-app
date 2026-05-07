@@ -7,45 +7,29 @@ import {
 describe('budget-status', () => {
   describe('BUDGET_THRESHOLDS', () => {
     it('has correct threshold values', () => {
-      expect(BUDGET_THRESHOLDS.WARNING).toBe(80);
       expect(BUDGET_THRESHOLDS.OVER).toBe(105);
     });
   });
 
   describe('getBudgetStatus', () => {
-    it('returns "under" for percentage <= 80%', () => {
+    it('returns "under" for percentage <= 105%', () => {
       expect(getBudgetStatus(0)).toBe('under');
       expect(getBudgetStatus(50)).toBe('under');
       expect(getBudgetStatus(80)).toBe('under');
-    });
-
-    it('returns "warning" for percentage > 80% and <= 105%', () => {
-      expect(getBudgetStatus(80.1)).toBe('warning');
-      expect(getBudgetStatus(95)).toBe('warning');
-      expect(getBudgetStatus(100)).toBe('warning');
-      expect(getBudgetStatus(102)).toBe('warning');
-      expect(getBudgetStatus(105)).toBe('warning');
+      expect(getBudgetStatus(100)).toBe('under');
+      expect(getBudgetStatus(105)).toBe('under');
     });
 
     it('returns "over" for percentage > 105%', () => {
-      expect(getBudgetStatus(105.1)).toBe('over');
+      expect(getBudgetStatus(105.01)).toBe('over');
       expect(getBudgetStatus(110)).toBe('over');
       expect(getBudgetStatus(150)).toBe('over');
       expect(getBudgetStatus(200)).toBe('over');
     });
 
-    it('handles edge cases', () => {
-      // Negative percentage (refunds)
+    it('handles negative percentages (refunds) as "under"', () => {
       expect(getBudgetStatus(-10)).toBe('under');
-
-      // Exactly at thresholds
-      expect(getBudgetStatus(80)).toBe('under');
-      expect(getBudgetStatus(105)).toBe('warning');
-
-      // Just above thresholds
-      expect(getBudgetStatus(80.01)).toBe('warning');
-      expect(getBudgetStatus(105.01)).toBe('over');
+      expect(getBudgetStatus(-100)).toBe('under');
     });
   });
-
 });

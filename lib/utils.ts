@@ -24,22 +24,19 @@ export function formatDateYMD(year: number, month: number, day: number): string 
 
 /**
  * Calculate total spend from category breakdown.
- * Total spend includes expenses, bills, debt, sinking funds, AND savings
- * (all money allocated from income).
+ * Excludes savings: savings represents money set aside, not money spent.
  */
 export function calculateTotalSpend(breakdown: {
   expenses: number;
   bills: number;
   debt: number;
   sinking: number;
-  savings: number;
 }): number {
   return (
     (breakdown.expenses || 0) +
     (breakdown.bills || 0) +
     (breakdown.debt || 0) +
-    (breakdown.sinking || 0) +
-    (breakdown.savings || 0)
+    (breakdown.sinking || 0)
   );
 }
 

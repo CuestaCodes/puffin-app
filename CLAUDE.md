@@ -173,17 +173,21 @@ DELETE FROM note;
 ## Commands
 
 ```bash
-npm run dev          # Dev server
+npm run dev          # Browser dev server (web preview only — not the shipping target)
 npm run test         # Vitest
 npm run lint         # ESLint
-npm run tauri:dev    # Tauri with devtools
+npm run tauri:dev    # Tauri desktop dev with devtools — USE THIS for verification
 npm run tauri:build  # Build .exe (run from Windows PowerShell)
 npm run build:static # Static export (moves API routes temporarily)
 ```
 
+**Shipping target is the Windows desktop app (Tauri).** When verifying changes, the user should run `npm run tauri:dev` (opens the actual app window), not `npm run dev` (which only opens a browser and runs the Next.js code path, not the Tauri service-layer/handlers code path). Browser dev is fine for quick UI tweaks but won't exercise the Tauri DB handlers or capabilities.
+
 **Static Build:** If API routes missing, run `git restore app/api/`.
 
 **WSL:** Run `npm ci` on target platform before building (native modules are platform-specific).
+
+**Dev server (for Claude):** This repo's `node_modules` is normally installed on Windows, so `npm run dev` and `npm run tauri:dev` will fail under WSL with native-module errors (`lightningcss`, `better-sqlite3`). Do NOT run any dev command or `npm ci` from WSL — instead, ask the user to start `npm run tauri:dev` (preferred) or `npm run dev` from Windows PowerShell themselves and report back. Code edits, `npm run lint`, and Vitest tests that don't load native modules can still be run from WSL.
 
 ### Slash Commands
 | Command | Purpose |
