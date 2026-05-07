@@ -4,6 +4,11 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Duplicate-transaction button next to Edit/Delete on each transaction row. Opens the transaction form pre-filled with the source row's date, description, amount, category, and source — review and save to create a copy.
+- Date pickers throughout the app now open on the currently-selected date instead of always on today.
+- Currency amounts in the Monthly Budget view are now selectable so they can be copied to the clipboard (group totals, sub-category amounts, and "spent" sub-text on unbudgeted rows).
+
 ### Fixed
 - Drag-and-drop of CSV files onto the import drop zone now works in the Windows desktop app (Tauri was intercepting OS-level drops before they reached the page).
 - Manually ticking a flagged duplicate in the import preview now actually imports it; the override checkbox was being ignored.

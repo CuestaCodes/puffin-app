@@ -76,6 +76,28 @@ function CalendarCaptionLabel(props: React.HTMLAttributes<HTMLSpanElement>) {
   )
 }
 
+/**
+ * Derive a sensible `defaultMonth` from the `selected` value so that opening a
+ * calendar with a stored date lands on that date's month, not today. Handles
+ * single-date, multiple-date, and date-range modes. Callers that pass an
+ * explicit `defaultMonth` override this.
+ *
+ * Takes `unknown` because react-day-picker types `selected` differently per
+ * mode (single/multiple/range), so the wrapper can't narrow it statically.
+ */
+function inferDefaultMonth(selected: unknown): Date | undefined {
+  if (!selected) return undefined
+  if (selected instanceof Date) return selected
+  if (Array.isArray(selected)) {
+    return selected.find((d): d is Date => d instanceof Date)
+  }
+  if (typeof selected === "object" && selected !== null && "from" in selected) {
+    const from = (selected as { from?: unknown }).from
+    if (from instanceof Date) return from
+  }
+  return undefined
+}
+
 function Calendar({
   className,
   classNames,
@@ -92,6 +114,7 @@ function Calendar({
 
   return (
     <DayPicker
+      defaultMonth={inferDefaultMonth((props as { selected?: unknown }).selected)}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",

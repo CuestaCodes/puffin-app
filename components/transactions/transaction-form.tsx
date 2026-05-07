@@ -31,6 +31,9 @@ interface TransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: TransactionWithCategory | null; // Null for new, populated for edit
+  // Pre-fill the form from this transaction but treat as a NEW record on save
+  // (POST, not PATCH). Ignored when `transaction` is set.
+  duplicateFrom?: TransactionWithCategory | null;
   onSuccess?: (transaction: TransactionWithCategory) => void;
   defaultDate?: string; // YYYY-MM-DD format for new transactions
 }
@@ -46,10 +49,12 @@ export function TransactionForm({
   open,
   onOpenChange,
   transaction,
+  duplicateFrom,
   onSuccess,
   defaultDate,
 }: TransactionFormProps) {
   const isEditing = !!transaction;
+  const isDuplicating = !transaction && !!duplicateFrom;
   
   // Form state
   const [date, setDate] = useState<Date>(new Date());
@@ -65,16 +70,17 @@ export function TransactionForm({
   const [errors, setErrors] = useState<FormErrors>({});
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // Populate form when editing
+  // Populate form when editing or duplicating; reset for plain "Add new"
   useEffect(() => {
-    if (transaction) {
-      setDate(new Date(transaction.date));
-      setDescription(transaction.description);
-      setAmount(Math.abs(transaction.amount).toFixed(2));
-      setIsExpense(transaction.amount < 0);
-      setNotes(transaction.notes || '');
-      setCategoryId(transaction.sub_category_id);
-      setSourceId(transaction.source_id);
+    const source = transaction ?? duplicateFrom;
+    if (source) {
+      setDate(new Date(source.date));
+      setDescription(source.description);
+      setAmount(Math.abs(source.amount).toFixed(2));
+      setIsExpense(source.amount < 0);
+      setNotes(source.notes || '');
+      setCategoryId(source.sub_category_id);
+      setSourceId(source.source_id);
     } else {
       // Reset for new transaction - use defaultDate if provided
       const initialDate = defaultDate ? new Date(defaultDate + 'T12:00:00') : new Date();
@@ -87,7 +93,7 @@ export function TransactionForm({
       setSourceId(null);
     }
     setErrors({});
-  }, [transaction, open, defaultDate]);
+  }, [transaction, duplicateFrom, open, defaultDate]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -171,11 +177,13 @@ export function TransactionForm({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="text-slate-100">
-              {isEditing ? 'Edit Transaction' : 'Add Transaction'}
+              {isEditing ? 'Edit Transaction' : isDuplicating ? 'Duplicate Transaction' : 'Add Transaction'}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
               {isEditing
                 ? 'Update the transaction details below.'
+                : isDuplicating
+                ? 'Review the copied details and save to create a new transaction.'
                 : 'Enter the details for your new transaction.'}
             </DialogDescription>
           </DialogHeader>
@@ -337,7 +345,7 @@ export function TransactionForm({
               className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500"
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEditing ? 'Save Changes' : 'Add Transaction'}
+              {isEditing ? 'Save Changes' : isDuplicating ? 'Save Copy' : 'Add Transaction'}
             </Button>
           </DialogFooter>
         </form>

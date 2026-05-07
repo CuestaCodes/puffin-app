@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Plus, Upload, Search, Filter, X, ChevronLeft, ChevronRight,
   Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2,
-  Sparkles, RotateCcw
+  Sparkles, RotateCcw, Copy
 } from 'lucide-react';
 import { ImportWizard, PasteImport } from '@/components/import';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -96,6 +96,7 @@ function TransactionsPageContent() {
   const [showImport, setShowImport] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
+  const [duplicatingTransaction, setDuplicatingTransaction] = useState<TransactionWithCategory | null>(null);
   const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
   const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
   const [creatingRuleFromTransaction, setCreatingRuleFromTransaction] = useState<TransactionWithCategory | null>(null);
@@ -216,11 +217,19 @@ function TransactionsPageContent() {
 
   const handleAddTransaction = () => {
     setEditingTransaction(null);
+    setDuplicatingTransaction(null);
     setShowTransactionForm(true);
   };
 
   const handleEditTransaction = (tx: TransactionWithCategory) => {
     setEditingTransaction(tx);
+    setDuplicatingTransaction(null);
+    setShowTransactionForm(true);
+  };
+
+  const handleDuplicateTransaction = (tx: TransactionWithCategory) => {
+    setEditingTransaction(null);
+    setDuplicatingTransaction(tx);
     setShowTransactionForm(true);
   };
 
@@ -672,6 +681,7 @@ function TransactionsPageContent() {
                                 className="text-slate-400 hover:text-violet-400"
                                 onClick={() => setCreatingRuleFromTransaction(tx)}
                                 title="Create auto-categorization rule"
+                                aria-label="Create auto-categorization rule"
                               >
                                 <Sparkles className="w-4 h-4" />
                               </Button>
@@ -683,6 +693,7 @@ function TransactionsPageContent() {
                                   className="text-violet-400 hover:text-violet-300"
                                   onClick={() => handleUnsplitTransaction(tx)}
                                   title="Unsplit transaction"
+                                  aria-label="Unsplit transaction"
                                 >
                                   <Undo2 className="w-4 h-4" />
                                 </Button>
@@ -693,6 +704,7 @@ function TransactionsPageContent() {
                                   className="text-slate-400 hover:text-violet-400"
                                   onClick={() => handleSplitTransaction(tx)}
                                   title="Split transaction"
+                                  aria-label="Split transaction"
                                 >
                                   <Split className="w-4 h-4" />
                                 </Button>
@@ -700,8 +712,20 @@ function TransactionsPageContent() {
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                className="text-slate-400 hover:text-cyan-400"
+                                onClick={() => handleDuplicateTransaction(tx)}
+                                title="Duplicate transaction"
+                                aria-label="Duplicate transaction"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 className="text-slate-400 hover:text-slate-200"
                                 onClick={() => handleEditTransaction(tx)}
+                                title="Edit transaction"
+                                aria-label="Edit transaction"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </Button>
@@ -710,6 +734,8 @@ function TransactionsPageContent() {
                                 size="icon-sm"
                                 className="text-slate-400 hover:text-red-400"
                                 onClick={() => handleDeleteTransaction(tx)}
+                                title="Delete transaction"
+                                aria-label="Delete transaction"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -805,8 +831,17 @@ function TransactionsPageContent() {
       {/* Transaction Form Modal */}
       <TransactionForm
         open={showTransactionForm}
-        onOpenChange={setShowTransactionForm}
+        onOpenChange={(open) => {
+          setShowTransactionForm(open);
+          if (!open) {
+            // Clear edit/duplicate context when the dialog closes so the next
+            // "Add" click starts from a clean slate.
+            setEditingTransaction(null);
+            setDuplicatingTransaction(null);
+          }
+        }}
         transaction={editingTransaction}
+        duplicateFrom={duplicatingTransaction}
         onSuccess={handleTransactionSaved}
       />
 
