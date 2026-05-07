@@ -9,8 +9,24 @@ import { useTauri } from '@/components/tauri-provider';
 
 type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
 
+/**
+ * Land directly on the Sync sub-view when arriving via the Reconnect modal
+ * (which sets `puffin_action_reauth` in sessionStorage before navigating).
+ * Don't clear the flag here — SyncManagement consumes it once it mounts to
+ * fire the OAuth flow automatically.
+ */
+function getInitialSettingsView(): SettingsView {
+  if (typeof window === 'undefined') return 'main';
+  try {
+    if (sessionStorage.getItem('puffin_action_reauth') === '1') return 'sync';
+  } catch {
+    // ignore
+  }
+  return 'main';
+}
+
 export function SettingsPage() {
-  const [currentView, setCurrentView] = useState<SettingsView>('main');
+  const [currentView, setCurrentView] = useState<SettingsView>(getInitialSettingsView);
   const { isTauri, appVersion } = useTauri();
 
   // Render the category management page

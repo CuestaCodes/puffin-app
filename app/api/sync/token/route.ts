@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient } from '@/lib/sync/oauth';
+import { getAuthenticatedClient, OAuthRefreshFailedError } from '@/lib/sync/oauth';
 import { checkRateLimit, recordAttempt, getClientIp } from '@/lib/auth/rate-limit';
 
 // Rate limit config: 30 requests per minute, 5-minute lockout
@@ -105,7 +105,19 @@ export async function GET(request: NextRequest) {
     // Record the attempt (for rate limiting)
     recordAttempt(rateLimitKey);
 
-    const client = await getAuthenticatedClient();
+    let client;
+    try {
+      client = await getAuthenticatedClient();
+    } catch (err) {
+      if (err instanceof OAuthRefreshFailedError) {
+        logTokenAccess(clientIp, false, 'refresh failed (invalid_grant)');
+        return NextResponse.json(
+          { error: 'Google rejected the refresh token. Please reconnect Google Drive.', errorCode: 'REFRESH_FAILED' },
+          { status: 401 }
+        );
+      }
+      throw err;
+    }
 
     if (!client) {
       logTokenAccess(clientIp, false, 'not authenticated');

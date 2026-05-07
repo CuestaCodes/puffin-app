@@ -72,7 +72,7 @@ export interface FolderValidationResult {
   folderId?: string;
   folderName?: string;
   error?: string;
-  errorCode?: 'NOT_FOUND' | 'NO_ACCESS' | 'READ_ONLY' | 'INVALID_URL' | 'AUTH_REQUIRED';
+  errorCode?: 'NOT_FOUND' | 'NO_ACCESS' | 'READ_ONLY' | 'INVALID_URL' | 'AUTH_REQUIRED' | 'REFRESH_FAILED';
 }
 
 export interface OAuthTokens {

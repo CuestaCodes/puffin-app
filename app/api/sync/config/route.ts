@@ -24,6 +24,10 @@ export async function GET() {
       isAuthenticated: hasTokens,
       oauthConfigured,
       hasExtendedScope: hasExtended,
+      // Whether the local DB hash differs from the last-synced hash. Used by
+      // the Tauri close handler to suppress the sync prompt when nothing has
+      // changed locally. Returns false when never synced (no baseline to diff against).
+      hasLocalChanges: SyncConfigManager.hasLocalChanges(),
       // Debug info - stored scope (truncated for display)
       _debug_scope: storedScope ? storedScope.substring(0, 100) + (storedScope.length > 100 ? '...' : '') : null,
     });

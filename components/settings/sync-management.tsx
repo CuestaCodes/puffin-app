@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -166,6 +166,30 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   const handleAuthenticate = async () => {
     await startOAuthFlow('standard');
   };
+
+  // Auto-trigger Sign in with Google when arriving here via the Reconnect modal.
+  // The modal sets sessionStorage 'puffin_action_reauth' before navigating;
+  // we fire OAuth once config is loaded (so credentials are available) and
+  // never refire even if config refetches.
+  const reauthFiredRef = useRef(false);
+  useEffect(() => {
+    if (isLoading || reauthFiredRef.current) return;
+    let shouldFire = false;
+    try {
+      shouldFire = sessionStorage.getItem('puffin_action_reauth') === '1';
+      if (shouldFire) sessionStorage.removeItem('puffin_action_reauth');
+    } catch {
+      return;
+    }
+    if (shouldFire) {
+      reauthFiredRef.current = true;
+      handleAuthenticate();
+    }
+    // Intentionally omit `handleAuthenticate` from deps: it's redefined every
+    // render (not memoised), so listing it would re-fire this effect on each
+    // render. The reauthFiredRef guard ensures OAuth only fires once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   // Start OAuth flow - handles both Tauri and dev modes
   const startOAuthFlow = async (scopeLevel: 'standard' | 'extended') => {

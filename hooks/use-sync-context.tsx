@@ -25,7 +25,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       if (result.data) {
         setSyncStatus(result.data);
       } else {
-        console.error('Sync check failed:', result.error);
+        // REFRESH_FAILED is surfaced separately via the Reconnect modal —
+        // skip the noisy log on every poll while tokens are bad.
+        if (result.errorCode !== 'REFRESH_FAILED') {
+          console.error('Sync check failed:', result.error);
+        }
         setSyncStatus(null);
       }
     } catch (error) {

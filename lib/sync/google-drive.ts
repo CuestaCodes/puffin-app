@@ -6,7 +6,7 @@
 import { google, drive_v3 } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
-import { getAuthenticatedClient } from './oauth';
+import { getAuthenticatedClient, OAuthRefreshFailedError } from './oauth';
 import { SyncConfigManager } from './config';
 import type { FolderValidationResult } from '@/types/sync';
 
@@ -86,17 +86,37 @@ async function withRetry<T>(
  */
 export class GoogleDriveService {
   private drive: drive_v3.Drive | null = null;
+  // Set to true when initialize() failed because the OAuth refresh token was
+  // permanently rejected. Methods can surface this via errorCode 'REFRESH_FAILED'
+  // so the UI can prompt the user to reconnect.
+  private refreshFailed = false;
 
   /**
    * Initialize the Drive service with authenticated client
    */
   async initialize(): Promise<boolean> {
-    const client = await getAuthenticatedClient();
-    if (!client) {
-      return false;
+    try {
+      const client = await getAuthenticatedClient();
+      if (!client) {
+        return false;
+      }
+      this.drive = google.drive({ version: 'v3', auth: client });
+      return true;
+    } catch (err) {
+      if (err instanceof OAuthRefreshFailedError) {
+        this.refreshFailed = true;
+        return false;
+      }
+      throw err;
     }
-    this.drive = google.drive({ version: 'v3', auth: client });
-    return true;
+  }
+
+  /**
+   * Returns true if the most recent initialize() failed because the refresh
+   * token was rejected (vs. transient errors / no tokens stored).
+   */
+  hasRefreshFailed(): boolean {
+    return this.refreshFailed;
   }
 
   /**
@@ -106,11 +126,17 @@ export class GoogleDriveService {
     if (!this.drive) {
       const initialized = await this.initialize();
       if (!initialized) {
-        return { 
-          success: false, 
-          error: 'Not authenticated with Google', 
-          errorCode: 'AUTH_REQUIRED' 
-        };
+        return this.refreshFailed
+          ? {
+              success: false,
+              error: 'Google rejected the refresh token. Please reconnect Google Drive.',
+              errorCode: 'REFRESH_FAILED',
+            }
+          : {
+              success: false,
+              error: 'Not authenticated with Google',
+              errorCode: 'AUTH_REQUIRED',
+            };
       }
     }
 

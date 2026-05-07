@@ -6,6 +6,8 @@
  * These handlers only provide status checks and configuration.
  */
 
+import { OAuthRefreshFailedError } from '@/lib/sync/errors';
+
 interface HandlerContext {
   method: string;
   body?: unknown;
@@ -103,7 +105,7 @@ export async function handleSyncConfig(ctx: HandlerContext): Promise<unknown> {
 /**
  * Get sync config status.
  */
-async function getSyncConfigStatus(): Promise<SyncConfig & { isAuthenticated: boolean; oauthConfigured: boolean; hasExtendedScope: boolean }> {
+async function getSyncConfigStatus(): Promise<SyncConfig & { isAuthenticated: boolean; oauthConfigured: boolean; hasExtendedScope: boolean; hasLocalChanges: boolean }> {
   const config = getSyncConfig();
 
   // In Tauri mode, OAuth state is also stored locally
@@ -111,11 +113,27 @@ async function getSyncConfigStatus(): Promise<SyncConfig & { isAuthenticated: bo
   const isAuthenticated = !!localStorage.getItem(OAUTH_AUTHENTICATED_KEY);
   const hasExtendedScope = !!localStorage.getItem(OAUTH_EXTENDED_SCOPE_KEY);
 
+  // Whether the local DB hash differs from the last-synced hash. Returns
+  // false when never synced (no baseline). Used by the close handler to
+  // suppress the sync prompt when nothing has changed locally. Mirrors
+  // SyncConfigManager.hasLocalChanges() in lib/sync/config.ts (Next.js mode).
+  let hasLocalChanges = false;
+  if (config.syncedDbHash) {
+    try {
+      hasLocalChanges = await detectLocalChanges(config);
+    } catch (err) {
+      console.error('Failed to detect local changes for config status:', err);
+      // On error, assume changes exist so we don't suppress the prompt incorrectly
+      hasLocalChanges = true;
+    }
+  }
+
   return {
     ...config,
     isAuthenticated,
     oauthConfigured,
     hasExtendedScope,
+    hasLocalChanges,
   };
 }
 
@@ -186,6 +204,14 @@ export async function handleSyncCheck(ctx: HandlerContext): Promise<unknown> {
   // Get valid access token (refreshes if expired)
   const tokenResult = await getValidAccessToken();
   if ('error' in tokenResult) {
+    // If the refresh token was rejected, throw with errorCode so the UI
+    // surfaces the Reconnect Google Drive modal. Otherwise degrade gracefully
+    // (sync check is non-blocking; user can keep editing).
+    if (tokenResult.errorCode === 'REFRESH_FAILED') {
+      const err = new Error(tokenResult.error);
+      (err as Error & { errorCode?: string }).errorCode = 'REFRESH_FAILED';
+      throw err;
+    }
     return {
       syncRequired: false,
       reason: 'check_failed',
@@ -416,7 +442,11 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
   // Get valid access token (refreshes if expired)
   const tokenResult = await getValidAccessToken();
   if ('error' in tokenResult) {
-    throw new Error(tokenResult.error);
+    const err = new Error(tokenResult.error);
+    if (tokenResult.errorCode) {
+      (err as Error & { errorCode?: string }).errorCode = tokenResult.errorCode;
+    }
+    throw err;
   }
   const accessToken = tokenResult.token;
 
@@ -762,7 +792,11 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
   // Get valid access token (refreshes if expired)
   const tokenResult = await getValidAccessToken();
   if ('error' in tokenResult) {
-    throw new Error(tokenResult.error);
+    const err = new Error(tokenResult.error);
+    if (tokenResult.errorCode) {
+      (err as Error & { errorCode?: string }).errorCode = tokenResult.errorCode;
+    }
+    throw err;
   }
   const accessToken = tokenResult.token;
 
@@ -921,6 +955,7 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
 /**
  * Refresh an expired access token using the refresh token.
  * Google does NOT return a new refresh_token - keep using the original one.
+ * Throws OAuthRefreshFailedError specifically when invalid_grant is returned.
  */
 async function refreshAccessToken(
   refreshToken: string,
@@ -939,6 +974,11 @@ async function refreshAccessToken(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    if (error.error === 'invalid_grant') {
+      throw new OAuthRefreshFailedError(
+        error.error_description || 'Refresh token rejected by Google (invalid_grant)'
+      );
+    }
     throw new Error(error.error_description || 'Failed to refresh token');
   }
 
@@ -948,8 +988,10 @@ async function refreshAccessToken(
 /**
  * Get a valid access token, refreshing if expired.
  * Returns null if not authenticated or refresh fails.
+ * On invalid_grant (refresh token rejected), the error result includes
+ * `errorCode: 'REFRESH_FAILED'` so the UI can prompt for reconnect.
  */
-async function getValidAccessToken(): Promise<{ token: string } | { error: string }> {
+async function getValidAccessToken(): Promise<{ token: string } | { error: string; errorCode?: string }> {
   const stored = localStorage.getItem('puffin_oauth_tokens');
   if (!stored) {
     return { error: 'Not authenticated with Google. Sign in to check sync status.' };
@@ -1003,6 +1045,14 @@ async function getValidAccessToken(): Promise<{ token: string } | { error: strin
 
       return { token: refreshed.access_token };
     } catch (e) {
+      if (e instanceof OAuthRefreshFailedError) {
+        // Expected state — handled by the Reconnect modal. Don't console.error
+        // (sync polls every minute; would spam the console).
+        return {
+          error: 'Google rejected the refresh token. Please reconnect Google Drive.',
+          errorCode: 'REFRESH_FAILED',
+        };
+      }
       console.error('Token refresh failed:', e);
       return { error: 'Failed to refresh access token. Please sign in again.' };
     }
@@ -1025,7 +1075,12 @@ export async function handleSyncToken(ctx: HandlerContext): Promise<unknown> {
 
   const tokenResult = await getValidAccessToken();
   if ('error' in tokenResult) {
-    throw new Error(tokenResult.error);
+    const err = new Error(tokenResult.error);
+    if (tokenResult.errorCode) {
+      // Attach so the api client can surface it to the UI (e.g. REFRESH_FAILED).
+      (err as Error & { errorCode?: string }).errorCode = tokenResult.errorCode;
+    }
+    throw err;
   }
 
   return { accessToken: tokenResult.token };

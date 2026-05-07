@@ -25,6 +25,9 @@ export function isTauriContext(): boolean {
 export interface ApiResponse<T> {
   data?: T;
   error?: string;
+  // Application-level error code (e.g. 'REFRESH_FAILED', 'AUTH_REQUIRED').
+  // Surfaces from server response body or from a thrown error's `errorCode` property.
+  errorCode?: string;
   status: number;
 }
 
@@ -34,6 +37,19 @@ export interface ApiResponse<T> {
  * In Tauri mode, this uses the Tauri database service.
  * In dev mode, this uses fetch() to API routes.
  */
+/**
+ * Custom event name dispatched on `window` whenever an API call surfaces
+ * `errorCode: 'REFRESH_FAILED'`. The Reconnect modal listens for this and
+ * prompts the user without per-call wiring.
+ */
+export const OAUTH_REFRESH_FAILED_EVENT = 'puffin:oauth-refresh-failed';
+
+function notifyIfRefreshFailed(response: ApiResponse<unknown>): void {
+  if (response.errorCode === 'REFRESH_FAILED' && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(OAUTH_REFRESH_FAILED_EVENT));
+  }
+}
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -42,7 +58,9 @@ export async function apiRequest<T>(
 
   // In Tauri mode, route to Tauri handlers
   if (isTauri) {
-    return handleTauriRequest<T>(endpoint, options);
+    const result = await handleTauriRequest<T>(endpoint, options);
+    notifyIfRefreshFailed(result);
+    return result;
   }
 
   // In dev mode, use fetch
@@ -57,10 +75,13 @@ export async function apiRequest<T>(
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
-      return {
+      const result: ApiResponse<T> = {
         error: error.error || error.message || 'Request failed',
+        errorCode: error.errorCode,
         status: response.status,
       };
+      notifyIfRefreshFailed(result);
+      return result;
     }
 
     const data = await response.json();
@@ -140,9 +161,21 @@ async function handleTauriRequest<T>(
     } else {
       errorMessage = `Handler error: ${JSON.stringify(error)}`;
     }
-    console.error(`API handler error for ${path}:`, error);
+    // Pull errorCode off the thrown value if present (handlers can attach it
+    // via `Object.assign(new Error(msg), { errorCode })` to surface a typed code).
+    const errorCode =
+      error && typeof error === 'object' && 'errorCode' in error
+        ? String((error as { errorCode: unknown }).errorCode)
+        : undefined;
+    // REFRESH_FAILED is an expected, handled state surfaced via the Reconnect
+    // modal. Don't console.error — sync polls every minute and would otherwise
+    // spam the dev console / error overlay.
+    if (errorCode !== 'REFRESH_FAILED') {
+      console.error(`API handler error for ${path}:`, error);
+    }
     return {
       error: errorMessage,
+      errorCode,
       status: 500,
     };
   }

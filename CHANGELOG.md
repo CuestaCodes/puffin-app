@@ -8,6 +8,9 @@ All notable changes to Puffin will be documented in this file.
 - Duplicate-transaction button next to Edit/Delete on each transaction row. Opens the transaction form pre-filled with the source row's date, description, amount, category, and source — review and save to create a copy.
 - Date pickers throughout the app now open on the currently-selected date instead of always on today.
 - Currency amounts in the Monthly Budget view are now selectable so they can be copied to the clipboard (group totals, sub-category amounts, and "spent" sub-text on unbudgeted rows).
+- Spending Trends chart on the Dashboard: hover any legend item to dim the other lines and isolate that trend; click to pin the highlight (click again to unpin).
+- "Current: $X" quick-fill in the inline budget editor — sets the budget to this month's actual spend with one click. Sits alongside the existing 3mo/6mo averages and carry-over.
+- Reconnect Google Drive flow: when an OAuth refresh token expires (Google's 7-day window for apps in Testing publishing status), a modal now offers a one-click path to re-sign in. The Sync Settings page auto-fires the Sign in with Google flow on arrival from the modal — no need to disconnect first or re-enter credentials.
 
 ### Fixed
 - Drag-and-drop of CSV files onto the import drop zone now works in the Windows desktop app (Tauri was intercepting OS-level drops before they reached the page).
@@ -17,6 +20,9 @@ All notable changes to Puffin will be documented in this file.
 - Dashboard: "Total Spent" tile, "Savings" tile, Spending Trends graph, both pie charts, and the Monthly Category Totals table no longer inflate when refunds or savings withdrawals are present — refunds correctly reduce the totals.
 - Pie charts now omit categories whose net is a credit for the period (e.g. refund-only) instead of showing them as positive slices.
 - Empty budget rows now display as `$0.00` instead of `-$0.00`.
+- Sync prompt on app close is now suppressed when there are no local changes since the last sync (was previously shown on every close).
+- Dashboard pie chart labels no longer briefly disappear when interacting with the Spending Trends legend (legend hover state was triggering a re-render of unrelated charts).
+- Eliminated a "setState during render" warning on initial app load that came from URL-cleanup happening inside a `useState` initializer.
 
 ### Changed
 - Monthly Budget progress bars are now two-tiered: red above 105% of budget, normal (emerald/cyan) below. The amber 80–105% tier has been removed.

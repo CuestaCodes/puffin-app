@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { SyncBeforeCloseModal } from './sync-before-close-modal';
+import { ReconnectDialog } from './sync/reconnect-dialog';
 
 interface TauriContextValue {
   isTauri: boolean;
@@ -47,14 +48,35 @@ function isNewerVersion(latest: string, current: string): boolean {
   return false;
 }
 
-// Check if sync is configured
-async function checkSyncConfigured(): Promise<boolean> {
+// Check sync state for the close-prompt decision.
+// Returns whether sync is configured AND whether the prompt should appear.
+// Prompt is shown when:
+//   - configured AND never synced (encourage first sync)
+//   - configured AND synced AND local DB has changed since last sync
+// Suppressed when:
+//   - not configured
+//   - configured AND synced AND no local changes (the new behaviour)
+async function checkClosePromptNeeded(): Promise<{ isConfigured: boolean; shouldPrompt: boolean }> {
   try {
     const { apiRequest } = await import('@/lib/services/api-client');
-    const response = await apiRequest<{ isConfigured: boolean }>('/api/sync/config');
-    return response.data?.isConfigured ?? false;
+    const response = await apiRequest<{
+      isConfigured: boolean;
+      syncedDbHash: string | null;
+      hasLocalChanges: boolean;
+    }>('/api/sync/config');
+    const data = response.data;
+    if (!data?.isConfigured) {
+      return { isConfigured: false, shouldPrompt: false };
+    }
+    // Never synced before → prompt so user can do first sync.
+    if (data.syncedDbHash === null || data.syncedDbHash === undefined) {
+      return { isConfigured: true, shouldPrompt: true };
+    }
+    return { isConfigured: true, shouldPrompt: data.hasLocalChanges };
   } catch {
-    return false;
+    // If the check fails (e.g. backend hiccup), fall back to the safer
+    // behaviour of showing the prompt rather than silently closing.
+    return { isConfigured: true, shouldPrompt: true };
   }
 }
 
@@ -163,6 +185,8 @@ export function TauriProvider({ children }: TauriProviderProps) {
           onCancel={handleCancelClose}
         />
       )}
+      {/* Mounted globally so any sync API call surfacing REFRESH_FAILED triggers it. */}
+      <ReconnectDialog />
     </TauriContext.Provider>
   );
 }
@@ -183,9 +207,9 @@ async function setupWindowCloseHandler(
         return;
       }
 
-      const isSyncConfigured = await checkSyncConfigured();
+      const { shouldPrompt } = await checkClosePromptNeeded();
 
-      if (isSyncConfigured) {
+      if (shouldPrompt) {
         event.preventDefault();
         setShowSyncModal(true);
         setPendingClose(true);

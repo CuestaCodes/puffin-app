@@ -18,6 +18,9 @@ interface InlineBudgetEditorProps {
   average3mo?: number;
   average6mo?: number;
   carryOver?: number;
+  // Net spend for the current month in this category — used for a "match what
+  // I'm already spending" quick-fill. Only displayed when > 0.
+  currentSpend?: number;
   className?: string;
 }
 
@@ -33,6 +36,7 @@ export function InlineBudgetEditor({
   average3mo = 0,
   average6mo = 0,
   carryOver = 0,
+  currentSpend = 0,
   className,
 }: InlineBudgetEditorProps) {
   const [amount, setAmount] = useState<string>(currentAmount?.toFixed(2) || '');
@@ -75,7 +79,7 @@ export function InlineBudgetEditor({
     }).format(value);
   };
 
-  const hasHints = average3mo > 0 || average6mo > 0 || carryOver > 0;
+  const hasHints = average3mo > 0 || average6mo > 0 || carryOver > 0 || currentSpend > 0;
 
   return (
     <div className={cn('space-y-2', className)}>
@@ -124,6 +128,16 @@ export function InlineBudgetEditor({
             >
               <TrendingUp className="w-3 h-3" />
               <span>Carry-over: {formatCurrency(carryOver)}</span>
+            </button>
+          )}
+          {currentSpend > 0 && (
+            <button
+              onClick={() => setAmount(currentSpend.toFixed(2))}
+              className="flex items-center gap-1 hover:text-cyan-400 transition-colors"
+              title="Match this month's actual spend"
+            >
+              <Info className="w-3 h-3" />
+              <span>Current: {formatCurrency(currentSpend)}</span>
             </button>
           )}
           {average3mo > 0 && (

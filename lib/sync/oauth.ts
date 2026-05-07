@@ -5,6 +5,11 @@
 
 import { google } from 'googleapis';
 import { SyncConfigManager } from './config';
+import { OAuthRefreshFailedError } from './errors';
+
+// Re-export so existing importers (e.g. app/api/sync/token/route.ts,
+// lib/sync/google-drive.ts) continue to work without churn.
+export { OAuthRefreshFailedError };
 
 // Redirect URI - can be overridden via environment
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/api/sync/oauth/callback';
@@ -66,8 +71,10 @@ export function getOAuth2Client() {
 }
 
 /**
- * Get the OAuth2 client with stored credentials
- * Returns null if no valid tokens are available
+ * Get the OAuth2 client with stored credentials.
+ * - Returns `null` for transient/recoverable problems (no tokens stored, network blip during refresh).
+ * - Throws `OAuthRefreshFailedError` when the refresh token is permanently invalid
+ *   so the UI can prompt the user to reconnect without wiping sync config.
  */
 export async function getAuthenticatedClient() {
   const tokens = SyncConfigManager.getTokens();
@@ -92,6 +99,17 @@ export async function getAuthenticatedClient() {
       client.setCredentials(credentials);
     } catch (error) {
       console.error('Failed to refresh token:', error);
+      // Distinguish "refresh token revoked / expired" (user must reconnect)
+      // from transient errors (network, server). googleapis surfaces invalid_grant
+      // in the error message and/or the response body.
+      const message = error instanceof Error ? error.message : String(error);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const responseError = (error as any)?.response?.data?.error;
+      if (message.includes('invalid_grant') || responseError === 'invalid_grant') {
+        throw new OAuthRefreshFailedError(
+          'Google rejected the refresh token (invalid_grant). User must reconnect.'
+        );
+      }
       return null;
     }
   }

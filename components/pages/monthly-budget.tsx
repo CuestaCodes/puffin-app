@@ -1075,6 +1075,7 @@ function MonthlyBudgetContent() {
                               average3mo={category.average_3mo}
                               average6mo={category.average_6mo}
                               carryOver={category.carry_over}
+                              currentSpend={category.actual_amount}
                             />
                           </div>
                         );

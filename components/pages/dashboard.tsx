@@ -252,91 +252,7 @@ export function Dashboard() {
             <CardTitle className="text-lg text-slate-100">Spending Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            {data?.trends && data.trends.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={data.trends}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis
-                    dataKey="monthLabel"
-                    stroke="#64748b"
-                    fontSize={12}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    stroke="#64748b"
-                    fontSize={12}
-                    tickLine={false}
-                    tickFormatter={formatYAxis}
-                  />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
-                        const total = payload.reduce((sum, entry) => sum + (entry.value as number || 0), 0);
-                        return (
-                          <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
-                            <p className="text-slate-100 font-medium mb-2">{label}</p>
-                            {payload.map((entry, index) => (
-                              <p key={index} style={{ color: entry.color }} className="text-sm">
-                                {entry.name}: {formatCurrency(entry.value as number)}
-                              </p>
-                            ))}
-                            <p className="text-slate-100 font-semibold mt-2 pt-2 border-t border-slate-600">
-                              Total: {formatCurrency(total)}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="expenses"
-                    name="Expenses"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    dot={{ fill: '#ef4444', strokeWidth: 2 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="bills"
-                    name="Bills"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    dot={{ fill: '#f59e0b', strokeWidth: 2 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="debt"
-                    name="Debt"
-                    stroke="#a855f7"
-                    strokeWidth={2}
-                    dot={{ fill: '#a855f7', strokeWidth: 2 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="savings"
-                    name="Savings"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ fill: '#10b981', strokeWidth: 2 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="sinking"
-                    name="Sinking Funds"
-                    stroke="#38bdf8"
-                    strokeWidth={2}
-                    dot={{ fill: '#38bdf8', strokeWidth: 2 }}
-                  />
-                  <Legend />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                <p>Import transactions to see trends</p>
-              </div>
-            )}
+            <SpendingTrendsChart trends={data?.trends ?? []} formatCurrency={formatCurrency} />
           </CardContent>
         </Card>
 
@@ -715,6 +631,122 @@ export function Dashboard() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Spending Trends chart, isolated so its hover/pin state doesn't trigger a
+ * re-render of the rest of the dashboard (which restarts the pie charts'
+ * entry animations and briefly hides their labels).
+ */
+interface SpendingTrendsChartProps {
+  trends: MonthlyTrend[];
+  formatCurrency: (amount: number) => string;
+}
+
+function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProps) {
+  // `pinnedSeries` survives mouseleave; `hoveredSeries` is transient. When
+  // neither is set, all lines render at full opacity.
+  const [pinnedSeries, setPinnedSeries] = useState<string | null>(null);
+  const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
+  const trendOpacity = useCallback((seriesName: string): number => {
+    if (pinnedSeries === null && hoveredSeries === null) return 1;
+    if (hoveredSeries === seriesName) return 1;
+    if (pinnedSeries === seriesName) return 1;
+    return 0.15;
+  }, [pinnedSeries, hoveredSeries]);
+
+  if (trends.length === 0) {
+    return (
+      <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
+        <p>Import transactions to see trends</p>
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={trends}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+        <XAxis dataKey="monthLabel" stroke="#64748b" fontSize={12} tickLine={false} />
+        <YAxis stroke="#64748b" fontSize={12} tickLine={false} tickFormatter={formatYAxis} />
+        <Tooltip
+          content={({ active, payload, label }) => {
+            if (active && payload && payload.length) {
+              const total = payload.reduce((sum, entry) => sum + (entry.value as number || 0), 0);
+              return (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+                  <p className="text-slate-100 font-medium mb-2">{label}</p>
+                  {payload.map((entry, index) => (
+                    <p key={index} style={{ color: entry.color }} className="text-sm">
+                      {entry.name}: {formatCurrency(entry.value as number)}
+                    </p>
+                  ))}
+                  <p className="text-slate-100 font-semibold mt-2 pt-2 border-t border-slate-600">
+                    Total: {formatCurrency(total)}
+                  </p>
+                </div>
+              );
+            }
+            return null;
+          }}
+        />
+        <Line
+          type="monotone"
+          dataKey="expenses"
+          name="Expenses"
+          stroke="#ef4444"
+          strokeWidth={2}
+          strokeOpacity={trendOpacity('Expenses')}
+          dot={{ fill: '#ef4444', strokeWidth: 2, opacity: trendOpacity('Expenses') }}
+        />
+        <Line
+          type="monotone"
+          dataKey="bills"
+          name="Bills"
+          stroke="#f59e0b"
+          strokeWidth={2}
+          strokeOpacity={trendOpacity('Bills')}
+          dot={{ fill: '#f59e0b', strokeWidth: 2, opacity: trendOpacity('Bills') }}
+        />
+        <Line
+          type="monotone"
+          dataKey="debt"
+          name="Debt"
+          stroke="#a855f7"
+          strokeWidth={2}
+          strokeOpacity={trendOpacity('Debt')}
+          dot={{ fill: '#a855f7', strokeWidth: 2, opacity: trendOpacity('Debt') }}
+        />
+        <Line
+          type="monotone"
+          dataKey="savings"
+          name="Savings"
+          stroke="#10b981"
+          strokeWidth={2}
+          strokeOpacity={trendOpacity('Savings')}
+          dot={{ fill: '#10b981', strokeWidth: 2, opacity: trendOpacity('Savings') }}
+        />
+        <Line
+          type="monotone"
+          dataKey="sinking"
+          name="Sinking Funds"
+          stroke="#38bdf8"
+          strokeWidth={2}
+          strokeOpacity={trendOpacity('Sinking Funds')}
+          dot={{ fill: '#38bdf8', strokeWidth: 2, opacity: trendOpacity('Sinking Funds') }}
+        />
+        <Legend
+          onMouseEnter={(o) => setHoveredSeries(typeof o.value === 'string' ? o.value : null)}
+          onMouseLeave={() => setHoveredSeries(null)}
+          onClick={(o) => {
+            const name = typeof o.value === 'string' ? o.value : null;
+            setPinnedSeries(prev => (prev === name ? null : name));
+          }}
+          wrapperStyle={{ cursor: 'pointer' }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
