@@ -80,3 +80,6 @@ data/test/
 # Simulated multi-computer data directories
 data-computer-a/
 data-computer-b/
+
+# Local lockfiles created by the Claude Code harness (.claude/commands/* stays tracked)
+.claude/*.lock
