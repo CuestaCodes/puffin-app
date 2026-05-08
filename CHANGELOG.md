@@ -2,7 +2,7 @@
 
 All notable changes to Puffin will be documented in this file.
 
-## [Unreleased]
+## [2.2.0] - 2026-05-08
 
 ### Added
 - Duplicate-transaction button next to Edit/Delete on each transaction row. Opens the transaction form pre-filled with the source row's date, description, amount, category, and source — review and save to create a copy.
