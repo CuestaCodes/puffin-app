@@ -94,7 +94,7 @@ export function getDashboardSummary(
     WHERE t.date >= ? AND t.date <= ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND (uc.type IS NULL OR uc.type != 'transfer')
+      AND (uc.type IS NULL OR (uc.type != 'transfer' AND uc.is_active = 1))
   `;
 
   const current = db.prepare(currentQuery).get(startDate, endDate) as {
@@ -178,7 +178,7 @@ export function getMonthlyTrendsByYear(year: number): MonthlyTrend[] {
       AND t.is_split = 0
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
-      AND (uc.type IS NULL OR uc.type != 'transfer')
+      AND (uc.type IS NULL OR (uc.type != 'transfer' AND uc.is_active = 1))
     GROUP BY m.month_num
     ORDER BY m.month_num ASC
   `;
@@ -235,6 +235,7 @@ export function getUpperCategoryBreakdown(startDate: string, _endDate: string): 
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
+      AND uc.is_active = 1
     GROUP BY uc.type
     HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
@@ -288,6 +289,7 @@ export function getExpenseBreakdown(startDate: string, _endDate: string): Catego
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
+      AND uc.is_active = 1
     GROUP BY sc.id
     HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
@@ -334,6 +336,7 @@ export function getIncomeBreakdown(startDate: string, endDate: string): Category
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type = 'income'
+      AND uc.is_active = 1
     GROUP BY sc.id
     HAVING amount > 0
     ORDER BY amount DESC
@@ -383,6 +386,7 @@ export function getMonthlyCategoryTotals(year: number): MonthlyCategoryTotal[] {
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type != 'transfer'
+      AND uc.is_active = 1
     GROUP BY uc.name, uc.type, sc.name, month_num
     ORDER BY
       CASE uc.type
@@ -458,7 +462,7 @@ export function getMonthlyIncomeTrendsBySubcategory(year: number): MonthlyIncome
       AND t.is_split = 0
     LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
     LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
-    WHERE (uc.type = 'income' AND sc.name IS NOT NULL) OR t.id IS NULL
+    WHERE (uc.type = 'income' AND uc.is_active = 1 AND sc.name IS NOT NULL) OR t.id IS NULL
     GROUP BY m.month_num, sc.name
     ORDER BY m.month_num ASC, amount DESC
   `;

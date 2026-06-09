@@ -41,7 +41,7 @@ tasks/         # Feature specification documents
 - **Negative** = Expense, **Positive** = Income
 
 ### Category System
-Two-tier: Upper Categories (fixed) → Sub-categories (user-defined). Transfer excluded from reports.
+Two-tier: Upper Categories (fixed types, toggleable) → Sub-categories (user-defined). Transfer excluded from reports. Upper categories have an `is_active` flag — inactive uppers and their subs are excluded from analytics, budgets, and CategorySelector. Deactivating uncategorizes all transactions under that upper; reactivating restores the category but does not re-assign transactions.
 
 ### Soft Delete
 Transactions and sub-categories use `is_deleted` flag. Always filter in JOINs:
@@ -93,6 +93,10 @@ return updateSubCategory(id, data);
 
 **API Client Methods:** `api.get()`, `api.post()`, `api.patch()`, `api.delete()` (not `api.del`).
 
+**Multi-step DB writes:** Wrap in a transaction to keep operations atomic.
+- Dev (better-sqlite3): `getDatabase().transaction(() => { ... })()`
+- Tauri: `await db.execute('BEGIN TRANSACTION')` / `COMMIT` / `ROLLBACK` in try/catch
+
 ### Database Connection
 - `getDatabase()` - Get connection
 - `closeDatabase()` - Close only
@@ -102,7 +106,12 @@ return updateSubCategory(id, data);
 Before reading/copying DB file: `db.pragma('wal_checkpoint(TRUNCATE)')`.
 
 ### Schema Migrations
-When adding migrations to `tauri-db.ts`, also update `CURRENT_SCHEMA_VERSION` constant.
+Three files must be updated for every schema change:
+1. `lib/db/schema.ts` — base schema for fresh installs
+2. `lib/db/index.ts` — dev-mode migration + bump `_CURRENT_SCHEMA_VERSION`
+3. `lib/services/tauri-db.ts` — Tauri migration + bump `CURRENT_SCHEMA_VERSION`
+
+All three must produce the same final schema.
 
 ## Data Models
 
@@ -227,6 +236,8 @@ Define in `lib/validations.ts`, import everywhere: `MAX_IMPORT_TRANSACTIONS = 50
 - Use shared helpers from `lib/db/test-utils.ts`
 
 **Vitest imports:** Always import all needed: `describe, it, expect, vi, beforeEach, afterEach`.
+
+**Test schemas:** `lib/db/*.test.ts` files define inline `TEST_SCHEMA` strings. When adding/changing columns, update these to match `lib/db/schema.ts`.
 
 ## Code Style
 

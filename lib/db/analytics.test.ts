@@ -33,6 +33,7 @@ const TEST_SCHEMA = `
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     sort_order INTEGER DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );

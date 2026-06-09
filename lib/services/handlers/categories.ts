@@ -67,7 +67,13 @@ export async function handleCategory(ctx: HandlerContext): Promise<unknown> {
       }
       const upperCategory = await getUpperCategoryById(id);
       if (upperCategory) {
-        return { category: upperCategory, type: 'upper' };
+        const countResult = await db.queryOne<{ count: number }>(
+          `SELECT COUNT(*) as count FROM "transaction" t
+           JOIN sub_category sc ON t.sub_category_id = sc.id
+           WHERE sc.upper_category_id = ? AND t.is_deleted = 0`,
+          [id]
+        );
+        return { category: upperCategory, type: 'upper', transactionCount: countResult?.count || 0 };
       }
       throw new Error('Category not found');
     }
@@ -76,12 +82,57 @@ export async function handleCategory(ctx: HandlerContext): Promise<unknown> {
       // Check if it's an upper category first
       const upperCategory = await getUpperCategoryById(id);
       if (upperCategory) {
-        const data = body as { name?: string };
-        if (!data.name) {
-          throw new Error('Name is required for upper category update');
+        const data = body as { name?: string; is_active?: boolean | 0 | 1 };
+        if (data.name === undefined && data.is_active === undefined) {
+          throw new Error('At least one field (name or is_active) is required');
         }
-        const updated = await updateUpperCategory(id, data.name);
-        return { category: updated, type: 'upper' };
+
+        const countResult = await db.queryOne<{ count: number }>(
+          `SELECT COUNT(*) as count FROM "transaction" t
+           JOIN sub_category sc ON t.sub_category_id = sc.id
+           WHERE sc.upper_category_id = ? AND t.is_deleted = 0`,
+          [id]
+        );
+        const transactionCount = countResult?.count || 0;
+        const deactivating = data.is_active === false || data.is_active === 0;
+        const now = new Date().toISOString();
+
+        const updates: string[] = [];
+        const params: unknown[] = [];
+        if (data.name !== undefined) {
+          updates.push('name = ?');
+          params.push(data.name);
+        }
+        if (data.is_active !== undefined) {
+          updates.push('is_active = ?');
+          params.push(data.is_active ? 1 : 0);
+        }
+        updates.push('updated_at = ?');
+        params.push(now);
+        params.push(id);
+
+        await db.execute('BEGIN TRANSACTION');
+        try {
+          if (deactivating) {
+            await db.execute(
+              `UPDATE "transaction" SET sub_category_id = NULL, updated_at = ?
+               WHERE sub_category_id IN (SELECT id FROM sub_category WHERE upper_category_id = ?)
+                 AND is_deleted = 0`,
+              [now, id]
+            );
+          }
+          await db.execute(
+            `UPDATE upper_category SET ${updates.join(', ')} WHERE id = ?`,
+            params
+          );
+          await db.execute('COMMIT');
+        } catch (e) {
+          await db.execute('ROLLBACK');
+          throw e;
+        }
+
+        const updated = await getUpperCategoryById(id);
+        return { category: updated, type: 'upper', transactionCount };
       }
       // Otherwise update sub-category
       return updateCategory(id, body as Partial<SubCategory>);
@@ -98,6 +149,7 @@ interface CategoryGroup {
   name: string;
   type: string;
   sort_order: number;
+  is_active: number;
   subCategories: SubCategory[];
 }
 
@@ -136,6 +188,7 @@ async function getCategories(params: Record<string, string>): Promise<{
     name: upper.name,
     type: upper.type,
     sort_order: upper.sort_order,
+    is_active: upper.is_active ?? 1,
     subCategories: subCategories.filter(sub => sub.upper_category_id === upper.id),
   }));
 
@@ -190,22 +243,6 @@ async function createCategory(data: { name: string; upper_category_id: string })
   const category = await getCategoryById(id);
   if (!category) {
     throw new Error('Failed to create category');
-  }
-  return category;
-}
-
-/**
- * Update an upper category name.
- */
-async function updateUpperCategory(id: string, name: string): Promise<UpperCategory> {
-  await db.execute(
-    'UPDATE upper_category SET name = ? WHERE id = ?',
-    [name, id]
-  );
-
-  const category = await getUpperCategoryById(id);
-  if (!category) {
-    throw new Error('Upper category not found');
   }
   return category;
 }

@@ -65,7 +65,7 @@ export function initializeDatabase(): void {
 }
 
 /** Current schema version - increment when adding new migrations */
-const _CURRENT_SCHEMA_VERSION = 4;
+const _CURRENT_SCHEMA_VERSION = 6;
 
 /**
  * Get the current schema version from the database
@@ -249,8 +249,31 @@ function runMigrations(database: Database.Database): void {
     setSchemaVersion(database, 4);
   }
 
-  // Future migrations go here:
-  // if (currentVersion < 5) { ... setSchemaVersion(database, 5); }
+  // Migration 5: Add note table
+  if (currentVersion < 5) {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS note (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT,
+        tags TEXT,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_note_deleted ON note(is_deleted)`);
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_note_updated ON note(updated_at)`);
+    setSchemaVersion(database, 5);
+  }
+
+  // Migration 6: Add is_active flag to upper_category
+  if (currentVersion < 6) {
+    database.exec(`
+      ALTER TABLE upper_category ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
+    `);
+    setSchemaVersion(database, 6);
+  }
 }
 
 /**

@@ -129,7 +129,7 @@ async function getDashboardSummary(
     WHERE t.date >= ? AND t.date <= ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND (uc.type IS NULL OR uc.type != 'transfer')
+      AND (uc.type IS NULL OR (uc.type != 'transfer' AND uc.is_active = 1))
   `;
 
   const current = await db.queryOne<{
@@ -212,7 +212,7 @@ async function getMonthlyTrendsByYear(year: number): Promise<MonthlyTrend[]> {
     WHERE strftime('%Y', t.date) = ?
       AND t.is_deleted = 0
       AND t.is_split = 0
-      AND (uc.type IS NULL OR uc.type != 'transfer')
+      AND (uc.type IS NULL OR (uc.type != 'transfer' AND uc.is_active = 1))
     GROUP BY month_num
     ORDER BY month_num
   `, [yearStr]);
@@ -272,6 +272,7 @@ async function getUpperCategoryBreakdown(year: number): Promise<UpperCategoryBre
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
+      AND uc.is_active = 1
     GROUP BY uc.type
     HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
@@ -320,6 +321,7 @@ async function getExpenseBreakdown(year: number): Promise<CategoryBreakdown[]> {
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type IN ('expense', 'bill', 'debt', 'sinking')
+      AND uc.is_active = 1
     GROUP BY sc.id
     HAVING SUM(t.amount) < 0
     ORDER BY amount DESC
@@ -363,6 +365,7 @@ async function getMonthlyCategoryTotals(year: number): Promise<MonthlyCategoryTo
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type != 'transfer'
+      AND uc.is_active = 1
     GROUP BY uc.name, uc.type, sc.name, month_num
     ORDER BY
       CASE uc.type
@@ -426,6 +429,7 @@ async function getMonthlyIncomeTrendsBySubcategory(year: number): Promise<Monthl
       AND t.is_deleted = 0
       AND t.is_split = 0
       AND uc.type = 'income'
+      AND uc.is_active = 1
     GROUP BY month_num, sc.name
     HAVING SUM(t.amount) > 0
     ORDER BY month_num ASC, amount DESC

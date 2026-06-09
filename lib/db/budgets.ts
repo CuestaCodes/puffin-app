@@ -160,6 +160,7 @@ export function initializeMonthlyBudgets(year: number, month: number): number {
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE sc.is_deleted = 0
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
       AND sc.id NOT IN (
         SELECT sub_category_id FROM budget WHERE year = ? AND month = ?
       )
@@ -203,6 +204,7 @@ export function createBudgetsFrom12MonthAverage(year: number, month: number): nu
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE sc.is_deleted = 0
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
   `).all() as Array<{ sub_category_id: string }>;
   
   if (categories.length === 0) {
@@ -344,6 +346,7 @@ export function getBudgetSummary(year: number, month: number): {
     LEFT JOIN "transaction" t ON t.sub_category_id = b.sub_category_id
     WHERE b.year = ? AND b.month = ?
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
     GROUP BY b.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `;
@@ -358,11 +361,12 @@ export function getBudgetSummary(year: number, month: number): {
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE uc.type = 'income'
+      AND uc.is_active = 1
       AND t.date >= ? AND t.date <= ?
       AND t.is_deleted = 0
       AND t.is_split = 0
   `;
-  
+
   const incomeResult = db.prepare(incomeQuery).get(startDate, endDate) as { total_income: number };
   const totalIncome = incomeResult.total_income || 0;
   
@@ -381,6 +385,7 @@ export function getBudgetSummary(year: number, month: number): {
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
     WHERE uc.type = 'income'
+      AND uc.is_active = 1
       AND sc.is_deleted = 0
     GROUP BY sc.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
@@ -408,6 +413,7 @@ export function getBudgetSummary(year: number, month: number): {
       AND t.is_split = 0
       AND sc.is_deleted = 0
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
   `;
   const spendResult = db.prepare(totalSpentQuery).get(startDate, endDate) as { total_spend: number };
   const rawSpend = spendResult.total_spend || 0;
@@ -548,6 +554,7 @@ export function getCategoriesForBudgetEntry(year: number, month: number): Array<
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
     WHERE sc.is_deleted = 0
+      AND uc.is_active = 1
     GROUP BY sc.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `).all(startDate, endDate) as Array<{

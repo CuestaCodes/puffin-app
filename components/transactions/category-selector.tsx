@@ -39,12 +39,13 @@ export function CategorySelector({
   const [search, setSearch] = useState('');
   const { categories, isLoading, error, refetch } = useCategories();
 
-  // Group sub-categories by upper category
+  // Group sub-categories by upper category, excluding inactive uppers
   const groupedCategories = useMemo(() => {
     if (!categories) return new Map<string, SubCategoryWithUpper[]>();
-    
+
     const grouped = new Map<string, SubCategoryWithUpper[]>();
     for (const upper of categories.upperCategories) {
+      if (!upper.is_active) continue;
       const subs = categories.subCategories.filter(
         sub => sub.upper_category_id === upper.id
       );

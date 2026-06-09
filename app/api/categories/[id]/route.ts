@@ -1,15 +1,17 @@
 // API routes for individual category operations
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
-import { initializeDatabase } from '@/lib/db';
-import { 
-  getSubCategoryById, 
+import { initializeDatabase, getDatabase } from '@/lib/db';
+import {
+  getSubCategoryById,
   getUpperCategoryById,
-  updateSubCategory, 
+  updateSubCategory,
   updateUpperCategory,
   deleteSubCategory,
   hasTransactions,
-  reassignTransactions
+  reassignTransactions,
+  countTransactionsByUpperCategory,
+  uncategorizeTransactionsByUpperCategory,
 } from '@/lib/db/categories';
 import { updateSubCategorySchema, updateUpperCategorySchema } from '@/lib/validations';
 
@@ -80,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const upperCategory = getUpperCategoryById(id);
     if (upperCategory) {
       const validation = updateUpperCategorySchema.safeParse(body);
-      
+
       if (!validation.success) {
         return NextResponse.json(
           { error: 'Validation failed', details: validation.error.flatten() },
@@ -88,8 +90,25 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         );
       }
 
-      const updated = updateUpperCategory(id, validation.data.name);
-      return NextResponse.json({ category: updated, type: 'upper' });
+      const transactionCount = countTransactionsByUpperCategory(id);
+      const deactivating = validation.data.is_active === false || validation.data.is_active === 0;
+
+      const db = getDatabase();
+      const doUpdate = db.transaction(() => {
+        if (deactivating) {
+          uncategorizeTransactionsByUpperCategory(id);
+        }
+        updateUpperCategory(id, {
+          name: validation.data.name,
+          is_active: validation.data.is_active !== undefined
+            ? Boolean(validation.data.is_active)
+            : undefined,
+        });
+      });
+      doUpdate();
+
+      const updated = getUpperCategoryById(id);
+      return NextResponse.json({ category: updated, type: 'upper', transactionCount });
     }
 
     return NextResponse.json(

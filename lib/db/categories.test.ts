@@ -20,6 +20,7 @@ const TEST_SCHEMA = `
     name TEXT NOT NULL,
     type TEXT NOT NULL,
     sort_order INTEGER DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -323,6 +324,117 @@ describe('Category Operations', () => {
       `).get() as { count: number };
       
       expect(uncategorized.count).toBe(2);
+    });
+  });
+
+  describe('Upper Category Deactivation', () => {
+    beforeEach(() => {
+      const now = new Date().toISOString();
+
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('sub-1', 'expense', 'Groceries', 1, 0, ?, ?)
+      `).run(now, now);
+
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('sub-2', 'expense', 'Transport', 2, 0, ?, ?)
+      `).run(now, now);
+
+      db.prepare(`
+        INSERT INTO sub_category (id, upper_category_id, name, sort_order, is_deleted, created_at, updated_at)
+        VALUES ('sub-3', 'income', 'Salary', 1, 0, ?, ?)
+      `).run(now, now);
+
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-1', '2025-01-15', 'Grocery Store', -50.00, 'sub-1', 0, 0, ?, ?)
+      `).run(now, now);
+
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-2', '2025-01-16', 'Bus Fare', -5.00, 'sub-2', 0, 0, ?, ?)
+      `).run(now, now);
+
+      db.prepare(`
+        INSERT INTO "transaction" (id, date, description, amount, sub_category_id, is_split, is_deleted, created_at, updated_at)
+        VALUES ('tx-3', '2025-01-20', 'Pay', 3000.00, 'sub-3', 0, 0, ?, ?)
+      `).run(now, now);
+    });
+
+    it('should deactivate an upper category', () => {
+      const now = new Date().toISOString();
+      db.prepare('UPDATE upper_category SET is_active = 0, updated_at = ? WHERE id = ?')
+        .run(now, 'expense');
+
+      const cat = db.prepare('SELECT is_active FROM upper_category WHERE id = ?')
+        .get('expense') as { is_active: number };
+      expect(cat.is_active).toBe(0);
+    });
+
+    it('should default is_active to 1 for new categories', () => {
+      const cat = db.prepare('SELECT is_active FROM upper_category WHERE id = ?')
+        .get('income') as { is_active: number };
+      expect(cat.is_active).toBe(1);
+    });
+
+    it('should uncategorize transactions when deactivating upper category', () => {
+      const now = new Date().toISOString();
+
+      // Uncategorize all transactions under 'expense'
+      db.prepare(`
+        UPDATE "transaction" SET sub_category_id = NULL, updated_at = ?
+        WHERE sub_category_id IN (SELECT id FROM sub_category WHERE upper_category_id = ?)
+          AND is_deleted = 0
+      `).run(now, 'expense');
+
+      db.prepare('UPDATE upper_category SET is_active = 0, updated_at = ? WHERE id = ?')
+        .run(now, 'expense');
+
+      // Expense transactions should be uncategorized
+      const uncategorized = db.prepare(`
+        SELECT COUNT(*) as count FROM "transaction" WHERE sub_category_id IS NULL
+      `).get() as { count: number };
+      expect(uncategorized.count).toBe(2);
+
+      // Income transaction should be unaffected
+      const income = db.prepare(`
+        SELECT sub_category_id FROM "transaction" WHERE id = 'tx-3'
+      `).get() as { sub_category_id: string | null };
+      expect(income.sub_category_id).toBe('sub-3');
+    });
+
+    it('should exclude inactive categories from analytics queries', () => {
+      const now = new Date().toISOString();
+      db.prepare('UPDATE upper_category SET is_active = 0, updated_at = ? WHERE id = ?')
+        .run(now, 'expense');
+
+      // Analytics query with is_active filter (mirrors getDashboardSummary)
+      const result = db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN uc.type = 'expense' THEN -t.amount ELSE 0 END), 0) as expenses,
+          COALESCE(SUM(CASE WHEN uc.type = 'income' THEN t.amount ELSE 0 END), 0) as income
+        FROM "transaction" t
+        LEFT JOIN sub_category sc ON t.sub_category_id = sc.id
+        LEFT JOIN upper_category uc ON sc.upper_category_id = uc.id
+        WHERE t.is_deleted = 0 AND t.is_split = 0
+          AND (uc.type IS NULL OR (uc.type != 'transfer' AND uc.is_active = 1))
+      `).get() as { expenses: number; income: number };
+
+      expect(result.expenses).toBe(0);
+      expect(result.income).toBe(3000);
+    });
+
+    it('should reactivate an upper category', () => {
+      const now = new Date().toISOString();
+      db.prepare('UPDATE upper_category SET is_active = 0, updated_at = ? WHERE id = ?')
+        .run(now, 'expense');
+      db.prepare('UPDATE upper_category SET is_active = 1, updated_at = ? WHERE id = ?')
+        .run(now, 'expense');
+
+      const cat = db.prepare('SELECT is_active FROM upper_category WHERE id = ?')
+        .get('expense') as { is_active: number };
+      expect(cat.is_active).toBe(1);
     });
   });
 

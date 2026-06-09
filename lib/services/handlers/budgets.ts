@@ -208,6 +208,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     LEFT JOIN "transaction" t ON t.sub_category_id = b.sub_category_id
     WHERE b.year = ? AND b.month = ?
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
     GROUP BY b.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `, [startDate, endDate, year, month]);
@@ -219,6 +220,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     JOIN sub_category sc ON t.sub_category_id = sc.id
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     WHERE uc.type = 'income'
+      AND uc.is_active = 1
       AND t.date >= ? AND t.date <= ?
       AND t.is_deleted = 0
       AND t.is_split = 0
@@ -245,6 +247,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
     WHERE uc.type = 'income'
+      AND uc.is_active = 1
       AND sc.is_deleted = 0
     GROUP BY sc.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
@@ -262,6 +265,7 @@ async function getBudgetSummary(year: number, month: number): Promise<unknown> {
       AND t.is_split = 0
       AND sc.is_deleted = 0
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
   `, [startDate, endDate]);
   const rawSpend = spendResult?.total_spend || 0;
 
@@ -373,6 +377,7 @@ async function getCategoriesForBudgetEntry(year: number, month: number): Promise
     JOIN upper_category uc ON sc.upper_category_id = uc.id
     LEFT JOIN "transaction" t ON t.sub_category_id = sc.id
     WHERE sc.is_deleted = 0
+      AND uc.is_active = 1
     GROUP BY sc.id
     ORDER BY uc.sort_order ASC, sc.sort_order ASC
   `, [startDate, endDate]);

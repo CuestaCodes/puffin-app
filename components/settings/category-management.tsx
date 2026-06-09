@@ -15,15 +15,26 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Plus, Edit2, Trash2, ChevronDown, ChevronRight, 
-  Loader2, AlertTriangle, ArrowLeft 
+import { Switch } from '@/components/ui/switch';
+import {
+  Plus, Edit2, Trash2, ChevronDown, ChevronRight,
+  Loader2, AlertTriangle, ArrowLeft
 } from 'lucide-react';
 import type { UpperCategory, SubCategoryWithUpper } from '@/types/database';
 import { MAX_CATEGORY_NAME_LENGTH } from '@/lib/validations';
@@ -35,6 +46,7 @@ interface CategoryGroup {
   name: string;
   type: string;
   sort_order: number;
+  is_active: number;
   subCategories: SubCategoryWithUpper[];
 }
 
@@ -67,6 +79,11 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
   const [transactionCount, setTransactionCount] = useState<number>(0);
   const [checkingTransactions, setCheckingTransactions] = useState(false);
   
+  // Deactivate state
+  const [deactivatingGroup, setDeactivatingGroup] = useState<CategoryGroup | null>(null);
+  const [deactivateTransactionCount, setDeactivateTransactionCount] = useState(0);
+  const [checkingDeactivate, setCheckingDeactivate] = useState(false);
+
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +145,55 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
       fetchCategories();
     } catch {
       setError('Failed to update category name');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Toggle upper category active state
+  const handleToggleActive = async (group: CategoryGroup) => {
+    if (group.is_active) {
+      // Deactivating — check transaction count and confirm
+      setCheckingDeactivate(true);
+      setDeactivatingGroup(group);
+      try {
+        const result = await api.get<{ category: UpperCategory; type: string; transactionCount: number }>(
+          `/api/categories/${group.id}`
+        );
+        setDeactivateTransactionCount(result.data?.transactionCount || 0);
+      } catch {
+        setError('Failed to check transactions');
+        setDeactivatingGroup(null);
+      } finally {
+        setCheckingDeactivate(false);
+      }
+    } else {
+      // Reactivating — no confirmation needed
+      setIsSaving(true);
+      setError(null);
+      try {
+        const result = await api.patch(`/api/categories/${group.id}`, { is_active: true });
+        if (result.error) throw new Error(result.error);
+        fetchCategories();
+      } catch {
+        setError('Failed to reactivate category');
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!deactivatingGroup) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const result = await api.patch(`/api/categories/${deactivatingGroup.id}`, { is_active: false });
+      if (result.error) throw new Error(result.error);
+      setDeactivatingGroup(null);
+      fetchCategories();
+    } catch {
+      setError('Failed to deactivate category');
     } finally {
       setIsSaving(false);
     }
@@ -368,7 +434,7 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
       {/* Category groups */}
       <div className="space-y-4">
         {categories.map((group) => (
-          <Card key={group.id} className="border-slate-800 bg-slate-900/50">
+          <Card key={group.id} className={cn("border-slate-800 bg-slate-900/50", !group.is_active && "opacity-60")}>
             <CardHeader className="py-4">
               <div className="flex items-center justify-between">
                 <button
@@ -392,6 +458,12 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
                   </span>
                 </button>
                 <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!group.is_active}
+                    onCheckedChange={() => handleToggleActive(group)}
+                    disabled={isSaving || checkingDeactivate}
+                    aria-label={`${group.is_active ? 'Deactivate' : 'Activate'} ${group.name}`}
+                  />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -401,15 +473,17 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
                     <Edit2 className="w-4 h-4 mr-1" />
                     Rename
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleShowNewSub(group.id)}
-                    className="text-cyan-400 hover:text-cyan-300"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add
-                  </Button>
+                  {!!group.is_active && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleShowNewSub(group.id)}
+                      className="text-cyan-400 hover:text-cyan-300"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -578,6 +652,47 @@ export function CategoryManagement({ onBack }: CategoryManagementProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Deactivate Upper Category Confirmation */}
+      <AlertDialog open={!!deactivatingGroup && !checkingDeactivate} onOpenChange={(open) => !open && setDeactivatingGroup(null)}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              Deactivate {deactivatingGroup?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              {deactivateTransactionCount > 0 ? (
+                <>
+                  This will uncategorize <strong className="text-amber-400">{deactivateTransactionCount}</strong> transaction{deactivateTransactionCount !== 1 ? 's' : ''} currently
+                  assigned to sub-categories under <strong className="text-slate-200">{deactivatingGroup?.name}</strong>.
+                  The category and its sub-categories will be hidden from dashboard analytics, budget pages, and the category selector.
+                  Reactivating later will restore the category everywhere but will <strong className="text-slate-200">not</strong> re-assign transactions.
+                </>
+              ) : (
+                <>
+                  <strong className="text-slate-200">{deactivatingGroup?.name}</strong> and its sub-categories will be hidden from
+                  dashboard analytics, budget pages, and the category selector. No transactions are currently affected.
+                  You can reactivate it at any time.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-700 text-slate-300 hover:bg-slate-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeactivate}
+              disabled={isSaving}
+              className="bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Sub-Category Dialog */}
       <Dialog open={!!deletingSub && transactionCount > 0} onOpenChange={(open) => !open && setDeletingSub(null)}>

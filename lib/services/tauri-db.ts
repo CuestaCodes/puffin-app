@@ -79,7 +79,7 @@ let dbPromise: Promise<TauriDatabase> | null = null;
 let isInitialized = false;
 
 // Current schema version - increment when adding new migrations
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 /**
  * Get the database path based on environment.
@@ -346,6 +346,14 @@ async function runMigrations(database: TauriDatabase): Promise<void> {
     `);
 
     await setSchemaVersion(database, 5);
+  }
+
+  // Migration 6: Add is_active flag to upper_category
+  if (currentVersion < 6) {
+    await database.execute(`
+      ALTER TABLE upper_category ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
+    `);
+    await setSchemaVersion(database, 6);
   }
 
   // Verify migrations completed successfully

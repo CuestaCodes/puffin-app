@@ -23,14 +23,59 @@ export function getUpperCategoryById(id: string): UpperCategory | null {
 }
 
 /**
- * Update an upper category name
+ * Update an upper category (name and/or is_active)
  */
-export function updateUpperCategory(id: string, name: string): UpperCategory | null {
+export function updateUpperCategory(id: string, data: { name?: string; is_active?: boolean }): UpperCategory | null {
   const db = getDatabase();
   const now = new Date().toISOString();
-  
-  db.prepare(`UPDATE upper_category SET name = ?, updated_at = ? WHERE id = ?`).run(name, now, id);
+
+  const updates: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (data.name !== undefined) {
+    updates.push('name = ?');
+    params.push(data.name);
+  }
+  if (data.is_active !== undefined) {
+    updates.push('is_active = ?');
+    params.push(data.is_active ? 1 : 0);
+  }
+
+  if (updates.length === 0) return getUpperCategoryById(id);
+
+  updates.push('updated_at = ?');
+  params.push(now);
+  params.push(id);
+
+  db.prepare(`UPDATE upper_category SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   return getUpperCategoryById(id);
+}
+
+/**
+ * Count non-deleted transactions under an upper category's sub-categories
+ */
+export function countTransactionsByUpperCategory(upperCategoryId: string): number {
+  const db = getDatabase();
+  const result = db.prepare(`
+    SELECT COUNT(*) as count FROM "transaction" t
+    JOIN sub_category sc ON t.sub_category_id = sc.id
+    WHERE sc.upper_category_id = ? AND t.is_deleted = 0
+  `).get(upperCategoryId) as { count: number };
+  return result.count;
+}
+
+/**
+ * Uncategorize all transactions under an upper category's sub-categories
+ */
+export function uncategorizeTransactionsByUpperCategory(upperCategoryId: string): number {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE "transaction" SET sub_category_id = NULL, updated_at = ?
+    WHERE sub_category_id IN (SELECT id FROM sub_category WHERE upper_category_id = ?)
+      AND is_deleted = 0
+  `).run(now, upperCategoryId);
+  return result.changes;
 }
 
 /**

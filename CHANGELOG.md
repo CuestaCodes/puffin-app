@@ -4,6 +4,9 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Deactivate upper categories from Settings to hide them from dashboard analytics, budget pages, and category selector without deleting historical transactions
+
 ### Fixed
 - OAuth reconnect no longer asks for Google Cloud credentials when tokens expire — only the Google authorization step is needed, matching the original intent of the v2.2.0 reconnect flow.
 - Reconnect dialog can no longer be accidentally dismissed by clicking outside or pressing Escape — user must explicitly choose Dismiss or Open Sync Settings.

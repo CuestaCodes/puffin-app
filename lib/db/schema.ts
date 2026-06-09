@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS upper_category (
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('income', 'expense', 'saving', 'bill', 'debt', 'sinking', 'transfer')),
   sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

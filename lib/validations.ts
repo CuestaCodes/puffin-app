@@ -56,7 +56,10 @@ export const updateSubCategorySchema = z.object({
 });
 
 export const updateUpperCategorySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(MAX_CATEGORY_NAME_LENGTH, `Name must be ${MAX_CATEGORY_NAME_LENGTH} characters or less`),
+  name: z.string().min(1, 'Name is required').max(MAX_CATEGORY_NAME_LENGTH, `Name must be ${MAX_CATEGORY_NAME_LENGTH} characters or less`).optional(),
+  is_active: z.union([z.boolean(), z.literal(0), z.literal(1)]).optional(),
+}).refine(data => data.name !== undefined || data.is_active !== undefined, {
+  message: 'At least one field (name or is_active) is required',
 });
 
 // Budget schemas
