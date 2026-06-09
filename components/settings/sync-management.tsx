@@ -619,9 +619,14 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                       <p className="text-sm text-slate-300 font-medium mb-1">
                         Multi-Account Sync
                       </p>
-                      <p className="text-xs text-slate-400 mb-3">
-                        Already have a Puffin backup shared with you? Select the existing backup file to sync with another computer.
+                      <p className="text-xs text-slate-400 mb-2">
+                        Sync a database across different Google accounts. To set up:
                       </p>
+                      <ol className="text-xs text-slate-400 mb-3 list-decimal list-inside space-y-0.5">
+                        <li>Upload your Puffin database file to Google Drive</li>
+                        <li>Right-click the file and share it with the other account</li>
+                        <li>On both computers, click below to grant extended access, then click again to choose the shared file</li>
+                      </ol>
                       <Button
                         onClick={handleMultiAccountClick}
                         disabled={isFilePickerLoading || isValidating}
