@@ -18,9 +18,23 @@ interface HandlerContext {
 // localStorage keys for sync state
 const SYNC_CONFIG_KEY = 'puffin_sync_config';
 const SYNC_CREDENTIALS_KEY = 'puffin_sync_credentials';
-const OAUTH_CONFIGURED_KEY = 'puffin_oauth_configured';
 const OAUTH_AUTHENTICATED_KEY = 'puffin_oauth_authenticated';
 const OAUTH_EXTENDED_SCOPE_KEY = 'puffin_oauth_extended_scope';
+
+// `oauthConfigured` is derived from SYNC_CREDENTIALS_KEY (single source of truth)
+// so the reconnect flow can't get stuck on a wizard prompt when valid credentials
+// are already on disk. A previous version maintained a separate `puffin_oauth_configured`
+// flag — leaving it stranded in localStorage on existing installs is harmless.
+function hasStoredCredentials(): boolean {
+  try {
+    const stored = localStorage.getItem(SYNC_CREDENTIALS_KEY);
+    if (!stored) return false;
+    const creds = JSON.parse(stored) as Partial<SyncCredentials>;
+    return !!(creds.clientId && creds.clientSecret);
+  } catch {
+    return false;
+  }
+}
 
 interface SyncCredentials {
   clientId: string;
@@ -109,7 +123,7 @@ async function getSyncConfigStatus(): Promise<SyncConfig & { isAuthenticated: bo
   const config = getSyncConfig();
 
   // In Tauri mode, OAuth state is also stored locally
-  const oauthConfigured = !!localStorage.getItem(OAUTH_CONFIGURED_KEY);
+  const oauthConfigured = hasStoredCredentials();
   const isAuthenticated = !!localStorage.getItem(OAUTH_AUTHENTICATED_KEY);
   const hasExtendedScope = !!localStorage.getItem(OAUTH_EXTENDED_SCOPE_KEY);
 
@@ -659,7 +673,6 @@ export async function handleSyncDisconnect(ctx: HandlerContext): Promise<unknown
   // Clear all sync-related localStorage
   localStorage.removeItem(SYNC_CONFIG_KEY);
   localStorage.removeItem(SYNC_CREDENTIALS_KEY);
-  localStorage.removeItem(OAUTH_CONFIGURED_KEY);
   localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
   localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
 
@@ -724,7 +737,6 @@ function saveCredentials(data: Partial<SyncCredentials>): { success: boolean } {
   };
 
   localStorage.setItem(SYNC_CREDENTIALS_KEY, JSON.stringify(creds));
-  localStorage.setItem(OAUTH_CONFIGURED_KEY, 'true');
 
   return { success: true };
 }
@@ -732,7 +744,6 @@ function saveCredentials(data: Partial<SyncCredentials>): { success: boolean } {
 function clearCredentials(): { success: boolean } {
   localStorage.removeItem(SYNC_CREDENTIALS_KEY);
   localStorage.removeItem(SYNC_CONFIG_KEY);
-  localStorage.removeItem(OAUTH_CONFIGURED_KEY);
   localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
   localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
 
@@ -1048,6 +1059,9 @@ async function getValidAccessToken(): Promise<{ token: string } | { error: strin
       if (e instanceof OAuthRefreshFailedError) {
         // Expected state — handled by the Reconnect modal. Don't console.error
         // (sync polls every minute; would spam the console).
+        // Clear the authenticated flag so the UI reflects "signed out" instead
+        // of stale "connected" once the refresh token is permanently dead.
+        localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
         return {
           error: 'Google rejected the refresh token. Please reconnect Google Drive.',
           errorCode: 'REFRESH_FAILED',

@@ -171,6 +171,9 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   // The modal sets sessionStorage 'puffin_action_reauth' before navigating;
   // we fire OAuth once config is loaded (so credentials are available) and
   // never refire even if config refetches.
+  // Restore the prior scope level so users syncing a backup file (extended
+  // scope) aren't silently downgraded to standard scope and locked out of
+  // their file. `puffin_oauth_extended_scope` persists across token expiry.
   const reauthFiredRef = useRef(false);
   useEffect(() => {
     if (isLoading || reauthFiredRef.current) return;
@@ -183,13 +186,14 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     }
     if (shouldFire) {
       reauthFiredRef.current = true;
-      handleAuthenticate();
+      const scopeLevel = config?.hasExtendedScope ? 'extended' : 'standard';
+      startOAuthFlow(scopeLevel);
     }
-    // Intentionally omit `handleAuthenticate` from deps: it's redefined every
+    // Intentionally omit `startOAuthFlow` from deps: it's redefined every
     // render (not memoised), so listing it would re-fire this effect on each
     // render. The reauthFiredRef guard ensures OAuth only fires once per mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, config?.hasExtendedScope]);
 
   // Start OAuth flow - handles both Tauri and dev modes
   const startOAuthFlow = async (scopeLevel: 'standard' | 'extended') => {

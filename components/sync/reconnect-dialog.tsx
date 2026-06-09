@@ -95,14 +95,12 @@ export function ReconnectDialog() {
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) handleDismiss();
-        else setOpen(true);
-      }}
-    >
-      <DialogContent className="bg-slate-900 border-slate-700">
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent
+        className="bg-slate-900 border-slate-700 [&>button[class*='absolute']]:hidden"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-slate-100">Reconnect Google Drive</DialogTitle>
           <DialogDescription className="text-slate-400">

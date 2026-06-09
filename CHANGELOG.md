@@ -2,6 +2,14 @@
 
 All notable changes to Puffin will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- OAuth reconnect no longer asks for Google Cloud credentials when tokens expire — only the Google authorization step is needed, matching the original intent of the v2.2.0 reconnect flow.
+- Reconnect dialog can no longer be accidentally dismissed by clicking outside or pressing Escape — user must explicitly choose Dismiss or Open Sync Settings.
+- OAuth reconnect now restores the prior scope level (standard vs extended) so multi-account sync users aren't silently downgraded.
+- `isAuthenticated` flag is now cleared on `invalid_grant` so the UI accurately shows "Sign in with Google" instead of stale "connected" state.
+
 ## [2.2.0] - 2026-05-08
 
 ### Added

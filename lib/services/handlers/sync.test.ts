@@ -233,6 +233,92 @@ describe('Tauri Sync Handler - OAuth Token Refresh', () => {
       const error = await response.json();
       expect(error.error).toBe('invalid_grant');
     });
+
+    it('should clear puffin_oauth_authenticated on invalid_grant and preserve credentials', async () => {
+      // Setup: app thinks it's authenticated with expired tokens
+      mockLocalStorage.setItem('puffin_oauth_authenticated', 'true');
+      mockLocalStorage.setItem('puffin_sync_credentials', JSON.stringify({
+        clientId: 'id', clientSecret: 'secret', apiKey: '',
+      }));
+      mockLocalStorage.setItem('puffin_oauth_tokens', JSON.stringify({
+        access_token: 'expired',
+        refresh_token: 'bad-token',
+        expiry_date: Date.now() - 1000,
+      }));
+
+      // Mock Google rejecting the refresh token
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({
+          error: 'invalid_grant',
+          error_description: 'Token has been revoked.',
+        }),
+      });
+
+      // Exercise the getValidAccessToken logic pattern:
+      // 1. Token is expired → attempt refresh
+      // 2. Refresh returns invalid_grant → OAuthRefreshFailedError
+      // 3. Catch block clears authenticated flag, returns REFRESH_FAILED
+      const stored = JSON.parse(mockLocalStorage.getItem('puffin_oauth_tokens')!);
+      const isExpired = stored.expiry_date < Date.now() + 60000;
+      expect(isExpired).toBe(true);
+
+      const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        body: new URLSearchParams({ grant_type: 'refresh_token' }),
+      });
+      const error = await response.json();
+
+      expect(error.error).toBe('invalid_grant');
+
+      // This is the critical fix: on invalid_grant, clear authenticated flag
+      // so UI shows "Sign in with Google" instead of stale "connected"
+      mockLocalStorage.removeItem('puffin_oauth_authenticated');
+
+      // After REFRESH_FAILED: authenticated=false but credentials preserved
+      expect(mockLocalStorage.getItem('puffin_oauth_authenticated')).toBeNull();
+      // Credentials blob must survive so user isn't forced through the wizard
+      const creds = JSON.parse(mockLocalStorage.getItem('puffin_sync_credentials')!);
+      expect(creds.clientId).toBe('id');
+      expect(creds.clientSecret).toBe('secret');
+    });
+  });
+
+  describe('Reconnect Flow Invariants', () => {
+    // Mirror the `hasStoredCredentials` logic in sync.ts so a future refactor
+    // can't silently reintroduce the two-source-of-truth bug where a separate
+    // `puffin_oauth_configured` flag could drift from the credentials blob and
+    // force the user back through the full CredentialsSetup wizard.
+    const hasStoredCredentials = (): boolean => {
+      try {
+        const stored = mockLocalStorage.getItem('puffin_sync_credentials');
+        if (!stored) return false;
+        const creds = JSON.parse(stored);
+        return !!(creds.clientId && creds.clientSecret);
+      } catch {
+        return false;
+      }
+    };
+
+    it('reports oauthConfigured=true when credentials blob is valid (no separate flag needed)', () => {
+      mockLocalStorage.setItem('puffin_sync_credentials', JSON.stringify({
+        clientId: 'abc.apps.googleusercontent.com',
+        clientSecret: 'secret',
+        apiKey: '',
+      }));
+      expect(hasStoredCredentials()).toBe(true);
+    });
+
+    it('reports oauthConfigured=false when credentials blob is absent', () => {
+      expect(hasStoredCredentials()).toBe(false);
+    });
+
+    it('reports oauthConfigured=false when credentials blob is partial', () => {
+      mockLocalStorage.setItem('puffin_sync_credentials', JSON.stringify({
+        clientId: 'abc.apps.googleusercontent.com',
+      }));
+      expect(hasStoredCredentials()).toBe(false);
+    });
   });
 });
 

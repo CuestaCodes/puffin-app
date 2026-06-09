@@ -178,7 +178,6 @@ export async function handleReset(ctx: HandlerContext): Promise<unknown> {
       localStorage.removeItem('puffin_sync_config');
       localStorage.removeItem('puffin_sync_credentials');
       localStorage.removeItem('puffin_oauth_tokens');
-      localStorage.removeItem('puffin_oauth_configured');
       localStorage.removeItem('puffin_oauth_authenticated');
       localStorage.removeItem('puffin_oauth_extended_scope');
       localStorage.removeItem('puffin_session');
