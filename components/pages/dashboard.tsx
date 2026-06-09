@@ -5,7 +5,7 @@ import { useDashboardState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, PiggyBank, Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, PiggyBank, Wallet, Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -219,7 +219,7 @@ export function Dashboard() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <SummaryCard
           title="Total Income"
           value={formatCurrency(summary.totalIncome)}
@@ -247,6 +247,13 @@ export function Dashboard() {
           iconColor="text-emerald-400"
           bgColor="bg-emerald-950/30 border border-emerald-900/50"
           badge={`${summary.savingsRate}% of income`}
+        />
+        <SummaryCard
+          title="Net Balance"
+          value={formatCurrency(summary.netBalance - summary.totalSavings)}
+          icon={Wallet}
+          iconColor="text-slate-400"
+          bgColor="bg-slate-800/50 border border-slate-700/50"
         />
       </div>
 
@@ -680,8 +687,8 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
   }
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <LineChart data={trends}>
+    <ResponsiveContainer width="100%" height={320}>
+      <LineChart data={trends} margin={{ bottom: 10 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
         <XAxis dataKey="monthLabel" stroke="#64748b" fontSize={12} tickLine={false} />
         <YAxis stroke="#64748b" fontSize={12} tickLine={false} tickFormatter={formatYAxis} domain={yDomain} allowDataOverflow />
@@ -752,13 +759,14 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
           dot={{ fill: '#38bdf8', strokeWidth: 2, opacity: trendOpacity('Sinking Funds') }}
         />
         <Legend
+          verticalAlign="bottom"
+          wrapperStyle={{ cursor: 'pointer', paddingTop: 16 }}
           onMouseEnter={(o) => setHoveredSeries(typeof o.value === 'string' ? o.value : null)}
           onMouseLeave={() => setHoveredSeries(null)}
           onClick={(o) => {
             const name = typeof o.value === 'string' ? o.value : null;
             setPinnedSeries(prev => (prev === name ? null : name));
           }}
-          wrapperStyle={{ cursor: 'pointer' }}
         />
       </LineChart>
     </ResponsiveContainer>
@@ -768,34 +776,34 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
 interface SummaryCardProps {
   title: string;
   value: string;
-  change: string;
-  trend: 'up' | 'down';
+  change?: string;
+  trend?: 'up' | 'down';
   icon: React.ElementType;
   iconColor: string;
   bgColor: string;
-  badge?: string; // Optional prominent badge (e.g., savings rate)
+  badge?: string;
 }
 
 function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgColor, badge }: SummaryCardProps) {
   return (
     <Card className="border-slate-800 bg-slate-900/50">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-sm text-slate-400">{title}</p>
-              {badge && (
-                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  {badge}
-                </span>
-              )}
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-white">{value}</p>
-            <p className={`text-xs mt-1 ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-              {change} from last year
-            </p>
+      <CardContent className="pt-0 pb-[23px]">
+        <div className="ml-1 mb-1.5">
+          <span className={`px-1.5 py-px text-[10px] font-bold rounded-full ${badge ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'invisible'}`}>
+            {badge || ' '}
+          </span>
+        </div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm text-slate-400">{title}</p>
+            <p className="text-2xl font-bold mt-1 tabular-nums text-white truncate">{value}</p>
+            {change && (
+              <p className={`text-xs mt-1 ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
+                {change} from last year
+              </p>
+            )}
           </div>
-          <div className={`p-3 rounded-xl ${bgColor}`}>
+          <div className={`p-3 rounded-xl shrink-0 ${bgColor}`}>
             <Icon className={`w-6 h-6 ${iconColor}`} />
           </div>
         </div>

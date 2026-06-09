@@ -127,7 +127,7 @@ export async function handleCategory(ctx: HandlerContext): Promise<unknown> {
           );
           await db.execute('COMMIT');
         } catch (e) {
-          await db.execute('ROLLBACK');
+          try { await db.execute('ROLLBACK'); } catch { /* no active transaction */ }
           throw e;
         }
 

@@ -6,8 +6,13 @@ All notable changes to Puffin will be documented in this file.
 
 ### Added
 - Deactivate upper categories from Settings to hide them from dashboard analytics, budget pages, and category selector without deleting historical transactions
+- Dashboard "Net Balance" tile showing income minus all outflows (spend + savings)
 
 ### Fixed
+- Dashboard Y-axis now anchors at zero and auto-scales to the selected category when a legend item is pinned
+- Spending Trends legend no longer overlaps month labels at narrow window widths
+- Summary tile icons no longer overflow at narrow window widths
+- Category deactivation no longer fails with "cannot rollback" error when sync check runs concurrently
 - OAuth reconnect no longer asks for Google Cloud credentials when tokens expire — only the Google authorization step is needed, matching the original intent of the v2.2.0 reconnect flow.
 - Reconnect dialog can no longer be accidentally dismissed by clicking outside or pressing Escape — user must explicitly choose Dismiss or Open Sync Settings.
 - OAuth reconnect now restores the prior scope level (standard vs extended) so multi-account sync users aren't silently downgraded.

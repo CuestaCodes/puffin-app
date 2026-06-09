@@ -95,7 +95,17 @@ return updateSubCategory(id, data);
 
 **Multi-step DB writes:** Wrap in a transaction to keep operations atomic.
 - Dev (better-sqlite3): `getDatabase().transaction(() => { ... })()`
-- Tauri: `await db.execute('BEGIN TRANSACTION')` / `COMMIT` / `ROLLBACK` in try/catch
+- Tauri: wrap `ROLLBACK` in its own try-catch — concurrent operations on the shared connection can invalidate the transaction:
+```typescript
+await db.execute('BEGIN TRANSACTION');
+try {
+  // ... writes ...
+  await db.execute('COMMIT');
+} catch (e) {
+  try { await db.execute('ROLLBACK'); } catch { /* no active transaction */ }
+  throw e;
+}
+```
 
 ### Database Connection
 - `getDatabase()` - Get connection
