@@ -12,6 +12,7 @@ interface UpperCategory {
   name: string;
   type: string;
   sort_order: number;
+  is_active: number;
 }
 
 interface SubCategory {
