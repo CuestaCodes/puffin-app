@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { useDashboardState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +44,7 @@ interface MonthlyTrend {
   savings: number;
   bills: number;
   debt: number;
+  sinking: number;
   net: number;
 }
 
@@ -87,6 +88,11 @@ interface DashboardData {
   incomeTrends: MonthlyIncomeBySubcategory[];
   monthlyCategoryTotals: MonthlyCategoryTotal[];
 }
+
+const TREND_SERIES_KEY: Record<string, keyof MonthlyTrend> = {
+  'Expenses': 'expenses', 'Bills': 'bills', 'Debt': 'debt',
+  'Savings': 'savings', 'Sinking Funds': 'sinking',
+};
 
 // Format Y axis with decimal values for smaller scales
 const formatYAxis = (value: number): string => {
@@ -315,6 +321,7 @@ export function Dashboard() {
                       fontSize={12}
                       tickLine={false}
                       tickFormatter={formatYAxis}
+                      domain={[0, 'auto']}
                     />
                     <Tooltip
                       content={({ active, payload, label }) => {
@@ -656,6 +663,14 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
     return 0.15;
   }, [pinnedSeries, hoveredSeries]);
 
+  const yDomain = useMemo((): [number, number | 'auto'] => {
+    if (!pinnedSeries) return [0, 'auto'];
+    const key = TREND_SERIES_KEY[pinnedSeries];
+    if (!key) return [0, 'auto'];
+    const max = Math.max(...trends.map(t => (t[key] as number) || 0));
+    return [0, max > 0 ? Math.ceil((max * 1.1) / 1000) * 1000 : 1000];
+  }, [pinnedSeries, trends]);
+
   if (trends.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-slate-500 bg-slate-800/50 rounded-lg border border-slate-700/50">
@@ -669,7 +684,7 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
       <LineChart data={trends}>
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
         <XAxis dataKey="monthLabel" stroke="#64748b" fontSize={12} tickLine={false} />
-        <YAxis stroke="#64748b" fontSize={12} tickLine={false} tickFormatter={formatYAxis} />
+        <YAxis stroke="#64748b" fontSize={12} tickLine={false} tickFormatter={formatYAxis} domain={yDomain} allowDataOverflow />
         <Tooltip
           content={({ active, payload, label }) => {
             if (active && payload && payload.length) {

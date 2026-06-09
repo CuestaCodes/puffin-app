@@ -127,7 +127,7 @@ All three must produce the same final schema.
 
 **Primary Keys:** TEXT with UUID (`crypto.randomUUID()`), not auto-increment.
 
-**Shared Types:** Import from `types/database.ts`, don't redefine locally.
+**Shared Types:** Import from `types/database.ts` or `lib/db/*.ts` — don't redefine interfaces locally when a canonical source exists. Local copies drift (e.g. missing fields) and bypass type-checking.
 
 ### Auth API Field Names
 | UI | API Field |
