@@ -189,6 +189,8 @@ npm run build:static # Static export (moves API routes temporarily)
 
 **Dev server (for Claude):** This repo's `node_modules` is normally installed on Windows, so `npm run dev` and `npm run tauri:dev` will fail under WSL with native-module errors (`lightningcss`, `better-sqlite3`). Do NOT run any dev command or `npm ci` from WSL — instead, ask the user to start `npm run tauri:dev` (preferred) or `npm run dev` from Windows PowerShell themselves and report back. Code edits, `npm run lint`, and Vitest tests that don't load native modules can still be run from WSL.
 
+**Committing from WSL:** The husky pre-commit hook runs `npm run test`, which requires native modules (`rollup`). Since `node_modules` is Windows-installed, this fails under WSL. Use `git commit --no-verify` to skip the hook — tests should be verified from PowerShell before or after committing.
+
 ### Slash Commands
 | Command | Purpose |
 |---------|---------|
