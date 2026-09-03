@@ -219,6 +219,13 @@ npm run build:static # Static export (moves API routes temporarily)
 
 ## Releases
 
+### Branch Strategy
+- Each version's work happens on a `vX.Y-dev` integration branch (e.g. `v2.3-dev`), branched off `main`.
+- Per task, branch off the current `vX.Y-dev` (e.g. `v2.3-pagination-fix`), implement, then run `/code-review main <feature-branch>`.
+- Merge completed tasks back into `vX.Y-dev`; cut the release (tag) from there once its task set is done.
+- Task specs live in `/tasks` (one `.md` per task, following `_template.md`); `/dev` discovers them by `## Status:`/`## Priority:` headers.
+
+### Release Steps
 1. Move `[Unreleased]` to version header in CHANGELOG.md
 2. Bump version in `package.json` and `src-tauri/tauri.conf.json`
 3. Tag and push: `git tag v1.x.0 && git push origin main --tags`
