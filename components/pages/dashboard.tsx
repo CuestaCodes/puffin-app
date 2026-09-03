@@ -20,7 +20,13 @@ import {
   Legend,
   ComposedChart,
   Area,
+  LabelList,
 } from 'recharts';
+import {
+  Tooltip as UITooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 import { CHART_COLORS, UPPER_CATEGORY_COLORS, DONUT_CHART } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
@@ -181,6 +187,16 @@ export function Dashboard() {
     savingsChange: 0,
   };
 
+  // Per-type amounts behind "Total Spent" (Expenses, Bills, Debts, Sinking), summed
+  // from the monthly trends. These use the same signed definition and filters as the
+  // Total Spent value itself (-SUM of amount), so a net-credit category shows as a
+  // negative and the components ALWAYS reconcile with the total. (The Spending-by-Type
+  // pie uses a HAVING filter that drops net-credit types, so it isn't used here.)
+  const spendAmounts = (['expenses', 'bills', 'debt', 'sinking'] as const).map((key) =>
+    (data?.trends ?? []).reduce((sum, t) => sum + (t[key] || 0), 0),
+  );
+  const hasSpendBreakdown = spendAmounts.some((a) => a !== 0);
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -228,6 +244,7 @@ export function Dashboard() {
           icon={TrendingUp}
           iconColor="text-pink-400"
           bgColor="bg-pink-950/30 border border-pink-900/50"
+          tooltip="All income received this period."
         />
         <SummaryCard
           title="Total Spent"
@@ -237,6 +254,16 @@ export function Dashboard() {
           icon={TrendingDown}
           iconColor="text-red-400"
           bgColor="bg-red-950/30 border border-red-900/50"
+          tooltip={
+            <>
+              <p>Expenses + Bills + Debts + Sinking Funds (Savings excluded)</p>
+              {hasSpendBreakdown && (
+                <p className="tabular-nums mt-1">
+                  {spendAmounts.map((a) => formatCurrency(a)).join(' + ')} = {formatCurrency(summary.totalSpend)}
+                </p>
+              )}
+            </>
+          }
         />
         <SummaryCard
           title="Savings"
@@ -247,6 +274,14 @@ export function Dashboard() {
           iconColor="text-emerald-400"
           bgColor="bg-emerald-950/30 border border-emerald-900/50"
           badge={`${summary.savingsRate}% of income`}
+          tooltip={
+            <>
+              <p>Savings ÷ Total Income × 100</p>
+              <p className="tabular-nums mt-1">
+                {formatCurrency(summary.totalSavings)} ÷ {formatCurrency(summary.totalIncome)} × 100 = {summary.savingsRate}%
+              </p>
+            </>
+          }
         />
         <SummaryCard
           title="Net Balance"
@@ -254,6 +289,14 @@ export function Dashboard() {
           icon={Wallet}
           iconColor="text-slate-400"
           bgColor="bg-slate-800/50 border border-slate-700/50"
+          tooltip={
+            <>
+              <p>Total Income − Total Spent − Savings</p>
+              <p className="tabular-nums mt-1">
+                {formatCurrency(summary.totalIncome)} − {formatCurrency(summary.totalSpend)} − {formatCurrency(summary.totalSavings)} = {formatCurrency(summary.netBalance - summary.totalSavings)}
+              </p>
+            </>
+          }
         />
       </div>
 
@@ -670,6 +713,49 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
     return 0.15;
   }, [pinnedSeries, hoveredSeries]);
 
+  // Which line shows per-point value labels. When a line is pinned, ONLY that line
+  // is labelled — hovering other legend items still previews them via opacity (see
+  // trendOpacity) but must not add their value labels (that was cluttering/overlapping).
+  // When nothing is pinned, the hovered line is labelled.
+  const showValueLabels = useCallback(
+    (seriesName: string): boolean =>
+      pinnedSeries !== null ? pinnedSeries === seriesName : hoveredSeries === seriesName,
+    [pinnedSeries, hoveredSeries],
+  );
+
+  // recharts LabelList passes the raw value. Labels omit the currency symbol and
+  // round (whole dollars, or compact thousands like "1.2k") to stay short and reduce
+  // overlap between adjacent points.
+  const formatLabel = useCallback((value: unknown): string => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '';
+    if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return `${Math.round(n)}`;
+  }, []);
+
+  // Custom label renderer for the highlighted line. Staggers labels between two
+  // vertical rows by point index so a label and its immediate neighbours (e.g. Feb
+  // vs Jan/Mar) never sit at the same height — this prevents horizontal overlap when
+  // points are close together. Same-row labels are always ≥2 months apart in x.
+  const renderTrendLabel = useCallback((props: {
+    x?: number | string;
+    y?: number | string;
+    value?: unknown;
+    index?: number;
+  }) => {
+    const x = Number(props.x);
+    const y = Number(props.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const text = formatLabel(props.value);
+    if (!text) return null;
+    const dy = props.index != null && props.index % 2 === 1 ? -20 : -8;
+    return (
+      <text x={x} y={y + dy} fill="#e2e8f0" fontSize={10} textAnchor="middle">
+        {text}
+      </text>
+    );
+  }, [formatLabel]);
+
   const yDomain = useMemo((): [number, number | 'auto'] => {
     if (!pinnedSeries) return [0, 'auto'];
     const key = TREND_SERIES_KEY[pinnedSeries];
@@ -688,7 +774,7 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
 
   return (
     <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={trends} margin={{ bottom: 10 }}>
+      <LineChart data={trends} margin={{ top: 30, right: 18, bottom: 10 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
         <XAxis dataKey="monthLabel" stroke="#64748b" fontSize={12} tickLine={false} />
         <YAxis stroke="#64748b" fontSize={12} tickLine={false} tickFormatter={formatYAxis} domain={yDomain} allowDataOverflow />
@@ -719,45 +805,70 @@ function SpendingTrendsChart({ trends, formatCurrency }: SpendingTrendsChartProp
           name="Expenses"
           stroke="#ef4444"
           strokeWidth={2}
+          isAnimationActive={false}
           strokeOpacity={trendOpacity('Expenses')}
           dot={{ fill: '#ef4444', strokeWidth: 2, opacity: trendOpacity('Expenses') }}
-        />
+        >
+          {showValueLabels('Expenses') && (
+            <LabelList dataKey="expenses" content={renderTrendLabel} />
+          )}
+        </Line>
         <Line
           type="monotone"
           dataKey="bills"
           name="Bills"
           stroke="#f59e0b"
           strokeWidth={2}
+          isAnimationActive={false}
           strokeOpacity={trendOpacity('Bills')}
           dot={{ fill: '#f59e0b', strokeWidth: 2, opacity: trendOpacity('Bills') }}
-        />
+        >
+          {showValueLabels('Bills') && (
+            <LabelList dataKey="bills" content={renderTrendLabel} />
+          )}
+        </Line>
         <Line
           type="monotone"
           dataKey="debt"
           name="Debt"
           stroke="#a855f7"
           strokeWidth={2}
+          isAnimationActive={false}
           strokeOpacity={trendOpacity('Debt')}
           dot={{ fill: '#a855f7', strokeWidth: 2, opacity: trendOpacity('Debt') }}
-        />
+        >
+          {showValueLabels('Debt') && (
+            <LabelList dataKey="debt" content={renderTrendLabel} />
+          )}
+        </Line>
         <Line
           type="monotone"
           dataKey="savings"
           name="Savings"
           stroke="#10b981"
           strokeWidth={2}
+          isAnimationActive={false}
           strokeOpacity={trendOpacity('Savings')}
           dot={{ fill: '#10b981', strokeWidth: 2, opacity: trendOpacity('Savings') }}
-        />
+        >
+          {showValueLabels('Savings') && (
+            <LabelList dataKey="savings" content={renderTrendLabel} />
+          )}
+        </Line>
         <Line
           type="monotone"
           dataKey="sinking"
           name="Sinking Funds"
           stroke="#38bdf8"
           strokeWidth={2}
+          isAnimationActive={false}
           strokeOpacity={trendOpacity('Sinking Funds')}
           dot={{ fill: '#38bdf8', strokeWidth: 2, opacity: trendOpacity('Sinking Funds') }}
-        />
+        >
+          {showValueLabels('Sinking Funds') && (
+            <LabelList dataKey="sinking" content={renderTrendLabel} />
+          )}
+        </Line>
         <Legend
           verticalAlign="bottom"
           wrapperStyle={{ cursor: 'pointer', paddingTop: 16 }}
@@ -782,11 +893,17 @@ interface SummaryCardProps {
   iconColor: string;
   bgColor: string;
   badge?: string;
+  /** Extra detail shown on hover/focus (e.g. the equation/definition). The full
+   *  value is always shown above it, so long truncated values stay readable. */
+  tooltip?: React.ReactNode;
 }
 
-function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgColor, badge }: SummaryCardProps) {
-  return (
-    <Card className="border-slate-800 bg-slate-900/50">
+function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgColor, badge, tooltip }: SummaryCardProps) {
+  const card = (
+    <Card
+      className="border-slate-800 bg-slate-900/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50"
+      tabIndex={tooltip ? 0 : undefined}
+    >
       <CardContent className="pt-0 pb-[23px]">
         <div className="ml-1 mb-1.5">
           <span className={`px-1.5 py-px text-[10px] font-bold rounded-full ${badge ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'invisible'}`}>
@@ -809,5 +926,17 @@ function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgCol
         </div>
       </CardContent>
     </Card>
+  );
+
+  if (!tooltip) return card;
+
+  return (
+    <UITooltip>
+      <TooltipTrigger asChild>{card}</TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <p className="font-semibold tabular-nums text-slate-100">{value}</p>
+        <div className="text-xs text-slate-300 mt-1">{tooltip}</div>
+      </TooltipContent>
+    </UITooltip>
   );
 }
