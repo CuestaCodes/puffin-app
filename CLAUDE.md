@@ -220,10 +220,29 @@ npm run build:static # Static export (moves API routes temporarily)
 ## Releases
 
 ### Branch Strategy
-- Each version's work happens on a `vX.Y-dev` integration branch (e.g. `v2.3-dev`), branched off `main`.
-- Per task, branch off the current `vX.Y-dev` (e.g. `v2.3-pagination-fix`), implement, then run `/code-review main <feature-branch>`.
-- Merge completed tasks back into `vX.Y-dev`; cut the release (tag) from there once its task set is done.
-- Task specs live in `/tasks` (one `.md` per task, following `_template.md`); `/dev` discovers them by `## Status:`/`## Priority:` headers.
+
+**One integration branch per version — no per-task branches.**
+
+- Each version's work happens on a single `vX.Y-dev` branch (e.g. `v2.3-dev`), branched off `main`.
+- Tasks are worked sequentially on that branch. Each task contributes its own series of commits; there is no feature branch to create, merge, or push.
+- Cut the release (tag) from `vX.Y-dev` once its task set is done, then merge to `main`.
+- Task specs live in `/tasks` (one `.md` per task, following `_template.md`); `/dev` discovers them by `## Status:`/`## Priority:` headers. `tasks/` is gitignored, so specs are local-only.
+
+### The `reviewed` Marker
+
+A local-only branch pointer meaning **"everything up to here has passed code review."** It scopes each review to the current task's commits, instead of re-reviewing every earlier task in the version.
+
+```bash
+/code-review reviewed vX.Y-dev     # same command every task
+git branch -f reviewed vX.Y-dev    # only once the task is finished
+```
+
+- **Created once** per repo; it then moves forward forever. Never checked out, never merged, **never pushed**.
+- **Moved once per task**, when the task is complete — *not* after each review run. A task usually needs several runs (review → fix → re-review); the marker must stay put so the re-review still shows the original change alongside the fix, rather than only the fix commits.
+- `git log reviewed..vX.Y-dev` lists everything not yet reviewed.
+- **If you forget to move it**, nothing breaks — the next review is merely wider, re-showing the previous task. Move it then and it self-corrects. There is no state to repair.
+
+Because reviews run against local refs, this workflow requires **no pushes per task**. Push `vX.Y-dev` when you want an off-machine copy, not because a tool demands it.
 
 ### Release Steps
 1. Move `[Unreleased]` to version header in CHANGELOG.md

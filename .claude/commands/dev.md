@@ -32,6 +32,7 @@ For the selected task, work through each phase sequentially:
 ---
 
 #### Phase 2: Implementation
+- Confirm you are on the version's `vX.Y-dev` branch — do NOT create a per-task branch
 - Mark task status as "In Progress"
 - Work through each requirement systematically
 - Follow CLAUDE.md conventions strictly:
@@ -69,9 +70,10 @@ For the selected task, work through each phase sequentially:
 ---
 
 #### Phase 5: Code Review
-- Prompt user to create feature branch if not already done
-- Run `/code-review main <feature-branch>`
-- Address Critical and Major issues
+- Add the CHANGELOG.md entry under `[Unreleased]` and commit it BEFORE reviewing — the review criteria check that user-facing changes are reflected in the CHANGELOG, so it must be inside the reviewed range
+- Run `/code-review reviewed vX.Y-dev` — the same command every task; `reviewed` scopes it to this task's commits
+- Address Critical and Major issues, committing fixes to `vX.Y-dev`
+- Re-run the same command as needed. Do NOT move the `reviewed` marker between runs — it must stay put so each re-review still shows the original change alongside the fixes
 - Document Minor issues if not fixing
 - **Gate:** No Critical or Major issues remain
 
@@ -86,9 +88,13 @@ For the selected task, work through each phase sequentially:
 ---
 
 #### Phase 7: Release
-- Add entry to CHANGELOG.md under `[Unreleased]`
+- CHANGELOG.md entry was already added and reviewed in Phase 5 — verify it still reads correctly after any review fixes
 - Update CLAUDE.md if new patterns emerged
 - Mark task status as "Completed"
+- Advance the review marker now that the task is finished:
+  ```bash
+  git branch -f reviewed vX.Y-dev
+  ```
 - Present summary of what was accomplished
 
 ---
@@ -108,6 +114,8 @@ For the selected task, work through each phase sequentially:
 - **Handler-API parity is mandatory** - Test both dev mode and Tauri mode
 - **Update TodoWrite continuously** - Mark tasks complete immediately
 - **Phase gates are mandatory** - Get user approval before advancing
+- **One branch per version, not per task** - all tasks commit to `vX.Y-dev`
+- **`reviewed` marker moves once per task, at the end** - never between review runs, never pushed
 - **Soft delete awareness** - Always filter `is_deleted = 0` in queries/JOINs
 - **No window.confirm()** - Use React AlertDialog in Tauri mode
 
