@@ -117,6 +117,11 @@ function TransactionsPageContent() {
   const isFirstRender = useRef(true);
   const prevSearchQuery = useRef(searchQuery);
 
+  // Set when an in-place edit (e.g. categorising under the uncategorised/category
+  // filter) may have made rows no longer match the active filter. We defer dropping
+  // them until the next navigation/action so the list doesn't reflow mid-edit.
+  const needsReconcile = useRef(false);
+
   // Undo import state
   const [undoInfo, setUndoInfo] = useState<LastImportInfo | null>(null);
   const [undoTimeRemaining, setUndoTimeRemaining] = useState(0);
@@ -145,16 +150,26 @@ function TransactionsPageContent() {
 
       const result = await api.get<TransactionListResponse>(`/api/transactions?${params}`);
       if (result.data) {
-        setTransactions(result.data.transactions);
         setTotalPages(result.data.totalPages);
         setTotal(result.data.total);
+        // The list is now in sync with the server for the current filter.
+        needsReconcile.current = false;
+        // If the filtered set shrank (rows edited/deleted out of the active filter)
+        // and the current page is now beyond the last page, snap back into range.
+        // Skip rendering this out-of-range (empty) page and keep the current rows
+        // until the clamped page's fetch populates the list, avoiding an empty flash.
+        if (result.data.totalPages >= 1 && page > result.data.totalPages) {
+          setPage(result.data.totalPages);
+        } else {
+          setTransactions(result.data.transactions);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [page, searchQuery, sortBy, sortOrder, filters]);
+  }, [page, searchQuery, sortBy, sortOrder, filters, setPage]);
 
   useEffect(() => {
     fetchTransactions();
@@ -207,6 +222,26 @@ function TransactionsPageContent() {
       setSortOrder('desc');
     }
     setPage(1);
+  };
+
+  const handleNextPage = () => {
+    if (needsReconcile.current) {
+      // First navigation after categorising under a filter: re-apply the filter in
+      // place (drop the no-longer-matching rows and renumber) instead of advancing,
+      // so we never skip past transactions the user hasn't seen. `fetchTransactions`
+      // clears the flag and clamps the page if the set shrank.
+      fetchTransactions();
+    } else {
+      setPage(Math.min(totalPages, page + 1));
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (needsReconcile.current) {
+      fetchTransactions();
+    } else {
+      setPage(Math.max(1, page - 1));
+    }
   };
 
   const handleImportComplete = (_result: ImportResult) => {
@@ -265,6 +300,14 @@ function TransactionsPageContent() {
       if (result.error) {
         // Revert on failure by refetching
         fetchTransactions();
+      } else if (
+        (filters.uncategorized && categoryId !== null) ||
+        (filters.categoryId && categoryId !== filters.categoryId)
+      ) {
+        // The new category means this row no longer matches the active filter, so it
+        // should drop from the list. Reconcile on the next navigation/action (see the
+        // pagination handlers) rather than pulling it out from under the user.
+        needsReconcile.current = true;
       }
     } catch (error) {
       console.error('Failed to update category:', error);
@@ -758,7 +801,7 @@ function TransactionsPageContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPage(Math.max(1, page - 1))}
+                        onClick={handlePrevPage}
                         disabled={page === 1}
                         className="border-slate-700"
                       >
@@ -768,7 +811,7 @@ function TransactionsPageContent() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPage(Math.min(totalPages, page + 1))}
+                        onClick={handleNextPage}
                         disabled={page === totalPages}
                         className="border-slate-700"
                       >
@@ -883,29 +926,31 @@ function TransactionsPageContent() {
             <AlertDialogTitle className="text-slate-100">
               Undo Last Import?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400 space-y-2">
-              {undoBatchInfo && (
-                <>
-                  <p>
-                    This will remove {undoBatchInfo.totalCount - undoBatchInfo.alreadyDeletedCount} transaction
-                    {(undoBatchInfo.totalCount - undoBatchInfo.alreadyDeletedCount) !== 1 ? 's' : ''} from the last import
-                    {undoInfo?.sourceName ? ` (${undoInfo.sourceName})` : ''}.
-                  </p>
-                  {undoBatchInfo.modifiedCount > 0 && (
-                    <p className="text-amber-400 font-medium">
-                      Warning: {undoBatchInfo.modifiedCount} transaction
-                      {undoBatchInfo.modifiedCount !== 1 ? 's have' : ' has'} been modified since import.
-                      {undoBatchInfo.modifiedCount !== 1 ? ' These changes' : ' This change'} will be lost.
+            <AlertDialogDescription asChild className="text-slate-400 space-y-2">
+              <div>
+                {undoBatchInfo && (
+                  <>
+                    <p>
+                      This will remove {undoBatchInfo.totalCount - undoBatchInfo.alreadyDeletedCount} transaction
+                      {(undoBatchInfo.totalCount - undoBatchInfo.alreadyDeletedCount) !== 1 ? 's' : ''} from the last import
+                      {undoInfo?.sourceName ? ` (${undoInfo.sourceName})` : ''}.
                     </p>
-                  )}
-                  {undoBatchInfo.alreadyDeletedCount > 0 && (
-                    <p className="text-slate-500 text-sm">
-                      {undoBatchInfo.alreadyDeletedCount} transaction
-                      {undoBatchInfo.alreadyDeletedCount !== 1 ? 's were' : ' was'} already deleted.
-                    </p>
-                  )}
-                </>
-              )}
+                    {undoBatchInfo.modifiedCount > 0 && (
+                      <p className="text-amber-400 font-medium">
+                        Warning: {undoBatchInfo.modifiedCount} transaction
+                        {undoBatchInfo.modifiedCount !== 1 ? 's have' : ' has'} been modified since import.
+                        {undoBatchInfo.modifiedCount !== 1 ? ' These changes' : ' This change'} will be lost.
+                      </p>
+                    )}
+                    {undoBatchInfo.alreadyDeletedCount > 0 && (
+                      <p className="text-slate-500 text-sm">
+                        {undoBatchInfo.alreadyDeletedCount} transaction
+                        {undoBatchInfo.alreadyDeletedCount !== 1 ? 's were' : ' was'} already deleted.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

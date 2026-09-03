@@ -4,6 +4,11 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Transactions: categorising rows under the Uncategorised (or a specific category) filter no longer causes the next page navigation to skip a page of results. The list now reconciles with the server on the next Next/Previous action — dropping the rows that no longer match and renumbering pages — so no transactions are skipped.
+- Transactions: the current page now clamps back into range when the filtered set shrinks (e.g. after editing or deleting rows out of the active filter), preventing a stuck empty page.
+- Undo Last Import and Reset App dialogs no longer trigger React hydration errors caused by invalid nested `<p>` elements.
+
 ## [2.2.1] - 2026-06-09
 
 ### Added

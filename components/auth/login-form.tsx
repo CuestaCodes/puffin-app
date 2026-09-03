@@ -145,17 +145,19 @@ export function LoginForm() {
               <AlertTriangle className="w-5 h-5" />
               Reset App
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
-              <span className="block mb-2 text-red-400 font-medium">
-                Warning: This action cannot be undone!
-              </span>
-              If you&apos;ve forgotten your PIN, you&apos;ll need to reset the app. This will:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Delete all your transactions and data</li>
-                <li>Remove all categories and rules</li>
-                <li>Disconnect Google Drive sync</li>
-                <li>Delete all local backups</li>
-              </ul>
+            <DialogDescription asChild className="text-slate-400">
+              <div>
+                <span className="block mb-2 text-red-400 font-medium">
+                  Warning: This action cannot be undone!
+                </span>
+                If you&apos;ve forgotten your PIN, you&apos;ll need to reset the app. This will:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Delete all your transactions and data</li>
+                  <li>Remove all categories and rules</li>
+                  <li>Disconnect Google Drive sync</li>
+                  <li>Delete all local backups</li>
+                </ul>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
