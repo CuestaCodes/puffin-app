@@ -172,6 +172,8 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
 
   // Reset page when month, category, or filters change
   useEffect(() => {
+    // A fresh list starts at the top, so drop any pending pager request that raced this.
+    preserveScrollOnPageChange.current = false;
     setPage(1);
   }, [year, month, categoryFilter, filters]);
 
@@ -208,6 +210,9 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   // Paging keeps the scroll position so the pager stays under the cursor - otherwise
   // the list jumps to the top and Next has to be hunted down again on every page.
   const goToPage = (next: number) => {
+    // A same-value setPage is a React no-op, so the fetch effect never runs and never
+    // clears the flag - it would leak into the next unrelated fetch.
+    if (next === page) return;
     preserveScrollOnPageChange.current = true;
     setPage(next);
   };

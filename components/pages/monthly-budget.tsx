@@ -568,6 +568,14 @@ function MonthlyBudgetContent() {
     }
   };
 
+  // The name button sits inside the tile, so CategoryTile's click guard skips it (it
+  // matches `closest('button')`). Repeat the rapid-click guard here, or double-clicking
+  // the name toggles the filter on and straight back off - the original reported bug.
+  const handleCategoryNameClick = (e: React.MouseEvent, categoryId: string, categoryName: string) => {
+    if (e.detail > 1) return;
+    handleCategoryClick(categoryId, categoryName);
+  };
+
   const clearCategoryFilter = useCallback(() => {
     setSelectedCategoryId(null);
     setSelectedCategoryName(null);
@@ -980,7 +988,7 @@ function MonthlyBudgetContent() {
                             onSelect={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           >
                             <button
-                              onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                              onClick={(e) => handleCategoryNameClick(e, category.sub_category_id, category.sub_category_name)}
                               className="flex-1 text-left min-w-0"
                             >
                               <span className={cn(
@@ -1041,7 +1049,7 @@ function MonthlyBudgetContent() {
                             onSelect={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           >
                             <button
-                              onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                              onClick={(e) => handleCategoryNameClick(e, category.sub_category_id, category.sub_category_name)}
                               className="flex-1 text-left min-w-0"
                             >
                               <span className={cn(
@@ -1163,7 +1171,7 @@ function MonthlyBudgetContent() {
                           >
                             <div className="flex items-center justify-between gap-2 mb-2">
                               <button
-                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                onClick={(e) => handleCategoryNameClick(e, category.sub_category_id, category.sub_category_name)}
                                 className="flex-1 text-left min-w-0"
                               >
                                 <span className={cn(
@@ -1257,7 +1265,7 @@ function MonthlyBudgetContent() {
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <button
-                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                onClick={(e) => handleCategoryNameClick(e, category.sub_category_id, category.sub_category_name)}
                                 className="text-left w-full min-w-0"
                               >
                                 <span className={cn(
