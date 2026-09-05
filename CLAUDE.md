@@ -268,7 +268,7 @@ Define in `lib/validations.ts`, import everywhere: `MAX_IMPORT_TRANSACTIONS = 50
 
 - Vitest for unit/integration tests (`*.test.ts` alongside source)
 - No `@testing-library/react` - skip UI component tests
-- Focus on: database ops, calculations, sync logic
+- Focus on: database ops, calculations, sync logic, and shared helpers in `lib/utils.ts` that encode an environment assumption (DOM shape, platform, timing) rather than pure formatting
 - Use shared helpers from `lib/db/test-utils.ts`
 
 **Vitest imports:** Always import all needed: `describe, it, expect, vi, beforeEach, afterEach`.
@@ -286,6 +286,18 @@ Omit error param if unused: `catch { console.warn('failed'); }`
 ### Logging
 - Remove debug logs before commit
 - Keep error logs for unexpected failures
+
+### Line Endings
+The repo has **mixed line endings** — 37 tracked files are CRLF, the rest LF — and there
+is no `.gitattributes`. A scripted whole-file rewrite (e.g. Python's text mode) silently
+converts CRLF to LF, turning a small edit into a whole-file diff.
+
+- Check `file <path>` for "CRLF line terminators" before any scripted rewrite; prefer the
+  Edit tool, or read/write in binary and restore endings.
+- Always sanity-check `git diff --stat` after a scripted edit. A line count far larger
+  than the intended change means endings were rewritten.
+- **Do not add a `.gitattributes` to "fix" this mid-task** — renormalising 37 files is a
+  large diff unrelated to whatever you are working on.
 
 ### ESLint Disable Comments
 When disabling ESLint rules, always explain which dependency is omitted and why:
@@ -320,6 +332,19 @@ Always debounce API calls triggered by user input (300ms typical).
 
 ### Scroll Preservation
 Use `withScrollPreservation()` from `lib/utils.ts` when refreshing lists.
+
+**The app does not scroll the window.** The shell is `h-screen` and `<main>` carries
+`overflow-auto` (`components/layout/app-shell.tsx`), so `window.scrollY` is always `0`
+and `window.scrollTo()` is a no-op. Never read or write window scroll — go through
+`withScrollPreservation()`, which resolves the real container.
+
+This assumption being wrong once made the helper silently inert at all eight of its call
+sites for its entire life: the convention was followed everywhere and did nothing. If a
+scroll fix appears to have no effect, verify the container before assuming a timing bug.
+
+**Known limitation:** the helper restores position *after* the browser has painted the
+refreshed layout, so a jump-and-return flash is still visible. Tracked in
+`tasks/scroll-preservation-flash.md` — don't re-diagnose it.
 
 ### Popover in Dialog
 Add `onWheel={(e) => e.stopPropagation()}` to scrollable content inside dialogs.
