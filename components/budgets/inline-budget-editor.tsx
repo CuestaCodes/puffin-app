@@ -44,7 +44,10 @@ export function InlineBudgetEditor({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    // preventScroll: focusing an input scrolls it into view, which yanks the page when
+    // the tile sits low in a long expanded list. The tile is already visible - the user
+    // just clicked it - so the scroll is never wanted.
+    inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.select();
   }, []);
 

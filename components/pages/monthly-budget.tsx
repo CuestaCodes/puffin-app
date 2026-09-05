@@ -602,10 +602,14 @@ function MonthlyBudgetContent() {
       });
 
       if (result.data) {
-        setEditingBudgetId(null);
-        setCreatingBudgetForCategory(null);
-        // Refetch both budget summary and categories to update the UI
-        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        // Refetching rebuilds the whole category list, which resets the page to the
+        // top - jarring when saving a budget low in a long expanded list.
+        await withScrollPreservation(async () => {
+          setEditingBudgetId(null);
+          setCreatingBudgetForCategory(null);
+          // Refetch both budget summary and categories to update the UI
+          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        });
       } else {
         alert('Failed to save budget: ' + (result.error || 'Unknown error'));
       }

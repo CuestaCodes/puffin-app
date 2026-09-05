@@ -68,16 +68,33 @@ export function formatCurrencyAUD(
 }
 
 /**
+ * The app scrolls inside `<main>` in app-shell, not the window: the shell is `h-screen`
+ * and `<main>` carries `overflow-auto`. So `window.scrollY` is always 0 here and
+ * `window.scrollTo` is a no-op. Resolve the real scroll container, falling back to the
+ * window for any context (tests, a future layout) where `<main>` does not scroll.
+ */
+function getScrollContainer(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  const main = document.querySelector('main');
+  return main && main.scrollHeight > main.clientHeight ? main : null;
+}
+
+/**
  * Execute an async function while preserving scroll position.
  * Uses double requestAnimationFrame to ensure DOM is fully painted
  * before restoring scroll position.
  */
 export async function withScrollPreservation<T>(fn: () => Promise<T>): Promise<T> {
-  const scrollY = window.scrollY;
+  const container = getScrollContainer();
+  const scrollTop = container ? container.scrollTop : window.scrollY;
   const result = await fn();
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      window.scrollTo(0, scrollY);
+      if (container) {
+        container.scrollTop = scrollTop;
+      } else {
+        window.scrollTo(0, scrollTop);
+      }
     });
   });
   return result;

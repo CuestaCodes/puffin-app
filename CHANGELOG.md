@@ -7,9 +7,12 @@ All notable changes to Puffin will be documented in this file.
 ### Improved
 - Budget category tiles are now clickable anywhere, not just on the category name, and the hover hint covers the whole tile instead of only the name. Action buttons and currency amounts are excluded, so double-click word-select and copy still work on figures.
 - Dashboard summary tiles now reveal the full value and an explanation on hover/focus: Total Income (definition), Total Spent (`Expenses + Bills + Debts + Sinking Funds` with live component amounts), Savings (`Savings ÷ Total Income × 100` with live values), and Net Balance (`Total Income − Total Spent − Savings` with live values). Tiles are keyboard-focusable.
+- Transactions: paging with Next/Previous now keeps your scroll position, so the pager stays under the cursor instead of jumping to the top of the list and having to be hunted down again on every page. Changing month, filters, search or sort still starts you at the top of the fresh list.
 - Dashboard Spending Trends chart: when a line is highlighted (hover or click-to-pin a legend item), each point now shows a compact value label. Labels are staggered across two rows so neighbouring months don't overlap, and only the pinned line stays labelled when hovering other legend items.
 
 ### Fixed
+- Scroll position is now actually preserved when lists refresh. `withScrollPreservation` read `window.scrollY` and called `window.scrollTo`, but the app scrolls inside `<main>`, so the helper had no effect at any of its eight call sites across the Monthly Budget and transaction list. It now resolves the real scroll container.
+- Monthly Budget: saving a budget no longer scrolls the page away. The inline editor no longer scrolls itself into view when it opens, and the refresh that follows a save preserves position.
 - Transactions: categorising rows under the Uncategorised (or a specific category) filter no longer causes the next page navigation to skip a page of results. The list now reconciles with the server on the next Next/Previous action — dropping the rows that no longer match and renumbering pages — so no transactions are skipped.
 - Transactions: the current page now clamps back into range when the filtered set shrinks (e.g. after editing or deleting rows out of the active filter), preventing a stuck empty page.
 - Undo Last Import and Reset App dialogs no longer trigger React hydration errors caused by invalid nested `<p>` elements.

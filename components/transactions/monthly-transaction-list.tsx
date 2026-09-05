@@ -119,6 +119,9 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   // Refs for debouncing
   const isFirstRender = useRef(true);
   const prevSearchQuery = useRef(searchQuery);
+  // Set only by the pager, so scroll is preserved when paging but not when the month,
+  // filters, search or sort change - those should start the user at the top of a fresh list.
+  const preserveScrollOnPageChange = useRef(false);
 
   // Calculate date range for the month
   const getMonthDateRange = useCallback(() => {
@@ -173,7 +176,14 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   }, [year, month, categoryFilter, filters]);
 
   useEffect(() => {
-    fetchTransactions();
+    if (preserveScrollOnPageChange.current) {
+      preserveScrollOnPageChange.current = false;
+      withScrollPreservation(async () => {
+        await fetchTransactions();
+      });
+    } else {
+      fetchTransactions();
+    }
   }, [fetchTransactions]);
 
   // Debounced search - reset page when search changes
@@ -194,6 +204,13 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   useEffect(() => {
     setSelectedIds(new Set());
   }, [transactions]);
+
+  // Paging keeps the scroll position so the pager stays under the cursor - otherwise
+  // the list jumps to the top and Next has to be hunted down again on every page.
+  const goToPage = (next: number) => {
+    preserveScrollOnPageChange.current = true;
+    setPage(next);
+  };
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
@@ -685,7 +702,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      onClick={() => goToPage(Math.max(1, page - 1))}
                       disabled={page === 1}
                       className="border-slate-700"
                     >
@@ -695,7 +712,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      onClick={() => goToPage(Math.min(totalPages, page + 1))}
                       disabled={page === totalPages}
                       className="border-slate-700"
                     >
