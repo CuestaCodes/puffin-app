@@ -79,6 +79,66 @@ interface CategoryGroup {
   totalSpent: number;
 }
 
+/** Shell for a budget category tile. The whole tile filters to that category, so the
+ *  click target matches the tooltip's hover area rather than being limited to the name.
+ *
+ *  Two opt-out attributes, with different jobs:
+ *  - `data-tile-control` on action buttons: suppresses the tooltip as well as the click,
+ *    so hovering "Edit budget" doesn't explain the tile.
+ *  - `data-tile-text` on currency amounts: suppresses the click only, keeping
+ *    double-click word-select usable on a figure. Hovering one still shows the tooltip. */
+function CategoryTile({
+  className,
+  tooltip,
+  onSelect,
+  children,
+}: {
+  className?: string;
+  tooltip: React.ReactNode;
+  onSelect: () => void;
+  children: React.ReactNode;
+}) {
+  // Two independent facts, deliberately not merged: Radix's opinion about whether the
+  // trigger is hovered (delay already applied), and ours about whether the pointer is
+  // over an action button. Overriding Radix's state instead would leave it with no
+  // transition to report when the pointer moves off the button back onto the tile, so
+  // the tooltip would only return after leaving the tile entirely.
+  const [wantsOpen, setWantsOpen] = useState(false);
+  const [overControl, setOverControl] = useState(false);
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    setOverControl(!!(e.target as HTMLElement).closest('[data-tile-control]'));
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Buttons run their own actions; amounts stay copyable. Neither filters.
+    if ((e.target as HTMLElement).closest('button, [data-tile-text]')) return;
+    // A drag starting on the tile and crossing text fires its click here - finishing a
+    // selection is not a filter click. Needed even though amounts opt out above, since
+    // the click lands on this container rather than on the text that was selected.
+    if (window.getSelection()?.toString().trim()) return;
+    // Ignore the 2nd+ click of a rapid multi-click, so impatient clicking lands on
+    // "filtered" instead of toggling straight back off.
+    if (e.detail > 1) return;
+    onSelect();
+  };
+
+  return (
+    <Tooltip open={wantsOpen && !overControl} onOpenChange={setWantsOpen}>
+      <TooltipTrigger asChild>
+        <div
+          className={cn('cursor-pointer', className)}
+          onClick={handleClick}
+          onPointerMove={handlePointerMove}
+        >
+          {children}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top">{tooltip}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function MonthlyBudgetContent() {
   // Persisted state from context (survives navigation)
   const {
@@ -903,7 +963,7 @@ function MonthlyBudgetContent() {
                         const isSelected = selectedCategoryId === category.sub_category_id;
 
                         return (
-                          <div
+                          <CategoryTile
                             key={category.sub_category_id}
                             className={cn(
                               'w-full p-3 rounded-lg transition-all',
@@ -912,29 +972,24 @@ function MonthlyBudgetContent() {
                                 ? 'bg-pink-500/10 border-pink-500/30 ring-1 ring-pink-500/20'
                                 : 'border-pink-500/10 hover:border-pink-500/20'
                             )}
+                            tooltip="Click to filter transactions"
+                            onSelect={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           >
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                  className="flex-1 text-left min-w-0"
-                                >
-                                  <span className={cn(
-                                    'font-medium truncate block',
-                                    isSelected ? 'text-pink-300' : 'text-slate-200'
-                                  )}>
-                                    {category.sub_category_name}
-                                  </span>
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">
-                                Click to filter transactions
-                              </TooltipContent>
-                            </Tooltip>
-                            <span className="font-mono text-pink-400 shrink-0 select-text">
+                            <button
+                              onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                              className="flex-1 text-left min-w-0"
+                            >
+                              <span className={cn(
+                                'font-medium truncate block',
+                                isSelected ? 'text-pink-300' : 'text-slate-200'
+                              )}>
+                                {category.sub_category_name}
+                              </span>
+                            </button>
+                            <span data-tile-text className="font-mono text-pink-400 shrink-0 select-text cursor-text">
                               {formatCurrency(category.actual_amount)}
                             </span>
-                          </div>
+                          </CategoryTile>
                         );
                       })}
                     </div>
@@ -969,7 +1024,7 @@ function MonthlyBudgetContent() {
                         const isSelected = selectedCategoryId === category.sub_category_id;
 
                         return (
-                          <div
+                          <CategoryTile
                             key={category.sub_category_id}
                             className={cn(
                               'w-full p-3 rounded-lg transition-all',
@@ -978,29 +1033,24 @@ function MonthlyBudgetContent() {
                                 ? 'bg-stone-500/10 border-stone-500/30 ring-1 ring-stone-500/20'
                                 : 'border-stone-500/10 hover:border-stone-500/20'
                             )}
+                            tooltip="Click to filter transactions"
+                            onSelect={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           >
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                  className="flex-1 text-left min-w-0"
-                                >
-                                  <span className={cn(
-                                    'font-medium truncate block',
-                                    isSelected ? 'text-stone-300' : 'text-slate-200'
-                                  )}>
-                                    {category.sub_category_name}
-                                  </span>
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">
-                                Click to filter transactions
-                              </TooltipContent>
-                            </Tooltip>
-                            <span className="font-mono text-stone-400 shrink-0 select-text">
+                            <button
+                              onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                              className="flex-1 text-left min-w-0"
+                            >
+                              <span className={cn(
+                                'font-medium truncate block',
+                                isSelected ? 'text-stone-300' : 'text-slate-200'
+                              )}>
+                                {category.sub_category_name}
+                              </span>
+                            </button>
+                            <span data-tile-text className="font-mono text-stone-400 shrink-0 select-text cursor-text">
                               {formatCurrency(category.actual_amount)}
                             </span>
-                          </div>
+                          </CategoryTile>
                         );
                       })}
                     </div>
@@ -1084,7 +1134,7 @@ function MonthlyBudgetContent() {
                       // Category with budget - show comparison display
                       if (hasBudget) {
                         return (
-                          <div
+                          <CategoryTile
                             key={category.sub_category_id}
                             className={cn(
                               'w-full p-3 rounded-lg transition-all',
@@ -1093,37 +1143,34 @@ function MonthlyBudgetContent() {
                                 ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
                                 : 'border-transparent hover:border-slate-700'
                             )}
+                            tooltip={
+                              <div className="text-center">
+                                <div>Click to filter transactions</div>
+                                {(category.average_3mo > 0 || category.average_6mo > 0) && (
+                                  <div className="mt-1 text-slate-400">
+                                    {category.average_3mo > 0 && `3mo avg: ${formatCurrency(category.average_3mo)}`}
+                                    {category.average_3mo > 0 && category.average_6mo > 0 && ' • '}
+                                    {category.average_6mo > 0 && `6mo avg: ${formatCurrency(category.average_6mo)}`}
+                                  </div>
+                                )}
+                              </div>
+                            }
+                            onSelect={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                           >
                             <div className="flex items-center justify-between gap-2 mb-2">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                    className="flex-1 text-left min-w-0"
-                                  >
-                                    <span className={cn(
-                                      'font-medium truncate block',
-                                      isSelected ? 'text-cyan-300' : 'text-slate-200'
-                                    )}>
-                                      {category.sub_category_name}
-                                    </span>
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  <div className="text-center">
-                                    <div>Click to filter transactions</div>
-                                    {(category.average_3mo > 0 || category.average_6mo > 0) && (
-                                      <div className="mt-1 text-slate-400">
-                                        {category.average_3mo > 0 && `3mo avg: ${formatCurrency(category.average_3mo)}`}
-                                        {category.average_3mo > 0 && category.average_6mo > 0 && ' • '}
-                                        {category.average_6mo > 0 && `6mo avg: ${formatCurrency(category.average_6mo)}`}
-                                      </div>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
+                              <button
+                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                className="flex-1 text-left min-w-0"
+                              >
+                                <span className={cn(
+                                  'font-medium truncate block',
+                                  isSelected ? 'text-cyan-300' : 'text-slate-200'
+                                )}>
+                                  {category.sub_category_name}
+                                </span>
+                              </button>
                               <div className="flex items-center gap-2 shrink-0">
-                                <div className="flex items-center gap-1 text-sm">
+                                <div data-tile-text className="flex items-center gap-1 text-sm select-text cursor-text">
                                   <span className={cn(
                                     'font-mono',
                                     isOverBudget ? 'text-red-400' : 'text-slate-300'
@@ -1136,6 +1183,7 @@ function MonthlyBudgetContent() {
                                   </span>
                                 </div>
                                 <Button
+                                  data-tile-control
                                   size="sm"
                                   variant="ghost"
                                   onClick={(e) => {
@@ -1168,18 +1216,18 @@ function MonthlyBudgetContent() {
                                 {percentage.toFixed(0)}% used
                               </span>
                               {isOverBudget && (
-                                <span className="text-xs text-red-400">
+                                <span data-tile-text className="text-xs text-red-400 select-text cursor-text">
                                   Over by {formatCurrency(category.actual_amount - category.budget_amount!)}
                                 </span>
                               )}
                             </div>
-                          </div>
+                          </CategoryTile>
                         );
                       }
                       
                       // Category without budget - show add budget option
                       return (
-                        <div
+                        <CategoryTile
                           key={category.sub_category_id}
                           className={cn(
                             'w-full p-3 rounded-lg transition-all',
@@ -1188,43 +1236,41 @@ function MonthlyBudgetContent() {
                               ? 'bg-cyan-500/10 border-cyan-500/30 ring-1 ring-cyan-500/20'
                               : 'border-slate-700/30 hover:border-slate-600'
                           )}
+                          tooltip={
+                            <div className="text-center">
+                              <div>Click to filter transactions</div>
+                              {(category.average_3mo > 0 || category.average_6mo > 0) && (
+                                <div className="mt-1 text-slate-400">
+                                  {category.average_3mo > 0 && `3mo avg: ${formatCurrency(category.average_3mo)}`}
+                                  {category.average_3mo > 0 && category.average_6mo > 0 && ' • '}
+                                  {category.average_6mo > 0 && `6mo avg: ${formatCurrency(category.average_6mo)}`}
+                                </div>
+                              )}
+                            </div>
+                          }
+                          onSelect={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <button
-                                    onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
-                                    className="text-left w-full min-w-0"
-                                  >
-                                    <span className={cn(
-                                      'font-medium truncate block',
-                                      isSelected ? 'text-cyan-300' : 'text-slate-300'
-                                    )}>
-                                      {category.sub_category_name}
-                                    </span>
-                                  </button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  <div className="text-center">
-                                    <div>Click to filter transactions</div>
-                                    {(category.average_3mo > 0 || category.average_6mo > 0) && (
-                                      <div className="mt-1 text-slate-400">
-                                        {category.average_3mo > 0 && `3mo avg: ${formatCurrency(category.average_3mo)}`}
-                                        {category.average_3mo > 0 && category.average_6mo > 0 && ' • '}
-                                        {category.average_6mo > 0 && `6mo avg: ${formatCurrency(category.average_6mo)}`}
-                                      </div>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
+                              <button
+                                onClick={() => handleCategoryClick(category.sub_category_id, category.sub_category_name)}
+                                className="text-left w-full min-w-0"
+                              >
+                                <span className={cn(
+                                  'font-medium truncate block',
+                                  isSelected ? 'text-cyan-300' : 'text-slate-300'
+                                )}>
+                                  {category.sub_category_name}
+                                </span>
+                              </button>
                               {category.actual_amount !== 0 && (
-                                <span className="text-sm text-slate-500 truncate block select-text">
+                                <span data-tile-text className="text-sm text-slate-500 truncate block select-text cursor-text">
                                   ({formatCurrency(category.actual_amount)} spent)
                                 </span>
                               )}
                             </div>
                             <Button
+                              data-tile-control
                               size="sm"
                               variant="outline"
                               onClick={(e) => {
@@ -1237,7 +1283,7 @@ function MonthlyBudgetContent() {
                               Set Budget
                             </Button>
                           </div>
-                        </div>
+                        </CategoryTile>
                       );
                     })}
                   </div>
