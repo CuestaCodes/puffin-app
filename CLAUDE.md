@@ -73,6 +73,11 @@ const result = await api.get('/api/transactions');
 - Query param names must match
 - SQL logic must match (same filters, JOINs, aggregations)
 - Test both modes with same inputs
+- **When fixing a bug in one path, read the other path's equivalent function in the same
+  change.** Parity is checked when endpoints are written and never again, so divergences
+  accumulate silently in existing endpoints. Two sat in `budgets` for versions: the Tauri
+  initialize was missing dev's `uc.is_active = 1` filter, and dev's UNIQUE-violation guard.
+  Both surfaced only because the two files were read side by side.
 
 **Upper vs Sub Category Operations:**
 Category handlers must check whether an ID refers to an upper or sub-category:
@@ -93,7 +98,17 @@ return updateSubCategory(id, data);
 
 **API Client Methods:** `api.get()`, `api.post()`, `api.patch()`, `api.delete()` (not `api.del`).
 
-**Multi-step DB writes:** Wrap in a transaction to keep operations atomic.
+**Multi-step DB writes:** Wrap in a transaction when the writes must succeed or fail
+*together* — a write plus its dependent write, or a delete-then-reinsert.
+
+**Do NOT wrap a batch of independent writes.** A loop inserting N unrelated rows is not one
+logical operation, and on the shared Tauri connection a transaction held across the whole
+batch blocks every other writer until it commits — SQLite fails them with
+`database is locked` (code 5). That is a worse, harder-to-diagnose failure than whatever
+partial-completion the transaction was meant to prevent. Make each write individually
+idempotent instead (`ON CONFLICT ... DO NOTHING`, or an upsert) and let a partial pass
+self-heal on the next run. `initializeMonthlyBudgets` in `lib/services/handlers/budgets.ts`
+is the worked example, including why `DO NOTHING` beats an upsert there.
 - Dev (better-sqlite3): `getDatabase().transaction(() => { ... })()`
 - Tauri: wrap `ROLLBACK` in its own try-catch — concurrent operations on the shared connection can invalidate the transaction:
 ```typescript
@@ -206,7 +221,7 @@ npm run build:static # Static export (moves API routes temporarily)
 
 **WSL:** Run `npm ci` on target platform before building (native modules are platform-specific).
 
-**Dev server (for Claude):** This repo's `node_modules` is normally installed on Windows, so `npm run dev` and `npm run tauri:dev` will fail under WSL with native-module errors (`lightningcss`, `better-sqlite3`). Do NOT run any dev command or `npm ci` from WSL — instead, ask the user to start `npm run tauri:dev` (preferred) or `npm run dev` from Windows PowerShell themselves and report back. Code edits, `npm run lint`, and Vitest tests that don't load native modules can still be run from WSL.
+**Dev server (for Claude):** This repo's `node_modules` is normally installed on Windows, so `npm run dev` and `npm run tauri:dev` will fail under WSL with native-module errors (`lightningcss`, `better-sqlite3`). Do NOT run any dev command or `npm ci` from WSL — instead, ask the user to start `npm run tauri:dev` (preferred) or `npm run dev` from Windows PowerShell themselves and report back. Code edits, `npm run lint` and `npx tsc --noEmit` can still be run from WSL. **`npm run test` cannot** — Vitest fails to start at all under WSL (`Cannot find module '@rollup/rollup-linux-x64-gnu'`), before reaching any test, so there is no subset that works. Write tests from WSL, then ask the user to run `npm run test` from PowerShell and report the result.
 
 **Committing from WSL:** The husky pre-commit hook runs `npm run test`, which requires native modules (`rollup`). Since `node_modules` is Windows-installed, this fails under WSL. Use `git commit --no-verify` to skip the hook — tests should be verified from PowerShell before or after committing.
 
@@ -364,16 +379,29 @@ Tauri min window: 800×600. Use `lg:` (1024px) not `md:` (768px) for breakpoints
 ### Text Overflow & Truncation
 For text that should truncate with ellipsis:
 - Add `truncate` class to the text element
-- Add `min-w-0` to flex containers (allows children to shrink below content size)
+- Add `min-w-0` to the flex **item** that contains the truncating text — flex items default
+  to `min-width: auto` and refuse to shrink below their content
 - Add `shrink-0` to fixed-width siblings (prevents them from shrinking)
 - Use `whitespace-nowrap` for text that must stay on one line (e.g., "(5 categories)")
 
 ```tsx
-<div className="flex items-center gap-2 min-w-0">
-  <span className="truncate">{longCategoryName}</span>
+<div className="flex items-center gap-2">        {/* flex container */}
+  <div className="min-w-0">                      {/* flex ITEM - min-w-0 belongs here */}
+    <span className="truncate">{longCategoryName}</span>
+  </div>
   <span className="shrink-0 font-mono">{amount}</span>
 </div>
 ```
+
+**`min-w-0` on a flex container does nothing.** It is a property of the element itself, and
+only matters when that element is a flex item. The two roles often coincide — a flex item
+that is itself a flex container — which is what makes this easy to get wrong. A block-level
+child of a non-flex parent (e.g. a row inside `CardContent`) needs no `min-w-0` at all:
+`truncate` alone works, because the block already fills and is bounded by its parent.
+
+This was previously documented as "add `min-w-0` to flex containers", and following it
+literally produced nine inert classes on tile title rows — the same failure mode as the
+scroll-preservation helper below: a convention followed everywhere, doing nothing.
 
 ### Action Button Groups
 When multiple action buttons overflow at narrow widths:

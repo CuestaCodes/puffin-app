@@ -26,6 +26,11 @@ interface ValueTooltipProps {
  * Carries no layout of its own — each page keeps its own tile markup and adds
  * `truncate` to the value itself. This exists so the reveal behaviour has a
  * single definition instead of being re-implemented per page.
+ *
+ * Truncate the value only. Titles and sub-labels wrap instead, because a clipped
+ * figure with no reveal of its own is worse than a wrapped one — and the title is
+ * repeated here anyway. Gate the tile's `tabIndex` on there being something to
+ * reveal, so a card never gains a focus ring with an empty tooltip behind it.
  */
 export function ValueTooltip({ label, value, detail, children }: ValueTooltipProps) {
   if (!label && !detail) return children;

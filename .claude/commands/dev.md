@@ -63,9 +63,11 @@ For the selected task, work through each phase sequentially:
 - Identify what needs Vitest coverage (per CLAUDE.md: database ops, calculations, utils)
 - Skip UI component tests (no @testing-library/react)
 - Write tests in `*.test.ts` files alongside source
-- Run `npm run test` and ensure all pass
-- Run `npm run lint` and fix any issues
-- **Gate:** All tests pass, no lint errors
+- Run `npm run lint` and `npx tsc --noEmit` from WSL and fix any issues
+- Do NOT attempt `npm run test` from WSL — Vitest cannot start there (see CLAUDE.md).
+  Ask the user to run it from PowerShell and report the result; never report the suite as
+  passing without having seen that result
+- **Gate:** All tests pass (confirmed by the user), no lint or type errors
 
 ---
 
