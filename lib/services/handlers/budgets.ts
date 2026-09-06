@@ -604,18 +604,22 @@ async function copyBudgetsToMonth(
   return copiedCount;
 }
 
-/**
- * Initialize monthly budgets with $0 for categories that don't have budgets.
- */
-/** In-flight initialize passes, keyed by year-month.
- *
- *  The budget page fires an initialize on mount and on every month change, so two passes
- *  for the same month overlap routinely (React's dev double-invoked effect; a fast month
- *  change landing while the first is still inserting). Both would read the same "missing"
- *  list and both write it. Coalescing on the promise means the second caller waits for the
- *  first rather than racing it. */
+/** In-flight initialize passes, keyed by year-month. */
 const inFlightInitializations = new Map<string, Promise<number>>();
 
+/**
+ * Initialize monthly budgets with $0 for categories that don't have budgets.
+ *
+ * The budget page fires an initialize on mount and on every month change, so two passes
+ * for the same month overlap routinely (React's dev double-invoked effect; a fast month
+ * change landing while the first is still inserting). Both would read the same "missing"
+ * list and both write it. Coalescing on the promise means the second caller waits for the
+ * first rather than racing it.
+ *
+ * A caller arriving after the pass has read its list gets that already-computed result, so
+ * a sub-category created mid-pass is skipped until the next visit. Accepted deliberately:
+ * it self-heals, and the alternative is re-running the whole pass per caller.
+ */
 async function initializeMonthlyBudgets(year: number, month: number): Promise<number> {
   const key = `${year}-${month}`;
   const inFlight = inFlightInitializations.get(key);

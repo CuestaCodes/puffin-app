@@ -898,7 +898,10 @@ function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgCol
   const card = (
     <Card
       className="border-slate-800 bg-slate-900/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50"
-      tabIndex={0}
+      // `title` is required, so ValueTooltip always renders one and the card is always
+      // worth focusing. Keep this tied to what the tooltip renders on, or a card ends up
+      // with a focus ring and nothing to reveal.
+      tabIndex={title || tooltip ? 0 : undefined}
     >
       <CardContent className="pt-0 pb-[23px]">
         <div className="ml-1 mb-1.5">

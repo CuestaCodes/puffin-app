@@ -164,12 +164,12 @@ export function NetWorthPage() {
   // shows the title and '$0' without a meaningless '$0 − $0 = $0' line.
   const tilesInteractive = !isLoading;
   const tilesHaveData = !isLoading && latestEntry !== null;
-  const tileValue = (amount: number) =>
-    isLoading ? '—' : latestEntry ? formatCurrency(amount) : '$0';
-  const netWorthValue = tileValue(latestEntry?.net_worth ?? 0);
-  const assetsValue = tileValue(latestEntry?.total_assets ?? 0);
-  const liquidValue = tileValue(latestEntry?.total_liquid_assets ?? 0);
-  const liabilitiesValue = tileValue(latestEntry?.total_liabilities ?? 0);
+  const tileValue = (pick: (entry: NetWorthEntryParsed) => number) =>
+    isLoading ? '—' : latestEntry ? formatCurrency(pick(latestEntry)) : '$0';
+  const netWorthValue = tileValue(e => e.net_worth);
+  const assetsValue = tileValue(e => e.total_assets);
+  const liquidValue = tileValue(e => e.total_liquid_assets);
+  const liabilitiesValue = tileValue(e => e.total_liabilities);
   const snapshotsValue = isLoading ? '—' : String(entries.length);
   const tileFocusClass =
     'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50';
@@ -213,7 +213,7 @@ export function NetWorthPage() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-cyan-500/10 shrink-0">
                   <Wallet className="w-4 h-4 text-cyan-400" />
                 </div>
@@ -244,7 +244,7 @@ export function NetWorthPage() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0">
                   <ArrowUpCircle className="w-4 h-4 text-emerald-400" />
                 </div>
@@ -268,7 +268,7 @@ export function NetWorthPage() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-blue-500/10 shrink-0">
                   <TrendingUp className="w-4 h-4 text-blue-400" />
                 </div>
@@ -293,7 +293,7 @@ export function NetWorthPage() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-red-500/10 shrink-0">
                   <ArrowDownCircle className="w-4 h-4 text-red-400" />
                 </div>
@@ -317,7 +317,7 @@ export function NetWorthPage() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-purple-500/10 shrink-0">
                   <TrendingUp className="w-4 h-4 text-purple-400" />
                 </div>

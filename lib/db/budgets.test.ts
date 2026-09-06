@@ -758,6 +758,35 @@ describe('Budget Operations', () => {
       expect(count).toBe(0);
     });
 
+    it('should be idempotent when run twice for the same month', () => {
+      // The budget page fires an initialize on mount and on every month change, so two
+      // passes for the same month overlap routinely. The second must not fail on the
+      // UNIQUE(sub_category_id, year, month) constraint or duplicate any rows.
+      const first = initializeMonthlyBudgets(2025, 3);
+      const second = initializeMonthlyBudgets(2025, 3);
+
+      expect(first).toBe(2);
+      expect(second).toBe(0); // Nothing left to create
+      expect(getBudgetsByMonth(2025, 3)).toHaveLength(2);
+    });
+
+    it('should not reset an existing budget to $0 on a conflicting insert', () => {
+      // Guards the DO NOTHING choice: an upsert here would zero a real amount written
+      // between the read of missing categories and the insert.
+      initializeMonthlyBudgets(2025, 3);
+      upsertBudget({
+        sub_category_id: categoryId1,
+        year: 2025,
+        month: 3,
+        amount: 750.00,
+      });
+
+      expect(initializeMonthlyBudgets(2025, 3)).toBe(0);
+
+      const budgets = getBudgetsByMonth(2025, 3);
+      expect(budgets.find(b => b.sub_category_id === categoryId1)?.amount).toBe(750.00);
+    });
+
     it('should not create budgets for income categories', () => {
       const db = getTestDatabase();
       const now = new Date().toISOString();

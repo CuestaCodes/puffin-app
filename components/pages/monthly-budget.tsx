@@ -832,7 +832,7 @@ function MonthlyBudgetContent() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-pink-500/10 shrink-0">
                   <TrendingUp className="w-4 h-4 text-pink-400" />
                 </div>
@@ -855,7 +855,7 @@ function MonthlyBudgetContent() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-blue-500/10 shrink-0">
                   <Wallet className="w-4 h-4 text-blue-400" />
                 </div>
@@ -886,7 +886,7 @@ function MonthlyBudgetContent() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className="p-2 rounded-lg bg-red-500/10 shrink-0">
                   <TrendingDown className="w-4 h-4 text-red-400" />
                 </div>
@@ -931,7 +931,7 @@ function MonthlyBudgetContent() {
             tabIndex={tilesInteractive ? 0 : undefined}
           >
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 mb-2 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
                 <div className={cn(
                   "p-2 rounded-lg shrink-0",
                   remaining >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'

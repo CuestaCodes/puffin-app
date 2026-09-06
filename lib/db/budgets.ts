@@ -170,23 +170,28 @@ export function initializeMonthlyBudgets(year: number, month: number): number {
     return 0;
   }
   
+  // DO NOTHING rather than an upsert: a row appearing between the read above and this
+  // insert was written by a concurrent initialize pass (the budget page runs one on mount
+  // and on every month change), and overwriting it would reset a real budget amount to $0.
+  // Mirrors lib/services/handlers/budgets.ts.
   const insert = db.prepare(`
     INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
     VALUES (?, ?, ?, ?, 0, ?, ?)
+    ON CONFLICT (sub_category_id, year, month) DO NOTHING
   `);
-  
+
   let count = 0;
-  
+
   const initAll = db.transaction(() => {
     for (const cat of categoriesWithoutBudget) {
       const id = generateId();
-      insert.run(id, cat.sub_category_id, year, month, now, now);
-      count++;
+      const result = insert.run(id, cat.sub_category_id, year, month, now, now);
+      if (result.changes > 0) count++;
     }
   });
-  
+
   initAll();
-  
+
   return count;
 }
 
