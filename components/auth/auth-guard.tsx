@@ -2,8 +2,10 @@
 
 import { ReactNode } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useAutoLock } from '@/hooks/use-auto-lock';
 import { LoginForm } from './login-form';
 import { SetupForm } from './setup-form';
+import { LockScreen } from './lock-screen';
 import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
@@ -11,7 +13,10 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { isLoggedIn, isSetup, isLoading } = useAuth();
+  const { isLoggedIn, isSetup, isLoading, isLocked } = useAuth();
+
+  // Count down only while there is something to lock.
+  useAutoLock(isLoggedIn && !isLocked);
 
   // Show loading state
   if (isLoading) {
@@ -34,8 +39,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Show login form if not logged in
-  if (!isLoggedIn) {
+  // Show login form if not logged in. A locked app still has a valid session,
+  // so it falls through to the overlay below rather than the login screen.
+  if (!isLoggedIn && !isLocked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-4">
         <LoginForm />
@@ -43,6 +49,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Render children if authenticated
-  return <>{children}</>;
+  // Render children if authenticated. When locked they stay mounted and
+  // rendered — covered, not hidden — because `display: none` resets the scroll
+  // position of the app's scroll container, which would defeat the point of
+  // locking to an overlay instead of logging out.
+  return (
+    <>
+      {children}
+      {isLocked && <LockScreen />}
+    </>
+  );
 }

@@ -1,16 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Shield, Loader2, Eye, EyeOff, Check } from 'lucide-react';
+import { ArrowLeft, Shield, Loader2, Eye, EyeOff, Check, Timer } from 'lucide-react';
 import { sanitizePinInput } from '@/lib/utils';
+import {
+  AUTO_LOCK_TIMEOUT_OPTIONS,
+  DEFAULT_AUTO_LOCK_PREFERENCE,
+  readAutoLockPreference,
+  writeAutoLockPreference,
+  type AutoLockPreference,
+} from '@/lib/auto-lock';
 
 interface SecuritySettingsProps {
   onBack: () => void;
+}
+
+function describeTimeout(minutes: number): string {
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`;
 }
 
 export function SecuritySettings({ onBack }: SecuritySettingsProps) {
@@ -23,6 +43,24 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [autoLock, setAutoLock] = useState<AutoLockPreference>(DEFAULT_AUTO_LOCK_PREFERENCE);
+
+  // The preference is device-specific and lives in localStorage, so it can
+  // only be read once mounted on the client.
+  useEffect(() => {
+    setAutoLock(readAutoLockPreference());
+  }, []);
+
+  const updateAutoLock = (next: AutoLockPreference) => {
+    setAutoLock(next);
+    writeAutoLockPreference(next);
+
+    if (!next.enabled) {
+      toast.success('Auto-lock disabled');
+    } else {
+      toast.success(`Auto-lock set to ${describeTimeout(next.timeoutMinutes)}`);
+    }
+  };
 
   const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (value: string) => void) => {
     setter(sanitizePinInput(e.target.value));
@@ -100,9 +138,77 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-white">Security Settings</h1>
-          <p className="text-slate-400 mt-1">Change your PIN</p>
+          <p className="text-slate-400 mt-1">Change your PIN and manage auto-lock</p>
         </div>
       </div>
+
+      {/* Auto-Lock */}
+      <Card className="border-slate-800 bg-slate-900/50">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-cyan-950/50 border border-cyan-900/50">
+              <Timer className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <CardTitle className="text-lg text-slate-100">Auto-Lock</CardTitle>
+              <CardDescription className="text-slate-400">
+                Return to the PIN screen after a period of inactivity
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <Label htmlFor="auto-lock-enabled" className="text-slate-300">
+                Lock when idle
+              </Label>
+              <p className="text-sm text-slate-500 mt-1">
+                Your work stays open behind the lock screen — nothing is lost, and a sync or
+                import in progress keeps running.
+              </p>
+            </div>
+            <Switch
+              id="auto-lock-enabled"
+              checked={autoLock.enabled}
+              onCheckedChange={(enabled) => updateAutoLock({ ...autoLock, enabled })}
+              aria-label="Lock when idle"
+              className="shrink-0 data-[state=checked]:bg-cyan-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="auto-lock-timeout" className="text-slate-300">
+              Lock after
+            </Label>
+            <Select
+              value={String(autoLock.timeoutMinutes)}
+              onValueChange={(value) =>
+                updateAutoLock({ ...autoLock, timeoutMinutes: Number(value) })
+              }
+              disabled={!autoLock.enabled}
+            >
+              <SelectTrigger
+                id="auto-lock-timeout"
+                aria-label="Lock after"
+                className="bg-slate-800/50 border-slate-700 text-slate-100"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-700">
+                {AUTO_LOCK_TIMEOUT_OPTIONS.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)} className="text-slate-300">
+                    {describeTimeout(minutes)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!autoLock.enabled && (
+              <p className="text-sm text-slate-500">Turn auto-lock on to choose a timeout.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Change PIN Form */}
       <Card className="border-slate-800 bg-slate-900/50">
