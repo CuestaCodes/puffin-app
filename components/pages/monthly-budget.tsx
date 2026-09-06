@@ -5,6 +5,7 @@ import { useMonthlyBudgetState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ValueTooltip } from '@/components/ui/value-tooltip';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
@@ -654,6 +655,16 @@ function MonthlyBudgetContent() {
     ? (budgetData.totalSpent / budgetData.totalBudgeted) * 100
     : 0;
 
+  // Summary tile values. Tiles are focusable and carry a tooltip once loading is done,
+  // so a value truncated at narrow widths can always be read in full.
+  const tilesInteractive = !isLoading;
+  const incomeValue = isLoading ? '—' : formatCurrency(budgetData?.totalIncome || 0);
+  const budgetedValue = isLoading ? '—' : formatCurrency(budgetData?.totalBudgeted || 0);
+  const spentValue = isLoading ? '—' : formatCurrency(budgetData?.totalSpent || 0);
+  const remainingValue = isLoading ? '—' : formatCurrency(remaining);
+  const tileFocusClass =
+    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50';
+
   return (
     <div className="space-y-6" style={{ overflowAnchor: 'none' }}>
       {/* Page header with month navigation */}
@@ -811,84 +822,136 @@ function MonthlyBudgetContent() {
       {/* Budget overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Income tile */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-pink-500/10">
-                <TrendingUp className="w-4 h-4 text-pink-400" />
-              </div>
-              <p className="text-sm text-slate-400">Income</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-pink-400">
-              {isLoading ? '—' : formatCurrency(budgetData?.totalIncome || 0)}
-            </p>
-          </CardContent>
-        </Card>
-        {/* Budgeted tile */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Wallet className="w-4 h-4 text-blue-400" />
-              </div>
-              <p className="text-sm text-slate-400">Budgeted</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-white">
-              {isLoading ? '—' : formatCurrency(budgetData?.totalBudgeted || 0)}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-red-500/10">
-                <TrendingDown className="w-4 h-4 text-red-400" />
-              </div>
-              <p className="text-sm text-slate-400">Spent</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-white">
-              {isLoading ? '—' : formatCurrency(budgetData?.totalSpent || 0)}
-            </p>
-            {!isLoading && budgetData?.totalBudgeted !== undefined && budgetData.totalBudgeted > 0 && (
-              <div className="mt-3">
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className={cn(
-                      'h-full rounded-full transition-all duration-500',
-                      spentPercentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' : 'bg-emerald-500'
-                    )}
-                    style={{ width: `${Math.min(100, spentPercentage)}%` }}
-                  />
+        <ValueTooltip
+          label={tilesInteractive ? 'Income' : undefined}
+          value={incomeValue}
+          detail={tilesInteractive ? 'All income recorded for this month.' : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-pink-500/10 shrink-0">
+                  <TrendingUp className="w-4 h-4 text-pink-400" />
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  {spentPercentage.toFixed(0)}% of budget
+                <p className="text-sm text-slate-400">Income</p>
+              </div>
+              <p className="text-2xl font-bold mt-1 tabular-nums text-pink-400 truncate">
+                {incomeValue}
+              </p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
+        {/* Budgeted tile */}
+        <ValueTooltip
+          label={tilesInteractive ? 'Budgeted' : undefined}
+          value={budgetedValue}
+          detail={tilesInteractive ? 'Total budgeted across every sub-category this month.' : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-blue-500/10 shrink-0">
+                  <Wallet className="w-4 h-4 text-blue-400" />
+                </div>
+                <p className="text-sm text-slate-400">Budgeted</p>
+              </div>
+              <p className="text-2xl font-bold mt-1 tabular-nums text-white truncate">
+                {budgetedValue}
+              </p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
+        <ValueTooltip
+          label={tilesInteractive ? 'Spent' : undefined}
+          value={spentValue}
+          detail={tilesInteractive ? (
+            <>
+              <p>Total spent against this month&apos;s budget.</p>
+              {(budgetData?.totalBudgeted ?? 0) > 0 && (
+                <p className="tabular-nums mt-1">
+                  {spentValue} ÷ {budgetedValue} × 100 = {spentPercentage.toFixed(0)}%
                 </p>
+              )}
+            </>
+          ) : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-red-500/10 shrink-0">
+                  <TrendingDown className="w-4 h-4 text-red-400" />
+                </div>
+                <p className="text-sm text-slate-400">Spent</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={cn(
-                "p-2 rounded-lg",
-                remaining >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'
+              <p className="text-2xl font-bold mt-1 tabular-nums text-white truncate">
+                {spentValue}
+              </p>
+              {!isLoading && budgetData?.totalBudgeted !== undefined && budgetData.totalBudgeted > 0 && (
+                <div className="mt-3">
+                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        spentPercentage > BUDGET_THRESHOLDS.OVER ? 'bg-red-500' : 'bg-emerald-500'
+                      )}
+                      style={{ width: `${Math.min(100, spentPercentage)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {spentPercentage.toFixed(0)}% of budget
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </ValueTooltip>
+        <ValueTooltip
+          label={tilesInteractive ? 'Remaining' : undefined}
+          value={remainingValue}
+          detail={tilesInteractive ? (
+            <>
+              <p>Budgeted − Spent</p>
+              <p className="tabular-nums mt-1">
+                {budgetedValue} − {spentValue} = {remainingValue}
+              </p>
+            </>
+          ) : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className={cn(
+                  "p-2 rounded-lg shrink-0",
+                  remaining >= 0 ? 'bg-emerald-500/10' : 'bg-red-500/10'
+                )}>
+                  <TrendingUp className={cn(
+                    "w-4 h-4",
+                    remaining >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  )} />
+                </div>
+                <p className="text-sm text-slate-400">Remaining</p>
+              </div>
+              <p className={cn(
+                "text-2xl font-bold mt-1 tabular-nums truncate",
+                remaining >= 0 ? 'text-emerald-400' : 'text-red-400'
               )}>
-                <TrendingUp className={cn(
-                  "w-4 h-4",
-                  remaining >= 0 ? 'text-emerald-400' : 'text-red-400'
-                )} />
-              </div>
-              <p className="text-sm text-slate-400">Remaining</p>
-            </div>
-            <p className={cn(
-              "text-2xl font-bold mt-1 tabular-nums",
-              remaining >= 0 ? 'text-emerald-400' : 'text-red-400'
-            )}>
-              {isLoading ? '—' : formatCurrency(remaining)}
-            </p>
-          </CardContent>
-        </Card>
+                {remainingValue}
+              </p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
       </div>
 
       {/* Budget categories */}

@@ -22,11 +22,7 @@ import {
   Area,
   LabelList,
 } from 'recharts';
-import {
-  Tooltip as UITooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from '@/components/ui/tooltip';
+import { ValueTooltip } from '@/components/ui/value-tooltip';
 import { CHART_COLORS, UPPER_CATEGORY_COLORS, DONUT_CHART } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
@@ -902,7 +898,7 @@ function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgCol
   const card = (
     <Card
       className="border-slate-800 bg-slate-900/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50"
-      tabIndex={tooltip ? 0 : undefined}
+      tabIndex={0}
     >
       <CardContent className="pt-0 pb-[23px]">
         <div className="ml-1 mb-1.5">
@@ -928,15 +924,9 @@ function SummaryCard({ title, value, change, trend, icon: Icon, iconColor, bgCol
     </Card>
   );
 
-  if (!tooltip) return card;
-
   return (
-    <UITooltip>
-      <TooltipTrigger asChild>{card}</TooltipTrigger>
-      <TooltipContent className="max-w-xs">
-        <p className="font-semibold tabular-nums text-slate-100">{value}</p>
-        <div className="text-xs text-slate-300 mt-1">{tooltip}</div>
-      </TooltipContent>
-    </UITooltip>
+    <ValueTooltip label={title} value={value} detail={tooltip}>
+      {card}
+    </ValueTooltip>
   );
 }

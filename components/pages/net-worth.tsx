@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ValueTooltip } from '@/components/ui/value-tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, TrendingUp, Wallet, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { formatCurrencyAUD } from '@/lib/utils';
@@ -158,6 +159,21 @@ export function NetWorthPage() {
     ? latestEntry.net_worth - previousEntry.net_worth
     : null;
 
+  // Summary tile values. Tiles are focusable and carry a tooltip once loading is done;
+  // the definition/equation detail additionally needs a real entry, so the empty state
+  // shows the title and '$0' without a meaningless '$0 − $0 = $0' line.
+  const tilesInteractive = !isLoading;
+  const tilesHaveData = !isLoading && latestEntry !== null;
+  const tileValue = (amount: number) =>
+    isLoading ? '—' : latestEntry ? formatCurrency(amount) : '$0';
+  const netWorthValue = tileValue(latestEntry?.net_worth ?? 0);
+  const assetsValue = tileValue(latestEntry?.total_assets ?? 0);
+  const liquidValue = tileValue(latestEntry?.total_liquid_assets ?? 0);
+  const liabilitiesValue = tileValue(latestEntry?.total_liabilities ?? 0);
+  const snapshotsValue = isLoading ? '—' : String(entries.length);
+  const tileFocusClass =
+    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500/50';
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -180,87 +196,139 @@ export function NetWorthPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Current Net Worth */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-cyan-500/10">
-                <Wallet className="w-4 h-4 text-cyan-400" />
-              </div>
-              <p className="text-sm text-slate-400">Current Net Worth</p>
-            </div>
-            <p className={`text-2xl font-bold mt-1 tabular-nums ${
-              latestEntry && latestEntry.net_worth >= 0 ? 'text-cyan-400' : 'text-red-400'
-            }`}>
-              {isLoading ? '—' : latestEntry ? formatCurrency(latestEntry.net_worth) : '$0'}
-            </p>
-            {netWorthChange !== null && (
-              <p className={`text-xs mt-1 ${netWorthChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {netWorthChange >= 0 ? '+' : ''}{formatCurrency(netWorthChange)} since last entry
+        <ValueTooltip
+          label={tilesInteractive ? 'Current Net Worth' : undefined}
+          value={netWorthValue}
+          detail={tilesHaveData ? (
+            <>
+              <p>Total Assets − Total Liabilities</p>
+              <p className="tabular-nums mt-1">
+                {assetsValue} − {liabilitiesValue} = {netWorthValue}
               </p>
-            )}
-          </CardContent>
-        </Card>
+            </>
+          ) : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-cyan-500/10 shrink-0">
+                  <Wallet className="w-4 h-4 text-cyan-400" />
+                </div>
+                <p className="text-sm text-slate-400">Current Net Worth</p>
+              </div>
+              <p className={`text-2xl font-bold mt-1 tabular-nums truncate ${
+                latestEntry && latestEntry.net_worth >= 0 ? 'text-cyan-400' : 'text-red-400'
+              }`}>
+                {netWorthValue}
+              </p>
+              {netWorthChange !== null && (
+                <p className={`text-xs mt-1 ${netWorthChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {netWorthChange >= 0 ? '+' : ''}{formatCurrency(netWorthChange)} since last entry
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </ValueTooltip>
 
         {/* Total Assets */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <ArrowUpCircle className="w-4 h-4 text-emerald-400" />
+        <ValueTooltip
+          label={tilesInteractive ? 'Total Assets' : undefined}
+          value={assetsValue}
+          detail={tilesHaveData ? 'Everything owned at this snapshot, liquid and illiquid.' : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-emerald-500/10 shrink-0">
+                  <ArrowUpCircle className="w-4 h-4 text-emerald-400" />
+                </div>
+                <p className="text-sm text-slate-400">Total Assets</p>
               </div>
-              <p className="text-sm text-slate-400">Total Assets</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-emerald-400">
-              {isLoading ? '—' : latestEntry ? formatCurrency(latestEntry.total_assets) : '$0'}
-            </p>
-          </CardContent>
-        </Card>
+              <p className="text-2xl font-bold mt-1 tabular-nums text-emerald-400 truncate">
+                {assetsValue}
+              </p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
 
         {/* Liquid Assets */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <TrendingUp className="w-4 h-4 text-blue-400" />
+        <ValueTooltip
+          label={tilesInteractive ? 'Liquid Assets' : undefined}
+          value={liquidValue}
+          detail={tilesHaveData ? 'Cash and assets readily convertible to cash. Drives the growth projection.' : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-blue-500/10 shrink-0">
+                  <TrendingUp className="w-4 h-4 text-blue-400" />
+                </div>
+                <p className="text-sm text-slate-400">Liquid Assets</p>
               </div>
-              <p className="text-sm text-slate-400">Liquid Assets</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-blue-400">
-              {isLoading ? '—' : latestEntry ? formatCurrency(latestEntry.total_liquid_assets) : '$0'}
-            </p>
-            <p className="text-xs text-slate-500 mt-1">Used for projections</p>
-          </CardContent>
-        </Card>
+              <p className="text-2xl font-bold mt-1 tabular-nums text-blue-400 truncate">
+                {liquidValue}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">Used for projections</p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
 
         {/* Total Liabilities */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-red-500/10">
-                <ArrowDownCircle className="w-4 h-4 text-red-400" />
+        <ValueTooltip
+          label={tilesInteractive ? 'Total Liabilities' : undefined}
+          value={liabilitiesValue}
+          detail={tilesHaveData ? 'Everything owed at this snapshot — loans, cards and other debts.' : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-red-500/10 shrink-0">
+                  <ArrowDownCircle className="w-4 h-4 text-red-400" />
+                </div>
+                <p className="text-sm text-slate-400">Total Liabilities</p>
               </div>
-              <p className="text-sm text-slate-400">Total Liabilities</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-red-400">
-              {isLoading ? '—' : latestEntry ? formatCurrency(latestEntry.total_liabilities) : '$0'}
-            </p>
-          </CardContent>
-        </Card>
+              <p className="text-2xl font-bold mt-1 tabular-nums text-red-400 truncate">
+                {liabilitiesValue}
+              </p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
 
         {/* Number of Snapshots */}
-        <Card className="border-slate-800 bg-slate-900/50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <TrendingUp className="w-4 h-4 text-purple-400" />
+        <ValueTooltip
+          label={tilesInteractive ? 'Total Snapshots' : undefined}
+          value={snapshotsValue}
+          detail={tilesHaveData ? 'Net worth entries recorded so far. Two or more enable the trend projection.' : undefined}
+        >
+          <Card
+            className={`border-slate-800 bg-slate-900/50 ${tileFocusClass}`}
+            tabIndex={tilesInteractive ? 0 : undefined}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-2 min-w-0">
+                <div className="p-2 rounded-lg bg-purple-500/10 shrink-0">
+                  <TrendingUp className="w-4 h-4 text-purple-400" />
+                </div>
+                <p className="text-sm text-slate-400">Total Snapshots</p>
               </div>
-              <p className="text-sm text-slate-400">Total Snapshots</p>
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums text-purple-400">
-              {isLoading ? '—' : entries.length}
-            </p>
-          </CardContent>
-        </Card>
+              <p className="text-2xl font-bold mt-1 tabular-nums text-purple-400 truncate">
+                {snapshotsValue}
+              </p>
+            </CardContent>
+          </Card>
+        </ValueTooltip>
       </div>
 
       {/* Main Content */}
