@@ -442,10 +442,30 @@ async function createOrUpdateBudget(data: {
   }
 
   const id = crypto.randomUUID();
-  await db.execute(
-    'INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, data.sub_category_id, data.year, data.month, data.amount, now, now]
-  );
+  try {
+    await db.execute(
+      'INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, data.sub_category_id, data.year, data.month, data.amount, now, now]
+    );
+  } catch (error) {
+    // The budget was created between the check above and this insert; update it instead,
+    // matching lib/db/budgets.ts.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('UNIQUE constraint')) {
+      const raced = await db.queryOne<Budget>(
+        'SELECT * FROM budget WHERE sub_category_id = ? AND year = ? AND month = ?',
+        [data.sub_category_id, data.year, data.month]
+      );
+      if (raced) {
+        await db.execute(
+          'UPDATE budget SET amount = ?, updated_at = ? WHERE id = ?',
+          [data.amount, now, raced.id]
+        );
+        return { ...raced, amount: data.amount, updated_at: now };
+      }
+    }
+    throw error;
+  }
 
   return {
     id,
@@ -588,7 +608,9 @@ async function copyBudgetsToMonth(
  * Initialize monthly budgets with $0 for categories that don't have budgets.
  */
 async function initializeMonthlyBudgets(year: number, month: number): Promise<number> {
-  // Get all expense/savings/bills categories that don't have a budget for this month
+  // Get all expense/savings/bills categories that don't have a budget for this month.
+  // Inactive uppers are excluded, matching lib/db/budgets.ts — deactivating an upper
+  // must not keep minting $0 budgets for its sub-categories on every month visit.
   const categoriesWithoutBudget = await db.query<{ id: string }>(`
     SELECT sc.id
     FROM sub_category sc
@@ -596,19 +618,32 @@ async function initializeMonthlyBudgets(year: number, month: number): Promise<nu
     LEFT JOIN budget b ON b.sub_category_id = sc.id AND b.year = ? AND b.month = ?
     WHERE sc.is_deleted = 0
       AND uc.type NOT IN ('income', 'transfer')
+      AND uc.is_active = 1
       AND b.id IS NULL
   `, [year, month]);
 
+  if (categoriesWithoutBudget.length === 0) return 0;
+
+  const now = new Date().toISOString();
   let initializedCount = 0;
 
-  for (const category of categoriesWithoutBudget) {
-    await createOrUpdateBudget({
-      sub_category_id: category.id,
-      year,
-      month,
-      amount: 0,
-    });
-    initializedCount++;
+  await db.execute('BEGIN TRANSACTION');
+  try {
+    for (const category of categoriesWithoutBudget) {
+      // DO NOTHING rather than an upsert: a row appearing between the read above and
+      // this insert was written by a concurrent initialize (the page runs one on mount
+      // and on every month change), and overwriting it would reset a real budget to $0.
+      const result = await db.execute(`
+        INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 0, ?, ?)
+        ON CONFLICT (sub_category_id, year, month) DO NOTHING
+      `, [crypto.randomUUID(), category.id, year, month, now, now]);
+      if (result.changes > 0) initializedCount++;
+    }
+    await db.execute('COMMIT');
+  } catch (e) {
+    try { await db.execute('ROLLBACK'); } catch { /* no active transaction */ }
+    throw e;
   }
 
   return initializedCount;
