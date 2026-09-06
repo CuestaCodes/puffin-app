@@ -170,10 +170,11 @@ export function initializeMonthlyBudgets(year: number, month: number): number {
     return 0;
   }
   
-  // DO NOTHING rather than an upsert: a row appearing between the read above and this
-  // insert was written by a concurrent initialize pass (the budget page runs one on mount
-  // and on every month change), and overwriting it would reset a real budget amount to $0.
-  // Mirrors lib/services/handlers/budgets.ts.
+  // Mirrors lib/services/handlers/budgets.ts, where concurrent initialize passes are a
+  // live hazard. better-sqlite3 is synchronous, so this path cannot interleave with
+  // itself; the clause is here for parity and for the case another process holds the
+  // database open (sync, backup restore). DO NOTHING rather than an upsert, so a row
+  // written by whoever won is not reset to $0.
   const insert = db.prepare(`
     INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
     VALUES (?, ?, ?, ?, 0, ?, ?)
