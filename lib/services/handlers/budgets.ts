@@ -607,7 +607,27 @@ async function copyBudgetsToMonth(
 /**
  * Initialize monthly budgets with $0 for categories that don't have budgets.
  */
+/** In-flight initialize passes, keyed by year-month.
+ *
+ *  The budget page fires an initialize on mount and on every month change, so two passes
+ *  for the same month overlap routinely (React's dev double-invoked effect; a fast month
+ *  change landing while the first is still inserting). Both would read the same "missing"
+ *  list and both write it. Coalescing on the promise means the second caller waits for the
+ *  first rather than racing it. */
+const inFlightInitializations = new Map<string, Promise<number>>();
+
 async function initializeMonthlyBudgets(year: number, month: number): Promise<number> {
+  const key = `${year}-${month}`;
+  const inFlight = inFlightInitializations.get(key);
+  if (inFlight) return inFlight;
+
+  const run = runInitializeMonthlyBudgets(year, month)
+    .finally(() => inFlightInitializations.delete(key));
+  inFlightInitializations.set(key, run);
+  return run;
+}
+
+async function runInitializeMonthlyBudgets(year: number, month: number): Promise<number> {
   // Get all expense/savings/bills categories that don't have a budget for this month.
   // Inactive uppers are excluded, matching lib/db/budgets.ts — deactivating an upper
   // must not keep minting $0 budgets for its sub-categories on every month visit.
@@ -627,23 +647,21 @@ async function initializeMonthlyBudgets(year: number, month: number): Promise<nu
   const now = new Date().toISOString();
   let initializedCount = 0;
 
-  await db.execute('BEGIN TRANSACTION');
-  try {
-    for (const category of categoriesWithoutBudget) {
-      // DO NOTHING rather than an upsert: a row appearing between the read above and
-      // this insert was written by a concurrent initialize (the page runs one on mount
-      // and on every month change), and overwriting it would reset a real budget to $0.
-      const result = await db.execute(`
-        INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 0, ?, ?)
-        ON CONFLICT (sub_category_id, year, month) DO NOTHING
-      `, [crypto.randomUUID(), category.id, year, month, now, now]);
-      if (result.changes > 0) initializedCount++;
-    }
-    await db.execute('COMMIT');
-  } catch (e) {
-    try { await db.execute('ROLLBACK'); } catch { /* no active transaction */ }
-    throw e;
+  // Deliberately NOT wrapped in a transaction. These are independent, individually
+  // idempotent inserts, so a partially-completed pass is harmless — the next visit
+  // inserts whatever is still missing. Holding one write transaction across the whole
+  // batch instead makes any other writer on the shared Tauri connection fail with
+  // "database is locked", which is a worse failure than the one it would prevent.
+  for (const category of categoriesWithoutBudget) {
+    // DO NOTHING rather than an upsert: a row appearing between the read above and this
+    // insert was written by something else, and overwriting it would reset a real budget
+    // amount to $0.
+    const result = await db.execute(`
+      INSERT INTO budget (id, sub_category_id, year, month, amount, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 0, ?, ?)
+      ON CONFLICT (sub_category_id, year, month) DO NOTHING
+    `, [crypto.randomUUID(), category.id, year, month, now, now]);
+    if (result.changes > 0) initializedCount++;
   }
 
   return initializedCount;
