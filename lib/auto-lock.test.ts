@@ -31,6 +31,9 @@ const LOCKED_KEY = 'puffin_locked';
 
 const MINUTE = 60_000;
 
+/** Roughly how far apart Chromium lets a timer fire in a hidden window. */
+const HIDDEN_WINDOW_TIMER_THROTTLE_MS = 60_000;
+
 beforeEach(() => {
   localStorage.clear();
 });
@@ -93,7 +96,7 @@ describe('isSuspendGap', () => {
     // Chromium throttles background timers to roughly 1/min. Treating that as
     // a suspend would lock on every long minimise, which the feature must not
     // do — blur deliberately gets no special handling.
-    expect(isSuspendGap(60_000)).toBe(false);
+    expect(isSuspendGap(HIDDEN_WINDOW_TIMER_THROTTLE_MS)).toBe(false);
   });
 
   it('detects a machine that slept', () => {
@@ -109,8 +112,10 @@ describe('isSuspendGap', () => {
     expect(isSuspendGap(Number.NaN)).toBe(false);
   });
 
-  it('sits above the throttled-timer rate but well below every offered timeout', () => {
-    expect(SUSPEND_DETECTION_GAP_MS).toBeGreaterThan(60_000);
+  it('keeps real margin over the throttled-timer rate', () => {
+    // The floor that stops a long minimise being read as a suspend. Lowering
+    // the threshold towards 60s reintroduces exactly that false positive.
+    expect(SUSPEND_DETECTION_GAP_MS).toBeGreaterThanOrEqual(HIDDEN_WINDOW_TIMER_THROTTLE_MS * 1.5);
     expect(SUSPEND_DETECTION_GAP_MS).toBeLessThan(Math.max(...AUTO_LOCK_TIMEOUT_OPTIONS) * MINUTE);
   });
 });

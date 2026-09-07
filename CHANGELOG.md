@@ -4,6 +4,9 @@ All notable changes to Puffin will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Optional auto-lock: Puffin can return to the PIN screen after a chosen period of inactivity — 1, 5, 15, 30 or 60 minutes. Off by default; enable it and pick a timeout in Settings → Security. Locking covers the app rather than logging you out, so unlocking brings you back to the same page with your filters and scroll position intact, and a sync or import already in progress carries on running underneath. Resuming from sleep or hibernation locks straight away, whatever timeout is set. A wrong PIN at the lock screen is rate-limited like any other login.
+
 ### Improved
 - Budget category tiles are now clickable anywhere, not just on the category name, and the hover hint covers the whole tile instead of only the name. Action buttons and currency amounts are excluded, so double-click word-select and copy still work on figures.
 - Dashboard summary tiles now reveal the full value and an explanation on hover/focus: Total Income (definition), Total Spent (`Expenses + Bills + Debts + Sinking Funds` with live component amounts), Savings (`Savings ÷ Total Income × 100` with live values), and Net Balance (`Total Income − Total Spent − Savings` with live values). Tiles are keyboard-focusable.

@@ -31,14 +31,16 @@ export const ACTIVITY_WRITE_THROTTLE_MS = 5_000;
  * running: the machine slept, hibernated, or was frozen by the OS. Resuming
  * from that locks immediately, without waiting for the idle timeout.
  *
- * Two minutes rather than something tighter because Chromium throttles timers
- * in a hidden window to roughly once a minute, and a throttled tick must not
- * be mistaken for a suspend — the user's choice was that merely minimising the
- * app should not lock it early. The cost is that a nap shorter than two
- * minutes is not detected as a suspend; the ordinary idle timeout still
- * covers it.
+ * Ninety seconds is a floor, not a preference. Chromium throttles timers in a
+ * hidden window to roughly once a minute, so a minimised app genuinely does
+ * check about 60s apart; anything at or near 60s would read that as a suspend
+ * and lock on every long minimise — the blur behaviour that was explicitly
+ * ruled out. This leaves 30s of margin over that rate.
+ *
+ * The cost is that a suspend shorter than 90s is not detected as one; the
+ * ordinary idle timeout still covers it.
  */
-export const SUSPEND_DETECTION_GAP_MS = 120_000;
+export const SUSPEND_DETECTION_GAP_MS = 90_000;
 
 /**
  * Fired on `window` whenever the preference is written, so the idle watcher
