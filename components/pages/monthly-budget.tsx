@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useMonthlyBudgetState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
@@ -190,8 +190,6 @@ function MonthlyBudgetContent() {
 
   // Ref for smooth scrolling to transactions
   const transactionsRef = useRef<HTMLDivElement>(null);
-  // Ref to preserve scroll position during month navigation
-  const savedScrollY = useRef<number | null>(null);
 
   // Handle escape key to cancel editing
   useEffect(() => {
@@ -214,9 +212,10 @@ function MonthlyBudgetContent() {
     year: 'numeric' 
   });
 
-  // Save scroll position and blur before navigation
+  // Blur before navigation so the pressed arrow doesn't keep focus across the month change.
+  // This used to save window.scrollY too and restore it once loading finished — dead code,
+  // because the app scrolls inside <main>, never the window. See CLAUDE.md.
   const prepareForNavigation = () => {
-    savedScrollY.current = window.scrollY;
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -259,8 +258,16 @@ function MonthlyBudgetContent() {
     setMonthPickerOpen(false);
   };
 
-  const fetchBudgetSummary = useCallback(async () => {
-    setIsLoading(true);
+  /**
+   * @param background refresh in place, leaving the current list on screen.
+   *
+   * A foreground fetch swaps the whole category list for a spinner, which collapses
+   * the scroll container and clamps the scroll position to the top. That was the jump
+   * users saw when saving a budget: not a scroll bug, but the page deleting the
+   * content whose position it was trying to preserve.
+   */
+  const fetchBudgetSummary = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     try {
       const params = new URLSearchParams({
         year: year.toString(),
@@ -279,22 +286,13 @@ function MonthlyBudgetContent() {
       console.error('Failed to fetch budget summary:', error);
       setBudgetData(null);
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, [year, month]);
 
   useEffect(() => {
     fetchBudgetSummary();
   }, [fetchBudgetSummary]);
-
-  // Restore scroll position after data loads to prevent view jumping
-  // useLayoutEffect runs synchronously before browser paint
-  useLayoutEffect(() => {
-    if (!isLoading && savedScrollY.current !== null) {
-      window.scrollTo(0, savedScrollY.current);
-      savedScrollY.current = null;
-    }
-  }, [isLoading]);
 
   const fetchAllCategories = useCallback(async () => {
     try {
@@ -393,7 +391,7 @@ function MonthlyBudgetContent() {
       });
 
       if (result.data) {
-        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
         toast.success(`Template applied to ${result.data.appliedCount} categories`);
       } else {
         toast.error('Failed to apply template', { description: result.error || 'Unknown error' });
@@ -440,7 +438,7 @@ function MonthlyBudgetContent() {
       });
 
       if (result.data) {
-        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
       }
     } catch (error) {
       console.error('Error copying budgets:', error);
@@ -461,7 +459,7 @@ function MonthlyBudgetContent() {
       });
 
       if (result.data) {
-        await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+        await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
       }
     } catch (error) {
       console.error('Error applying 12-month averages:', error);
@@ -597,7 +595,7 @@ function MonthlyBudgetContent() {
   // Memoized to prevent unnecessary re-renders of MonthlyTransactionList
   const handleCategoryChange = useCallback(async () => {
     await withScrollPreservation(async () => {
-      await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+      await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
     });
   }, [fetchBudgetSummary, fetchAllCategories]);
 
@@ -617,7 +615,7 @@ function MonthlyBudgetContent() {
           setEditingBudgetId(null);
           setCreatingBudgetForCategory(null);
           // Refetch both budget summary and categories to update the UI
-          await Promise.all([fetchBudgetSummary(), fetchAllCategories()]);
+          await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
         });
       } else {
         alert('Failed to save budget: ' + (result.error || 'Unknown error'));

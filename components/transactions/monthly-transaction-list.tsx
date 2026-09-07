@@ -131,8 +131,16 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     return { startDate, endDate };
   }, [year, month]);
 
-  const fetchTransactions = useCallback(async () => {
-    setIsLoading(true);
+  /**
+   * @param background refresh in place, leaving the current rows on screen.
+   *
+   * A foreground fetch swaps the table for a spinner, which collapses the scroll
+   * container and clamps the scroll position to the top. That was the jump seen when
+   * categorising, deleting or splitting a row: not a scroll bug, but the list deleting
+   * the content whose position it was trying to preserve.
+   */
+  const fetchTransactions = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     try {
       const { startDate, endDate } = getMonthDateRange();
       
@@ -166,7 +174,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, [page, searchQuery, sortBy, sortOrder, categoryFilter, filters, getMonthDateRange]);
 
@@ -181,7 +189,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     if (preserveScrollOnPageChange.current) {
       preserveScrollOnPageChange.current = false;
       withScrollPreservation(async () => {
-        await fetchTransactions();
+        await fetchTransactions(true);
       });
     } else {
       fetchTransactions();
@@ -243,14 +251,14 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
 
   const handleTransactionSaved = async () => {
     await withScrollPreservation(async () => {
-      await fetchTransactions();
+      await fetchTransactions(true);
       onCategoryChange?.();
     });
   };
 
   const handleTransactionDeleted = async () => {
     await withScrollPreservation(async () => {
-      await fetchTransactions();
+      await fetchTransactions(true);
       setDeletingTransaction(null);
       onCategoryChange?.();
     });
@@ -271,13 +279,14 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         // Notify parent to refresh budget summary
         onCategoryChange?.();
       } else {
-        // Revert on failure by refetching
-        fetchTransactions();
+        // Revert on failure by refetching. In place: an error path should quietly put
+        // the row back, not collapse the list and throw the user to the top.
+        fetchTransactions(true);
       }
     } catch (error) {
       console.error('Failed to update category:', error);
-      // Revert on failure by refetching
-      fetchTransactions();
+      // Revert on failure by refetching, in place (see above).
+      fetchTransactions(true);
     }
   };
 
@@ -295,7 +304,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
 
       if (result.data) {
         await withScrollPreservation(async () => {
-          await fetchTransactions();
+          await fetchTransactions(true);
           onCategoryChange?.();
         });
       }
@@ -306,7 +315,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
 
   const handleSplitSuccess = async () => {
     await withScrollPreservation(async () => {
-      await fetchTransactions();
+      await fetchTransactions(true);
       onCategoryChange?.();
       setSplittingTransaction(null);
     });
@@ -346,7 +355,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         )
       );
       await withScrollPreservation(async () => {
-        await fetchTransactions();
+        await fetchTransactions(true);
         onCategoryChange?.();
       });
     } catch (error) {
@@ -766,7 +775,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
           setCreatingRuleFromTransaction(null);
           if (appliedCount && appliedCount > 0) {
             await withScrollPreservation(async () => {
-              await fetchTransactions();
+              await fetchTransactions(true);
               onCategoryChange?.();
             });
           }

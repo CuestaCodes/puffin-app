@@ -73,29 +73,144 @@ export function formatCurrencyAUD(
  * `window.scrollTo` is a no-op. Resolve the real scroll container, falling back to the
  * window for any context (tests, a future layout) where `<main>` does not scroll.
  */
-function getScrollContainer(): HTMLElement | null {
+export function getScrollContainer(): HTMLElement | null {
   if (typeof document === 'undefined') return null;
   const main = document.querySelector('main');
   return main && main.scrollHeight > main.clientHeight ? main : null;
 }
 
+/** Stop pinning if a refetch hangs, rather than holding the scroll position forever. */
+const PIN_TIMEOUT_MS = 2000;
+
 /**
- * Execute an async function while preserving scroll position.
- * Uses double requestAnimationFrame to ensure DOM is fully painted
- * before restoring scroll position.
+ * Frames to keep pinning after the operation resolves. React may not have committed
+ * its final render by the time the promise settles, so releasing immediately would
+ * leave the last paint unpinned — the flash this whole helper exists to remove.
+ */
+const PIN_HOLD_FRAMES = 3;
+
+/**
+ * Keys that scroll. A deliberate keyboard scroll should win over the pin, exactly as
+ * a wheel or touch scroll does.
+ */
+const SCROLL_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' ',
+]);
+
+interface ScrollPin {
+  cancel: () => void;
+}
+
+/** Only one pin at a time: two overlapping operations would otherwise fight over the offset. */
+let activePin: ScrollPin | null = null;
+
+/**
+ * Hold the scroll offset at `target` until cancelled.
+ *
+ * Re-asserting the offset every frame is what removes the flash. `requestAnimationFrame`
+ * callbacks run before that frame's paint, so no frame can be painted at the wrong
+ * offset — whereas restoring once at the end necessarily paints the churn first.
+ *
+ * Note the abort listeners deliberately exclude `scroll`: assigning `scrollTop` fires a
+ * `scroll` event, so listening for it would make the pin cancel itself on its own first
+ * write.
+ */
+function pinScroll(container: HTMLElement | null, target: number): ScrollPin {
+  activePin?.cancel();
+
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  let frame = 0;
+  let cancelled = false;
+
+  const pin: ScrollPin = {
+    cancel: () => {
+      if (cancelled) return;
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      controller.abort();
+      if (activePin === pin) activePin = null;
+    },
+  };
+
+  const read = () => (container ? container.scrollTop : window.scrollY);
+  const write = () => {
+    if (container) {
+      container.scrollTop = target;
+    } else {
+      window.scrollTo(0, target);
+    }
+  };
+
+  const tick = () => {
+    if (cancelled) return;
+    if (Date.now() - startedAt >= PIN_TIMEOUT_MS) {
+      pin.cancel();
+      return;
+    }
+    // A shrinking list clamps the offset, so this may never reach `target`. Writing
+    // anyway is correct: it re-asserts the position the moment the content grows back,
+    // and the browser clamps harmlessly until then.
+    if (read() !== target) write();
+    frame = requestAnimationFrame(tick);
+  };
+
+  const abortOnUserScroll = () => pin.cancel();
+  const abortOnScrollKey = (event: KeyboardEvent) => {
+    if (SCROLL_KEYS.has(event.key)) pin.cancel();
+  };
+
+  const options = { passive: true, signal: controller.signal } as const;
+  window.addEventListener('wheel', abortOnUserScroll, options);
+  window.addEventListener('touchmove', abortOnUserScroll, options);
+  window.addEventListener('keydown', abortOnScrollKey, {
+    capture: true,
+    signal: controller.signal,
+  });
+
+  activePin = pin;
+  frame = requestAnimationFrame(tick);
+  return pin;
+}
+
+function afterFrames(count: number): Promise<void> {
+  return new Promise((resolve) => {
+    let remaining = count;
+    const step = () => (remaining-- > 0 ? requestAnimationFrame(step) : resolve());
+    step();
+  });
+}
+
+/**
+ * Execute an async function while holding the scroll position steady.
+ *
+ * The position is pinned for the *duration* of the operation rather than restored
+ * afterwards. Restoring afterwards left every intermediate render — the editor closing,
+ * the list rebuilding, the browser clamping a now-shorter container — to paint at the
+ * wrong offset first, which the user saw as a jump down and back before the position
+ * snapped right a second later.
+ *
+ * Pinning yields to a deliberate user scroll and gives up after `PIN_TIMEOUT_MS`, so a
+ * slow or failed request cannot leave the view stuck.
  */
 export async function withScrollPreservation<T>(fn: () => Promise<T>): Promise<T> {
+  if (typeof window === 'undefined' || typeof requestAnimationFrame === 'undefined') {
+    return fn();
+  }
+
   const container = getScrollContainer();
-  const scrollTop = container ? container.scrollTop : window.scrollY;
-  const result = await fn();
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (container) {
-        container.scrollTop = scrollTop;
-      } else {
-        window.scrollTo(0, scrollTop);
-      }
-    });
-  });
-  return result;
+  const pin = pinScroll(container, container ? container.scrollTop : window.scrollY);
+
+  try {
+    return await fn();
+  } finally {
+    // Keep holding through React's final commit, then release.
+    afterFrames(PIN_HOLD_FRAMES).then(() => pin.cancel());
+  }
 }
