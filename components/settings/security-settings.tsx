@@ -164,8 +164,8 @@ export function SecuritySettings({ onBack }: SecuritySettingsProps) {
                 Lock when idle
               </Label>
               <p className="text-sm text-slate-500 mt-1">
-                Your work stays open behind the lock screen — nothing is lost, and a sync or
-                import in progress keeps running.
+                You come back to the same page with your filters and scroll position intact, and a
+                sync or import in progress keeps running. Any open dialog is closed.
               </p>
             </div>
             <Switch

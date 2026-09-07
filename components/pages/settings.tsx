@@ -171,13 +171,13 @@ export function SettingsPage() {
             </div>
             <div>
               <CardTitle className="text-lg text-slate-100">Security</CardTitle>
-              <CardDescription className="text-slate-400">Change your PIN and security settings</CardDescription>
+              <CardDescription className="text-slate-400">Change your PIN and set an auto-lock timer</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <Button variant="outline" className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
-            Change PIN
+            Manage Security
           </Button>
         </CardContent>
       </Card>
