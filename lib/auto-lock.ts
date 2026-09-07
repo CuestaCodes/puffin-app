@@ -148,6 +148,24 @@ export function clearLastActivity(): void {
   }
 }
 
+/**
+ * Restart the idle countdown, respecting whether auto-lock is switched on.
+ *
+ * Preserves the invariant the idle watcher depends on: an activity timestamp
+ * exists only while auto-lock is enabled. A null timestamp is how the watcher
+ * recognises that auto-lock has just been turned on and starts counting from
+ * now — so writing one unconditionally at login would, for a user with
+ * auto-lock off, leave a timestamp aging in storage and lock the app the
+ * instant they later enable the feature.
+ */
+export function resetIdleCountdown(): void {
+  if (readAutoLockPreference().enabled) {
+    writeLastActivity(Date.now());
+  } else {
+    clearLastActivity();
+  }
+}
+
 /** Whether the app was left locked, so a reload comes back locked rather than open. */
 export function readLockedFlag(): boolean {
   if (!hasLocalStorage()) return false;

@@ -19,6 +19,7 @@ import {
   readAutoLockPreference,
   readLastActivity,
   readLockedFlag,
+  resetIdleCountdown,
   shouldLock,
   writeAutoLockPreference,
   writeLastActivity,
@@ -246,6 +247,46 @@ describe('last activity storage', () => {
   it('locks when the stored value is corrupt, via shouldLock', () => {
     localStorage.setItem(LAST_ACTIVITY_KEY, 'yesterday');
     expect(shouldLock(readLastActivity(), 5, Date.now())).toBe(true);
+  });
+});
+
+describe('resetIdleCountdown', () => {
+  it('starts the countdown from now when auto-lock is on', () => {
+    writeAutoLockPreference({ enabled: true, timeoutMinutes: 5 });
+    const before = Date.now();
+
+    resetIdleCountdown();
+
+    const stored = readLastActivity();
+    expect(stored).not.toBeNull();
+    expect(stored as number).toBeGreaterThanOrEqual(before);
+  });
+
+  it('leaves no timestamp behind when auto-lock is off', () => {
+    // The invariant the idle watcher relies on. A timestamp written while the
+    // feature is off would sit there ageing, and enabling auto-lock later
+    // would then lock the app instantly instead of starting a fresh countdown.
+    writeAutoLockPreference({ enabled: false, timeoutMinutes: 5 });
+    writeLastActivity(Date.now() - 60 * MINUTE);
+
+    resetIdleCountdown();
+
+    expect(readLastActivity()).toBeNull();
+  });
+
+  it('leaves a freshly enabled watcher nothing stale to measure against', () => {
+    // Logging in with auto-lock off, working for an hour, then switching it
+    // on must not lock immediately.
+    writeAutoLockPreference({ enabled: false, timeoutMinutes: 5 });
+    resetIdleCountdown();
+
+    writeAutoLockPreference({ enabled: true, timeoutMinutes: 5 });
+    const oneHourLater = Date.now() + 60 * MINUTE;
+
+    // Null is what the watcher takes as "just switched on", so it seeds the
+    // timestamp itself rather than locking.
+    expect(readLastActivity()).toBeNull();
+    expect(shouldLock(oneHourLater, 5, oneHourLater)).toBe(false);
   });
 });
 

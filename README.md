@@ -40,6 +40,7 @@ A privacy-first desktop budgeting app that keeps your financial data on your com
 
 ### Security
 - PIN-protected access (6-digit PIN)
+- Optional auto-lock after a chosen period of inactivity, and on resume from sleep
 - Rate limiting on failed login attempts
 - All data encrypted at rest
 

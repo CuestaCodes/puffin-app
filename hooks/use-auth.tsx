@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { api } from '@/lib/services';
-import { clearLastActivity, readLockedFlag, writeLastActivity, writeLockedFlag } from '@/lib/auto-lock';
+import { clearLastActivity, readLockedFlag, resetIdleCountdown, writeLockedFlag } from '@/lib/auto-lock';
 
 interface AuthState {
   isLoggedIn: boolean;
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Unlocking counts as activity: start the idle countdown afresh so the
         // stale pre-lock timestamp doesn't re-lock immediately.
         writeLockedFlag(false);
-        writeLastActivity(Date.now());
+        resetIdleCountdown();
         setState(prev => ({
           ...prev,
           isLoggedIn: true,
@@ -165,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (result.data?.success) {
         writeLockedFlag(false);
-        writeLastActivity(Date.now());
+        resetIdleCountdown();
         setState(prev => ({
           ...prev,
           isLoggedIn: true,
