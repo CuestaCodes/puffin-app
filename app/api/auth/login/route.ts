@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: rateLimit.message },
+      { error: rateLimit.message, errorCode: 'RATE_LIMITED' },
       {
         status: 429,
         headers: rateLimit.retryAfterMs
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     if (!isValid) {
       return NextResponse.json(
-        { error: 'Invalid PIN' },
+        { error: 'Invalid PIN', errorCode: 'INVALID_PIN' },
         { status: 401 }
       );
     }

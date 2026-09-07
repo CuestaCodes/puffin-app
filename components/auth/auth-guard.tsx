@@ -18,8 +18,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Count down only while there is something to lock.
   useAutoLock(isLoggedIn && !isLocked);
 
-  // Show loading state
-  if (isLoading) {
+  // Show loading state.
+  //
+  // Never while locked: unlocking sets `isLoading`, and swapping to this
+  // loader would unmount the app underneath the overlay — losing exactly the
+  // page state, filters and scroll position that locking to an overlay
+  // instead of logging out exists to preserve. The lock screen shows its own
+  // progress instead.
+  if (isLoading && !isLocked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950">
         <div className="flex flex-col items-center gap-4">

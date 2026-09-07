@@ -12,7 +12,9 @@ import {
   AUTO_LOCK_TIMEOUT_OPTIONS,
   DEFAULT_AUTO_LOCK_MINUTES,
   DEFAULT_AUTO_LOCK_PREFERENCE,
+  SUSPEND_DETECTION_GAP_MS,
   clearLastActivity,
+  isSuspendGap,
   normalizeAutoLockPreference,
   readAutoLockPreference,
   readLastActivity,
@@ -79,6 +81,37 @@ describe('shouldLock', () => {
       expect(shouldLock(now - minutes * MINUTE, minutes, now)).toBe(true);
       expect(shouldLock(now - (minutes * MINUTE - 1), minutes, now)).toBe(false);
     }
+  });
+});
+
+describe('isSuspendGap', () => {
+  it('ignores the normal gap between consecutive checks', () => {
+    expect(isSuspendGap(AUTO_LOCK_CHECK_INTERVAL_MS)).toBe(false);
+  });
+
+  it('ignores a hidden window whose timers have been throttled to once a minute', () => {
+    // Chromium throttles background timers to roughly 1/min. Treating that as
+    // a suspend would lock on every long minimise, which the feature must not
+    // do — blur deliberately gets no special handling.
+    expect(isSuspendGap(60_000)).toBe(false);
+  });
+
+  it('detects a machine that slept', () => {
+    expect(isSuspendGap(30 * MINUTE)).toBe(true);
+    expect(isSuspendGap(SUSPEND_DETECTION_GAP_MS)).toBe(true);
+  });
+
+  it('does not treat a clock moving backwards as a suspend', () => {
+    expect(isSuspendGap(-5 * MINUTE)).toBe(false);
+  });
+
+  it('does not treat a non-finite elapsed time as a suspend', () => {
+    expect(isSuspendGap(Number.NaN)).toBe(false);
+  });
+
+  it('sits above the throttled-timer rate but well below every offered timeout', () => {
+    expect(SUSPEND_DETECTION_GAP_MS).toBeGreaterThan(60_000);
+    expect(SUSPEND_DETECTION_GAP_MS).toBeLessThan(Math.max(...AUTO_LOCK_TIMEOUT_OPTIONS) * MINUTE);
   });
 });
 

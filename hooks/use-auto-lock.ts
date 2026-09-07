@@ -7,6 +7,7 @@ import {
   AUTO_LOCK_CHECK_INTERVAL_MS,
   AUTO_LOCK_PREFERENCE_EVENT,
   clearLastActivity,
+  isSuspendGap,
   readAutoLockPreference,
   readLastActivity,
   shouldLock,
@@ -92,13 +93,31 @@ export function useAutoLock(active: boolean): void {
       window.addEventListener(event, recordActivity, ACTIVITY_LISTENER_OPTIONS);
     }
 
-    // Re-check when the window is shown or focused as well as on the interval,
-    // so a sleep/wake or a long minimise locks immediately rather than waiting
-    // out the remainder of a tick.
-    window.addEventListener('focus', evaluate);
-    document.addEventListener('visibilitychange', evaluate);
+    // A machine that slept, hibernated or was frozen by the OS locks on
+    // resume regardless of the timeout, because the checks stop running while
+    // it is suspended and the gap between them gives that away. Restart and
+    // power-off need no handling: the Tauri session lives in sessionStorage,
+    // so a cold start already lands on the login screen.
+    let lastCheck = Date.now();
+    const check = () => {
+      const now = Date.now();
+      const elapsed = now - lastCheck;
+      lastCheck = now;
 
-    const interval = window.setInterval(evaluate, AUTO_LOCK_CHECK_INTERVAL_MS);
+      if (isSuspendGap(elapsed)) {
+        lock();
+        return;
+      }
+      evaluate();
+    };
+
+    // Re-check when the window is shown or focused as well as on the interval,
+    // so a resume is caught the moment the app comes back rather than up to a
+    // tick later.
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+
+    const interval = window.setInterval(check, AUTO_LOCK_CHECK_INTERVAL_MS);
 
     // Catch a reload that happened after the timeout had already elapsed.
     evaluate();
@@ -107,9 +126,9 @@ export function useAutoLock(active: boolean): void {
       for (const event of ACTIVITY_EVENTS) {
         window.removeEventListener(event, recordActivity, ACTIVITY_LISTENER_OPTIONS);
       }
-      window.removeEventListener('focus', evaluate);
-      document.removeEventListener('visibilitychange', evaluate);
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
       window.clearInterval(interval);
     };
-  }, [enabled, evaluate]);
+  }, [enabled, evaluate, lock]);
 }

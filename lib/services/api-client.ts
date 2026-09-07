@@ -44,6 +44,12 @@ export interface ApiResponse<T> {
  */
 export const OAUTH_REFRESH_FAILED_EVENT = 'puffin:oauth-refresh-failed';
 
+/**
+ * Error codes a handler raises for states the UI expects and reports itself,
+ * as opposed to genuine faults worth logging.
+ */
+const EXPECTED_ERROR_CODES = new Set(['REFRESH_FAILED', 'INVALID_PIN', 'RATE_LIMITED']);
+
 function notifyIfRefreshFailed(response: ApiResponse<unknown>): void {
   if (response.errorCode === 'REFRESH_FAILED' && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(OAUTH_REFRESH_FAILED_EVENT));
@@ -167,10 +173,11 @@ async function handleTauriRequest<T>(
       error && typeof error === 'object' && 'errorCode' in error
         ? String((error as { errorCode: unknown }).errorCode)
         : undefined;
-    // REFRESH_FAILED is an expected, handled state surfaced via the Reconnect
-    // modal. Don't console.error — sync polls every minute and would otherwise
-    // spam the dev console / error overlay.
-    if (errorCode !== 'REFRESH_FAILED') {
+    // Don't console.error states the UI already handles and shows the user —
+    // they are not faults, and the dev error overlay turns each one into an
+    // interruption. REFRESH_FAILED recurs because sync polls every minute;
+    // INVALID_PIN and RATE_LIMITED fire on every mistyped PIN.
+    if (!errorCode || !EXPECTED_ERROR_CODES.has(errorCode)) {
       console.error(`API handler error for ${path}:`, error);
     }
     return {

@@ -203,7 +203,11 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
   // Check rate limit before processing
   const rateLimit = checkRateLimit();
   if (!rateLimit.allowed) {
-    throw new Error(rateLimit.message || 'Too many failed attempts');
+    // Typed code so the API client can tell an expected auth rejection from a
+    // real handler fault and not log it. See EXPECTED_ERROR_CODES there.
+    throw Object.assign(new Error(rateLimit.message || 'Too many failed attempts'), {
+      errorCode: 'RATE_LIMITED',
+    });
   }
 
   // Accept both 'password' (from validation schema) and 'pin' (legacy) field names
@@ -228,7 +232,7 @@ export async function handleLogin(ctx: HandlerContext): Promise<unknown> {
 
   if (!isValid) {
     recordFailedAttempt();
-    throw new Error('Invalid PIN');
+    throw Object.assign(new Error('Invalid PIN'), { errorCode: 'INVALID_PIN' });
   }
 
   // Clear rate limit on successful login

@@ -27,6 +27,20 @@ export const AUTO_LOCK_CHECK_INTERVAL_MS = 15_000;
 export const ACTIVITY_WRITE_THROTTLE_MS = 5_000;
 
 /**
+ * A gap this much longer than the check interval means the process was not
+ * running: the machine slept, hibernated, or was frozen by the OS. Resuming
+ * from that locks immediately, without waiting for the idle timeout.
+ *
+ * Two minutes rather than something tighter because Chromium throttles timers
+ * in a hidden window to roughly once a minute, and a throttled tick must not
+ * be mistaken for a suspend — the user's choice was that merely minimising the
+ * app should not lock it early. The cost is that a nap shorter than two
+ * minutes is not detected as a suspend; the ordinary idle timeout still
+ * covers it.
+ */
+export const SUSPEND_DETECTION_GAP_MS = 120_000;
+
+/**
  * Fired on `window` whenever the preference is written, so the idle watcher
  * picks up a Settings change immediately. Polling would mean keeping a timer
  * running even while auto-lock is switched off, which the feature explicitly
@@ -177,4 +191,17 @@ export function shouldLock(
   if (!Number.isFinite(timeoutMinutes) || timeoutMinutes <= 0) return false;
 
   return now - lastActivityAt >= timeoutMinutes * 60_000;
+}
+
+/**
+ * Whether the time between two consecutive idle checks is too long to be
+ * explained by the app simply running, and so indicates the machine was
+ * suspended in between.
+ *
+ * A clock jump backwards (manual change, NTP correction) yields a negative
+ * elapsed value and is not a suspend.
+ */
+export function isSuspendGap(elapsedMs: number): boolean {
+  if (!Number.isFinite(elapsedMs)) return false;
+  return elapsedMs >= SUSPEND_DETECTION_GAP_MS;
 }

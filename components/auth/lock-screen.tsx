@@ -71,8 +71,11 @@ export function LockScreen() {
 
     const success = await login(pin);
     if (!success) {
+      // Deliberately no local message here: `login` already put the server's
+      // own text in context, and that is where the rate limiter's "try again
+      // in N minutes" lives. Overwriting it with a blanket "Invalid PIN" would
+      // hide the one thing the user needs to know after five bad attempts.
       setPin('');
-      setLocalError('Invalid PIN');
       inputRef.current?.focus();
     }
   };
