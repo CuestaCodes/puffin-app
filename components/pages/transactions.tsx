@@ -45,7 +45,7 @@ import {
 } from '@/lib/import-undo';
 import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult, UndoImportInfo, UndoImportResult } from '@/types/import';
-import { cn } from '@/lib/utils';
+import { cn, withScrollPreservation } from '@/lib/utils';
 
 interface TransactionListResponse {
   transactions: TransactionWithCategory[];
@@ -122,6 +122,11 @@ function TransactionsPageContent() {
   // them until the next navigation/action so the list doesn't reflow mid-edit.
   const needsReconcile = useRef(false);
 
+  // Set only by the pager, so scroll is preserved when paging but not when the
+  // filters, search or sort change - those should start the user at the top of a
+  // fresh list. Mirrors MonthlyTransactionList.
+  const preserveScrollOnPageChange = useRef(false);
+
   // Undo import state
   const [undoInfo, setUndoInfo] = useState<LastImportInfo | null>(null);
   const [undoTimeRemaining, setUndoTimeRemaining] = useState(0);
@@ -129,8 +134,15 @@ function TransactionsPageContent() {
   const [undoBatchInfo, setUndoBatchInfo] = useState<UndoImportInfo | null>(null);
   const [isUndoing, setIsUndoing] = useState(false);
 
-  const fetchTransactions = useCallback(async () => {
-    setIsLoading(true);
+  /**
+   * @param background refresh in place, leaving the current rows on screen.
+   *
+   * A foreground fetch swaps the table for a spinner, which collapses the scroll
+   * container and clamps the scroll position to the top. That is the jump seen when
+   * saving, deleting or splitting a row.
+   */
+  const fetchTransactions = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -159,6 +171,9 @@ function TransactionsPageContent() {
         // Skip rendering this out-of-range (empty) page and keep the current rows
         // until the clamped page's fetch populates the list, avoiding an empty flash.
         if (result.data.totalPages >= 1 && page > result.data.totalPages) {
+          // The follow-up fetch for the clamped page belongs to this same in-place
+          // operation, so it must not collapse the list either.
+          preserveScrollOnPageChange.current = true;
           setPage(result.data.totalPages);
         } else {
           setTransactions(result.data.transactions);
@@ -167,16 +182,25 @@ function TransactionsPageContent() {
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, [page, searchQuery, sortBy, sortOrder, filters, setPage]);
 
   useEffect(() => {
-    fetchTransactions();
+    if (preserveScrollOnPageChange.current) {
+      preserveScrollOnPageChange.current = false;
+      withScrollPreservation(async () => {
+        await fetchTransactions(true);
+      });
+    } else {
+      fetchTransactions();
+    }
   }, [fetchTransactions]);
 
   // Reset page when filters change
   useEffect(() => {
+    // A fresh list starts at the top, so drop any pending pager request that raced this.
+    preserveScrollOnPageChange.current = false;
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
   }, [filters]);
@@ -224,23 +248,35 @@ function TransactionsPageContent() {
     setPage(1);
   };
 
+  // A same-value setPage is a React no-op, so the fetch effect never runs and never
+  // clears the flag - it would leak into the next unrelated fetch.
+  const goToPage = (next: number) => {
+    if (next === page) return;
+    preserveScrollOnPageChange.current = true;
+    setPage(next);
+  };
+
   const handleNextPage = () => {
     if (needsReconcile.current) {
       // First navigation after categorising under a filter: re-apply the filter in
       // place (drop the no-longer-matching rows and renumber) instead of advancing,
       // so we never skip past transactions the user hasn't seen. `fetchTransactions`
       // clears the flag and clamps the page if the set shrank.
-      fetchTransactions();
+      withScrollPreservation(async () => {
+        await fetchTransactions(true);
+      });
     } else {
-      setPage(Math.min(totalPages, page + 1));
+      goToPage(Math.min(totalPages, page + 1));
     }
   };
 
   const handlePrevPage = () => {
     if (needsReconcile.current) {
-      fetchTransactions();
+      withScrollPreservation(async () => {
+        await fetchTransactions(true);
+      });
     } else {
-      setPage(Math.max(1, page - 1));
+      goToPage(Math.max(1, page - 1));
     }
   };
 
@@ -277,13 +313,17 @@ function TransactionsPageContent() {
     }
   };
 
-  const handleTransactionSaved = () => {
-    fetchTransactions();
+  const handleTransactionSaved = async () => {
+    await withScrollPreservation(async () => {
+      await fetchTransactions(true);
+    });
   };
 
-  const handleTransactionDeleted = () => {
-    fetchTransactions();
-    setDeletingTransaction(null);
+  const handleTransactionDeleted = async () => {
+    await withScrollPreservation(async () => {
+      await fetchTransactions(true);
+      setDeletingTransaction(null);
+    });
   };
 
   const handleCategoryChange = async (txId: string, categoryId: string | null) => {
@@ -298,8 +338,9 @@ function TransactionsPageContent() {
       const result = await api.patch(`/api/transactions/${txId}`, { sub_category_id: categoryId });
 
       if (result.error) {
-        // Revert on failure by refetching
-        fetchTransactions();
+        // Revert on failure by refetching. In place: an error path should quietly put
+        // the row back, not collapse the list and throw the user to the top.
+        fetchTransactions(true);
       } else if (
         (filters.uncategorized && categoryId !== null) ||
         (filters.categoryId && categoryId !== filters.categoryId)
@@ -311,8 +352,8 @@ function TransactionsPageContent() {
       }
     } catch (error) {
       console.error('Failed to update category:', error);
-      // Revert on failure by refetching
-      fetchTransactions();
+      // Revert on failure by refetching, in place (see above).
+      fetchTransactions(true);
     }
   };
 
@@ -329,16 +370,20 @@ function TransactionsPageContent() {
       const result = await api.delete(`/api/transactions/${tx.id}/split`);
 
       if (result.data) {
-        fetchTransactions();
+        await withScrollPreservation(async () => {
+          await fetchTransactions(true);
+        });
       }
     } catch (error) {
       console.error('Failed to unsplit transaction:', error);
     }
   };
 
-  const handleSplitSuccess = () => {
-    fetchTransactions();
-    setSplittingTransaction(null);
+  const handleSplitSuccess = async () => {
+    await withScrollPreservation(async () => {
+      await fetchTransactions(true);
+      setSplittingTransaction(null);
+    });
   };
 
   // Undo import handlers
@@ -424,7 +469,9 @@ function TransactionsPageContent() {
         Array.from(selectedIds).map(id => api.delete(`/api/transactions/${id}`))
       );
       setSelectedIds(new Set());
-      fetchTransactions();
+      await withScrollPreservation(async () => {
+        await fetchTransactions(true);
+      });
     } catch (error) {
       console.error('Failed to delete transactions:', error);
     }
@@ -910,11 +957,13 @@ function TransactionsPageContent() {
         onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
         defaultMatchText={creatingRuleFromTransaction?.description || ''}
         defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
-        onSuccess={(rule, appliedCount) => {
+        onSuccess={async (rule, appliedCount) => {
           setCreatingRuleFromTransaction(null);
           // Refresh transactions if rule was applied to update categories
           if (appliedCount && appliedCount > 0) {
-            fetchTransactions();
+            await withScrollPreservation(async () => {
+              await fetchTransactions(true);
+            });
           }
         }}
       />
