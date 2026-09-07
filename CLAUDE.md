@@ -161,6 +161,21 @@ All three must produce the same final schema.
 | Confirm PIN | `confirmPassword` |
 | Current PIN | `currentPin` OR `currentPassword` |
 
+### AuthGuard Unmounts the App on Every Auth Call
+
+`AuthGuard` returns a full-screen loader whenever `isLoading` is set, and **every**
+`useAuth` action — `login`, `logout`, `setup`, `reset` — sets it. That swap unmounts
+`AppShell`, and with it `PageStateProvider`, the current page, filters, scroll position
+and any in-flight request.
+
+It is invisible until you build something that has to survive an auth call. Auto-lock's
+PIN overlay did: unlocking called `login()`, the loader replaced the app mid-unlock, and
+the user came back to a freshly mounted Dashboard — losing exactly the state the overlay
+existed to preserve. The guard is now `isLoading && !isLocked`.
+
+If you add another auth-adjacent flow that must keep the app mounted, exclude it from
+that loader condition and give the flow its own progress indicator.
+
 ### Transaction Table Columns
 | Column | Purpose |
 |--------|---------|
@@ -288,6 +303,16 @@ Define in `lib/validations.ts`, import everywhere: `MAX_IMPORT_TRANSACTIONS = 50
 
 **Vitest imports:** Always import all needed: `describe, it, expect, vi, beforeEach, afterEach`.
 
+**Test environment:** `vitest.config.ts` sets `environment: 'node'` for the whole suite.
+A test that needs a DOM or `localStorage` opts in per file with a docblock on line 1:
+
+```typescript
+// @vitest-environment jsdom
+```
+
+jsdom is already a devDependency, so nothing needs installing. Prefer this over stubbing
+a fake `localStorage` — a stub tests the stub. See `lib/auto-lock.test.ts`.
+
 **Test schemas:** `lib/db/*.test.ts` files define inline `TEST_SCHEMA` strings. When adding/changing columns, update these to match `lib/db/schema.ts`.
 
 ## Code Style
@@ -369,6 +394,22 @@ Override `sm:` breakpoint: `className="w-[95vw] max-w-[1400px] sm:max-w-[1400px]
 
 ### Nested Overlays
 Don't nest Popover inside Popover - use Dialog instead.
+
+**Anything that covers the whole app** (the auto-lock screen is the worked example in
+`components/auth/lock-screen.tsx`) hits three traps that are invisible until tested:
+
+- **Sonner pins its toaster at `z-index: 999999999`.** A `z-50` overlay does not cover
+  toasts, so a background sync finishing prints its result over your "opaque" screen.
+  Sit above it deliberately.
+- **Radix traps focus.** With a dialog open, Radix refocuses its own content on
+  `focusin`, so an input in your overlay silently refuses to accept typing. Set `inert`
+  on every other `document.body` child — `.focus()` on an inert element is a no-op — and
+  restore the previous values on unmount. Watch `document.body` with a `MutationObserver`
+  if the overlay outlives portals that mount later.
+- **Radix closes dialogs on outside interaction.** The first click on your overlay reads
+  as a pointer-down outside any open dialog, so that dialog dismisses. Not preventable
+  without patching every call site; treat an open dialog as lost and don't promise
+  otherwise in user-facing copy.
 
 ### Calendar Caption
 Custom caption elements need `relative z-20` to be clickable above nav overlay.
