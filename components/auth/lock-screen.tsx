@@ -39,18 +39,35 @@ export function LockScreen() {
     const container = containerRef.current;
     if (!container) return;
 
-    const others = Array.from(document.body.children).filter(
-      (el): el is HTMLElement => el instanceof HTMLElement && el !== container
-    );
-    const previous = others.map((el) => el.inert);
-    others.forEach((el) => {
-      el.inert = true;
-    });
+    // Keyed by element so each one is remembered once, whether it was already
+    // on the page at lock time or arrived later.
+    const previous = new Map<HTMLElement, boolean>();
+
+    const deactivate = (element: HTMLElement) => {
+      if (element === container || previous.has(element)) return;
+      previous.set(element, element.inert);
+      element.inert = true;
+    };
+
+    const scan = () => {
+      for (const element of Array.from(document.body.children)) {
+        if (element instanceof HTMLElement) deactivate(element);
+      }
+    };
+
+    scan();
+
+    // Cover anything portalled in after the lock — a toast container appearing
+    // for the first time, say. It would be hidden behind the overlay but would
+    // otherwise still be reachable by keyboard.
+    const observer = new MutationObserver(scan);
+    observer.observe(document.body, { childList: true });
 
     return () => {
-      others.forEach((el, index) => {
-        el.inert = previous[index];
-      });
+      observer.disconnect();
+      for (const [element, wasInert] of previous) {
+        element.inert = wasInert;
+      }
     };
   }, []);
 

@@ -45,9 +45,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  // Show login form if not logged in. A locked app still has a valid session,
-  // so it falls through to the overlay below rather than the login screen.
-  if (!isLoggedIn && !isLocked) {
+  // Show login form if not logged in. Locking deliberately keeps the session,
+  // so a locked app is still logged in and falls through to the overlay below.
+  if (!isLoggedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-4">
         <LoginForm />
