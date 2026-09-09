@@ -368,7 +368,30 @@ Success callbacks MUST close the modal: `setShowModal(false)`.
 Per-row action on selected item should operate on ALL selected items.
 
 ### Debouncing
-Always debounce API calls triggered by user input (300ms typical).
+Always debounce API calls triggered by user input (`SEARCH_DEBOUNCE_MS` in
+`lib/constants.ts`, 300ms).
+
+**The fetch must read the debounced value.** A timer sitting next to a fetch is not a
+debounce if the raw input is still in the fetch callback's dependencies — the callback's
+identity changes on every keystroke and the effect refires immediately, whatever the timer
+does. Both transaction lists shipped like this: a 300ms timer that only ever debounced the
+page reset, while a ten-letter search ran ten queries and flashed the spinner ten times.
+
+```typescript
+// searchQuery keeps the input responsive; debouncedSearch is what the fetch depends on.
+const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
+const fetchThings = useCallback(async () => { /* uses debouncedSearch */ },
+  [debouncedSearch /* NOT searchQuery */]);
+```
+
+Commit the debounced value and any page reset in the same timer callback so the fetch runs
+once rather than twice, and skip the first render so state restored from `use-page-state`
+is not discarded.
+
+**This is the third convention in this repo that was followed everywhere and did nothing**
+— after `window.scrollTo` (inert at 8 call sites) and `min-w-0` on flex containers (9 inert
+classes). When a convention is present but the symptom persists, verify it is actually in
+effect before assuming the fix belongs elsewhere.
 
 ### Scroll Preservation
 Use `withScrollPreservation()` from `lib/utils.ts` when refreshing lists.
@@ -382,9 +405,48 @@ This assumption being wrong once made the helper silently inert at all eight of 
 sites for its entire life: the convention was followed everywhere and did nothing. If a
 scroll fix appears to have no effect, verify the container before assuming a timing bug.
 
-**Known limitation:** the helper restores position *after* the browser has painted the
-refreshed layout, so a jump-and-return flash is still visible. Tracked in
-`tasks/scroll-preservation-flash.md` — don't re-diagnose it.
+**How it holds position:** the helper *pins* the offset for the duration of the operation,
+re-asserting it every frame, rather than restoring it once at the end. `requestAnimationFrame`
+callbacks run before their frame's paint, so no frame can paint at the wrong offset.
+Restoring afterwards necessarily painted the churn first, which is what the old
+jump-and-return flash was. Pinning yields to a deliberate wheel, touch or keyboard scroll,
+and releases on a `setTimeout` — not a frame — because `requestAnimationFrame` does not fire
+at all in a hidden window.
+
+**A refetch must not blank the list it is preserving.** See below; this is the half that
+the helper cannot do for you.
+
+### In-Place Refresh vs Loading State
+
+A fetch that sets `isLoading` and renders a spinner **in place of** the list destroys the
+scroll container: the tall list becomes a ~150px spinner, the browser clamps `scrollTop`
+to the top, and no amount of scroll preservation can hold a position against content that
+has deleted itself. That collapse — not the helper's timing — was the whole cause of the
+jump-and-snap-back users saw when saving a budget or editing a transaction.
+
+Every fetch that a list refreshes itself with takes a `background` flag:
+
+```typescript
+const fetchTransactions = useCallback(async (background = false) => {
+  if (!background) setIsLoading(true);
+  try { /* ... */ } finally {
+    if (!background) setIsLoading(false);
+  }
+}, [/* ... */]);
+```
+
+- **`background: true`** for an in-place refresh — save, delete, split, categorise, paging,
+  bulk actions, error-path reverts. The rows stay on screen and update underneath. Wrap
+  these in `withScrollPreservation()`.
+- **Foreground (default)** when the content genuinely is being replaced — first load,
+  month change, filter, search, sort. There the spinner is the honest signal.
+
+Two follow-on rules learned the hard way:
+- **If a background fetch triggers a second fetch, that one is background too.** The page
+  clamp in `transactions.tsx` re-arms its preserve flag before `setPage`, or the follow-up
+  collapses the list the first fetch just held steady.
+- **Removing a spinner removes feedback.** If it was the only sign an operation ran, replace
+  it — the bulk budget actions had to gain toasts reporting what they changed.
 
 ### Popover in Dialog
 Add `onWheel={(e) => e.stopPropagation()}` to scrollable content inside dialogs.
