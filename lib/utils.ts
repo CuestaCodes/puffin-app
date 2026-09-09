@@ -125,8 +125,8 @@ function pinScroll(container: HTMLElement | null, target: number): ScrollPin {
   activePin?.cancel();
 
   const controller = new AbortController();
-  const startedAt = Date.now();
   let frame = 0;
+  let timeout = 0;
   let cancelled = false;
 
   const pin: ScrollPin = {
@@ -134,6 +134,7 @@ function pinScroll(container: HTMLElement | null, target: number): ScrollPin {
       if (cancelled) return;
       cancelled = true;
       cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
       controller.abort();
       if (activePin === pin) activePin = null;
     },
@@ -150,10 +151,6 @@ function pinScroll(container: HTMLElement | null, target: number): ScrollPin {
 
   const tick = () => {
     if (cancelled) return;
-    if (Date.now() - startedAt >= PIN_TIMEOUT_MS) {
-      pin.cancel();
-      return;
-    }
     // A shrinking list clamps the offset, so this may never reach `target`. Writing
     // anyway is correct: it re-asserts the position the moment the content grows back,
     // and the browser clamps harmlessly until then.
@@ -185,6 +182,12 @@ function pinScroll(container: HTMLElement | null, target: number): ScrollPin {
     capture: true,
     signal: controller.signal,
   });
+
+  // The release must not depend on frames. requestAnimationFrame does not fire at all in
+  // a hidden window, so minimising Puffin mid-operation would otherwise leave the pin and
+  // its listeners in place until frames resumed. Timers are throttled when hidden, but
+  // they do still fire.
+  timeout = window.setTimeout(() => pin.cancel(), PIN_TIMEOUT_MS);
 
   activePin = pin;
   frame = requestAnimationFrame(tick);

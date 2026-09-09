@@ -442,9 +442,12 @@ function MonthlyBudgetContent() {
         // Refreshing in place means the list no longer blanks, so the spinner is gone
         // as a "something happened" signal. Say so instead.
         toast.success(`Copied ${result.data.copiedCount} budgets from the previous month`);
+      } else {
+        toast.error('Failed to copy budgets', { description: result.error || 'Unknown error' });
       }
     } catch (error) {
       console.error('Error copying budgets:', error);
+      toast.error('Failed to copy budgets');
     } finally {
       setIsApplyingTemplate(false);
     }
@@ -464,9 +467,12 @@ function MonthlyBudgetContent() {
       if (result.data) {
         await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
         toast.success(`Set ${result.data.updatedCount} budgets to their 12-month average`);
+      } else {
+        toast.error('Failed to apply averages', { description: result.error || 'Unknown error' });
       }
     } catch (error) {
       console.error('Error applying 12-month averages:', error);
+      toast.error('Failed to apply averages');
     } finally {
       setIsApplyingTemplate(false);
     }
