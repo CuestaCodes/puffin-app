@@ -21,6 +21,7 @@ import {
 import { RuleDialog } from '@/components/rules';
 import type { TransactionWithCategory } from '@/types/database';
 import { cn, withScrollPreservation } from '@/lib/utils';
+import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 
 interface TransactionListResponse {
   transactions: TransactionWithCategory[];
@@ -118,7 +119,10 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   
   // Refs for debouncing
   const isFirstRender = useRef(true);
-  const prevSearchQuery = useRef(searchQuery);
+
+  // See the note in components/pages/transactions.tsx: the fetch trails the input so
+  // typing fires one request, not one per letter.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   // Set only by the pager, so scroll is preserved when paging but not when the month,
   // filters, search or sort change - those should start the user at the top of a fresh list.
   const preserveScrollOnPageChange = useRef(false);
@@ -153,7 +157,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         endDate,
       });
 
-      if (searchQuery) params.set('search', searchQuery);
+      if (debouncedSearch) params.set('search', debouncedSearch);
 
       // Category filter: prop takes priority (from clicking budget categories), then popover filter
       const effectiveCategoryId = categoryFilter || filters.categoryId;
@@ -176,7 +180,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     } finally {
       if (!background) setIsLoading(false);
     }
-  }, [page, searchQuery, sortBy, sortOrder, categoryFilter, filters, getMonthDateRange]);
+  }, [page, debouncedSearch, sortBy, sortOrder, categoryFilter, filters, getMonthDateRange]);
 
   // Reset page when month, category, or filters change
   useEffect(() => {
@@ -196,17 +200,19 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     }
   }, [fetchTransactions]);
 
-  // Debounced search - reset page when search changes
+  // Debounced search. Commits the text and the page reset together, so the fetch runs
+  // once rather than twice.
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    
-    if (prevSearchQuery.current === searchQuery) return;
-    prevSearchQuery.current = searchQuery;
-    
-    const timer = setTimeout(() => setPage(1), 300);
+
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      preserveScrollOnPageChange.current = false;
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 

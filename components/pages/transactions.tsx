@@ -46,6 +46,7 @@ import {
 import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult, UndoImportInfo, UndoImportResult } from '@/types/import';
 import { cn, withScrollPreservation } from '@/lib/utils';
+import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 
 interface TransactionListResponse {
   transactions: TransactionWithCategory[];
@@ -115,7 +116,13 @@ function TransactionsPageContent() {
   
   // Refs for debouncing
   const isFirstRender = useRef(true);
-  const prevSearchQuery = useRef(searchQuery);
+
+  // The search text the fetch actually uses. `searchQuery` updates on every keystroke to
+  // keep the input responsive; this trails it by DEBOUNCE_MS so typing fires one request
+  // instead of one per letter. Keeping searchQuery itself in the fetch dependencies is
+  // what made the existing 300ms timer ineffective - it only ever debounced the page
+  // reset, never the query.
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
   // Set when an in-place edit (e.g. categorising under the uncategorised/category
   // filter) may have made rows no longer match the active filter. We defer dropping
@@ -151,7 +158,7 @@ function TransactionsPageContent() {
         sortOrder,
       });
 
-      if (searchQuery) params.set('search', searchQuery);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       if (filters.startDate) params.set('startDate', filters.startDate);
       if (filters.endDate) params.set('endDate', filters.endDate);
       if (filters.categoryId) params.set('categoryId', filters.categoryId);
@@ -184,7 +191,7 @@ function TransactionsPageContent() {
     } finally {
       if (!background) setIsLoading(false);
     }
-  }, [page, searchQuery, sortBy, sortOrder, filters, setPage]);
+  }, [page, debouncedSearch, sortBy, sortOrder, filters, setPage]);
 
   useEffect(() => {
     if (preserveScrollOnPageChange.current) {
@@ -205,17 +212,20 @@ function TransactionsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
   }, [filters]);
 
-  // Debounced search - reset page when search changes
+  // Debounced search. Commits the text and the page reset together, so the fetch runs
+  // once rather than twice. Skipped on first render so a restored page from saved page
+  // state is not thrown away.
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
 
-    if (prevSearchQuery.current === searchQuery) return;
-    prevSearchQuery.current = searchQuery;
-
-    const timer = setTimeout(() => setPage(1), 300);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      preserveScrollOnPageChange.current = false;
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
   }, [searchQuery]);

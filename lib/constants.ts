@@ -11,6 +11,15 @@ export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 100;
 
 /**
+ * How long a search box waits after the last keystroke before querying.
+ *
+ * Shared by both transaction lists so they stay in step. The value the fetch reads must
+ * be the debounced one — putting the raw input in the fetch's dependencies refetches on
+ * every letter no matter what timer sits alongside it.
+ */
+export const SEARCH_DEBOUNCE_MS = 300;
+
+/**
  * Donut/Pie chart dimensions
  * Consistent sizing for all pie/donut charts across the app
  */
