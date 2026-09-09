@@ -163,6 +163,18 @@ function pinScroll(container: HTMLElement | null, target: number): ScrollPin {
 
   const abortOnUserScroll = () => pin.cancel();
   const abortOnScrollKey = (event: KeyboardEvent) => {
+    // Inside a field these keys move the caret, step a number or change a selection —
+    // they do not scroll the container, so they must not be read as a user scroll.
+    // Typing a space in the search box would otherwise release the pin.
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
     if (SCROLL_KEYS.has(event.key)) pin.cancel();
   };
 

@@ -439,6 +439,9 @@ function MonthlyBudgetContent() {
 
       if (result.data) {
         await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
+        // Refreshing in place means the list no longer blanks, so the spinner is gone
+        // as a "something happened" signal. Say so instead.
+        toast.success(`Copied ${result.data.copiedCount} budgets from the previous month`);
       }
     } catch (error) {
       console.error('Error copying budgets:', error);
@@ -460,6 +463,7 @@ function MonthlyBudgetContent() {
 
       if (result.data) {
         await Promise.all([fetchBudgetSummary(true), fetchAllCategories()]);
+        toast.success(`Set ${result.data.updatedCount} budgets to their 12-month average`);
       }
     } catch (error) {
       console.error('Error applying 12-month averages:', error);
