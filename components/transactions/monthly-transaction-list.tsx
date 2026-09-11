@@ -18,6 +18,17 @@ import {
   FiltersPopover,
   type FilterValues,
 } from '@/components/transactions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import { RuleDialog } from '@/components/rules';
 import type { TransactionWithCategory } from '@/types/database';
 import { cn, withScrollPreservation } from '@/lib/utils';
@@ -116,6 +127,8 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   
   // Refs for debouncing
   const isFirstRender = useRef(true);
@@ -348,24 +361,32 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     });
   };
 
-  const handleBulkDelete = async () => {
+  // Opens the confirmation. window.confirm() cannot be used here: in the Tauri
+  // webview it does not block, so the deletes fired before the user had answered.
+  const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
+    setShowBulkDeleteConfirm(true);
+  };
 
-    const confirmed = window.confirm(`Delete ${selectedIds.size} transaction(s)? The transactions will be removed from your view.`);
-    if (!confirmed) return;
+  const confirmBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
 
+    setIsBulkDeleting(true);
     try {
-      await Promise.all(
-        Array.from(selectedIds).map(id =>
-          api.delete(`/api/transactions/${id}`)
-        )
-      );
+      await Promise.all(ids.map(id => api.delete(`/api/transactions/${id}`)));
+      setSelectedIds(new Set());
       await withScrollPreservation(async () => {
         await fetchTransactions(true);
         onCategoryChange?.();
       });
+      toast.success(`Deleted ${ids.length} transaction${ids.length !== 1 ? 's' : ''}`);
     } catch (error) {
       console.error('Failed to delete transactions:', error);
+      toast.error('Failed to delete transactions');
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteConfirm(false);
     }
   };
 
@@ -770,6 +791,36 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         transaction={splittingTransaction}
         onSuccess={handleSplitSuccess}
       />
+
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100">
+              Delete {selectedIds.size} transaction{selectedIds.size !== 1 ? 's' : ''}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              {selectedIds.size === 1 ? 'It' : 'They'} will be removed from your view.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-700 text-slate-300 hover:bg-slate-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // Keep the dialog up until the deletes resolve, so it cannot be
+                // dismissed while the requests are still in flight
+                e.preventDefault();
+                confirmBulkDelete();
+              }}
+              disabled={isBulkDeleting}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {isBulkDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Create Rule Dialog */}
       <RuleDialog
