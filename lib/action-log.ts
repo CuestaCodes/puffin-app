@@ -154,7 +154,13 @@ export async function recordImportMapping(input: ColumnMappingEventInput): Promi
   if (!readActionLogPreference()) return;
 
   try {
-    await api.post('/api/action-log', buildColumnMappingEvent(input));
+    // api.* resolves with { error } rather than throwing, so a handler failure
+    // arrives here as a value. Warn either way — never interrupting the import
+    // was the requirement, not never reporting.
+    const result = await api.post('/api/action-log', buildColumnMappingEvent(input));
+    if (result.error) {
+      console.warn('Failed to record import action log entry:', result.error);
+    }
   } catch (error) {
     console.warn('Failed to record import action log entry:', error);
   }

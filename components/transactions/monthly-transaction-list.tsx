@@ -128,6 +128,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   
   // Refs for debouncing
@@ -365,6 +366,9 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   // webview it does not block, so the deletes fired before the user had answered.
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
+    // Snapshot the count: the dialog outlives the selection, which is cleared
+    // before the close, and would otherwise read "Delete 0 transactions?"
+    setBulkDeleteCount(selectedIds.size);
     setShowBulkDeleteConfirm(true);
   };
 
@@ -374,13 +378,32 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
 
     setIsBulkDeleting(true);
     try {
-      await Promise.all(ids.map(id => api.delete(`/api/transactions/${id}`)));
+      // allSettled, and an explicit check of result.error, because api.* resolves
+      // with { error } instead of rejecting. A plain Promise.all skipped the
+      // refetch on the first failure, leaving already-deleted rows on screen.
+      const results = await Promise.allSettled(
+        ids.map(id => api.delete(`/api/transactions/${id}`))
+      );
+      const failed = results.filter(
+        r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
+      ).length;
+      const deleted = ids.length - failed;
+
       setSelectedIds(new Set());
       await withScrollPreservation(async () => {
         await fetchTransactions(true);
         onCategoryChange?.();
       });
-      toast.success(`Deleted ${ids.length} transaction${ids.length !== 1 ? 's' : ''}`);
+
+      if (failed === 0) {
+        toast.success(`Deleted ${deleted} transaction${deleted !== 1 ? 's' : ''}`);
+      } else if (deleted === 0) {
+        toast.error(`Failed to delete ${failed} transaction${failed !== 1 ? 's' : ''}`);
+      } else {
+        toast.warning(`Deleted ${deleted} of ${ids.length}`, {
+          description: `${failed} could not be deleted.`,
+        });
+      }
     } catch (error) {
       console.error('Failed to delete transactions:', error);
       toast.error('Failed to delete transactions');
@@ -796,10 +819,10 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         <AlertDialogContent className="bg-slate-900 border-slate-700">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-slate-100">
-              Delete {selectedIds.size} transaction{selectedIds.size !== 1 ? 's' : ''}?
+              Delete {bulkDeleteCount} transaction{bulkDeleteCount !== 1 ? 's' : ''}?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              {selectedIds.size === 1 ? 'It' : 'They'} will be removed from your view.
+              {bulkDeleteCount === 1 ? 'It' : 'They'} will be removed from your view.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

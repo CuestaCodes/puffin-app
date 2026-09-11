@@ -230,12 +230,14 @@ export function DataManagement({ onBack }: DataManagementProps) {
             description: 'Saved to your Downloads folder',
           });
         } else {
-          showError('Failed to export transactions');
+          toast.error('Failed to export transactions');
         }
       }
     } catch (error) {
       console.error('Export error:', error);
-      showError('Failed to export transactions');
+      toast.error('Failed to export transactions', {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsExporting(false);
     }
@@ -320,12 +322,20 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const handleClearActionLog = async () => {
     setIsClearingActionLog(true);
     try {
-      await api.delete('/api/action-log');
+      // api.* resolves with { error } rather than throwing, so the catch alone
+      // would report a failed delete as success
+      const result = await api.delete<{ success: boolean }>('/api/action-log');
+      if (result.error || !result.data?.success) {
+        throw new Error(result.error || 'Clear failed');
+      }
+
       setActionLogCount(0);
       toast.success('Import log cleared');
     } catch (error) {
       console.error('Failed to clear import log:', error);
-      toast.error('Failed to clear import log');
+      toast.error('Failed to clear import log', {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setIsClearingActionLog(false);
       setShowClearActionLogDialog(false);

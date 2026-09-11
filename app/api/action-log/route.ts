@@ -6,22 +6,21 @@
 // shared with the Tauri handler.
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
-import path from 'path';
 import { requireAuth } from '@/lib/auth';
+import { appendActionLogEntry, parseActionLog } from '@/lib/action-log-file';
 import {
-  ACTION_LOG_FILENAME,
-  appendActionLogEntry,
-  parseActionLog,
-} from '@/lib/action-log-file';
+  ACTION_LOG_DATA_DIR,
+  ACTION_LOG_PATH,
+  readActionLogFile,
+} from '@/lib/action-log-server';
 import type { ActionLogEntry } from '@/types/action-log';
 
-const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
-const LOG_PATH = path.join(DATA_DIR, ACTION_LOG_FILENAME);
-
-function readLogFile(): string {
-  if (!fs.existsSync(LOG_PATH)) return '';
-  return fs.readFileSync(LOG_PATH, 'utf-8');
-}
+/**
+ * Upper bound on a single entry. The 1000-entry cap bounds the number of
+ * records but not their size, so one pathological header row could still bloat
+ * the file.
+ */
+const MAX_ENTRY_BYTES = 8 * 1024;
 
 // GET /api/action-log - Read all entries
 export async function GET() {
@@ -29,7 +28,7 @@ export async function GET() {
   if (!auth.isAuthenticated) return auth.response;
 
   try {
-    return NextResponse.json({ entries: parseActionLog(readLogFile()) });
+    return NextResponse.json({ entries: parseActionLog(readActionLogFile()) });
   } catch (error) {
     console.error('Error reading action log:', error);
     return NextResponse.json({ error: 'Failed to read action log' }, { status: 500 });
@@ -48,8 +47,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid action log entry' }, { status: 400 });
     }
 
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(LOG_PATH, appendActionLogEntry(readLogFile(), entry), 'utf-8');
+    if (JSON.stringify(entry).length > MAX_ENTRY_BYTES) {
+      return NextResponse.json({ error: 'Action log entry too large' }, { status: 413 });
+    }
+
+    fs.mkdirSync(ACTION_LOG_DATA_DIR, { recursive: true });
+    fs.writeFileSync(ACTION_LOG_PATH, appendActionLogEntry(readActionLogFile(), entry), 'utf-8');
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -64,7 +67,7 @@ export async function DELETE() {
   if (!auth.isAuthenticated) return auth.response;
 
   try {
-    if (fs.existsSync(LOG_PATH)) fs.unlinkSync(LOG_PATH);
+    if (fs.existsSync(ACTION_LOG_PATH)) fs.unlinkSync(ACTION_LOG_PATH);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error clearing action log:', error);

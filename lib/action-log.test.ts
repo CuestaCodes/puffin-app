@@ -235,12 +235,26 @@ describe('recordImportMapping', () => {
     expect(entry.event_type).toBe('import.column_mapping');
   });
 
-  it('swallows a write failure so an import is never broken by logging', async () => {
+  it('swallows a rejected write so an import is never broken by logging', async () => {
     writeActionLogPreference(true);
     postMock.mockRejectedValue(new Error('disk full'));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await expect(recordImportMapping(makeInput())).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalled();
+  });
+
+  it('reports a write that resolves with an error', async () => {
+    // api.* resolves with { error } rather than rejecting, so this — not the
+    // rejection above — is how a handler failure actually arrives
+    writeActionLogPreference(true);
+    postMock.mockResolvedValue({ error: 'Failed to write action log', status: 500 });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(recordImportMapping(makeInput())).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to record import action log entry:',
+      'Failed to write action log'
+    );
   });
 });

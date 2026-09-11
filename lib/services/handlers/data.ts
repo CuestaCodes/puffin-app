@@ -441,27 +441,30 @@ export async function handleExportTransactions(ctx: HandlerContext): Promise<unk
   // A blob download does work in the webview, but WebView2 drops the file into
   // Downloads with no prompt and no path, so the export reads as having done
   // nothing at all. Matches handleExportBackup and handleActionLogExport.
+  // Only plugin *availability* falls back to a blob download. A real write
+  // failure must surface, not silently redirect the file to Downloads while the
+  // UI reports the path the user chose.
+  let save: typeof import('@tauri-apps/plugin-dialog').save;
+  let writeTextFile: typeof import('@tauri-apps/plugin-fs').writeTextFile;
   try {
-    const { save } = await import('@tauri-apps/plugin-dialog');
-    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-
-    const savePath = await save({
-      defaultPath: defaultName,
-      filters: [{ name: 'CSV', extensions: ['csv'] }],
-    });
-
-    if (!savePath) {
-      return { success: false, cancelled: true };
-    }
-
-    await writeTextFile(savePath, csv);
-
-    return { success: true, path: savePath, count: transactions.length };
+    ({ save } = await import('@tauri-apps/plugin-dialog'));
+    ({ writeTextFile } = await import('@tauri-apps/plugin-fs'));
   } catch {
-    // Dialog/fs plugin unavailable - fall back to handing the CSV back for a
-    // blob download rather than failing the export outright
     return { csv, filename: defaultName, mimeType: 'text/csv' };
   }
+
+  const savePath = await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'CSV', extensions: ['csv'] }],
+  });
+
+  if (!savePath) {
+    return { success: false, cancelled: true };
+  }
+
+  await writeTextFile(savePath, csv);
+
+  return { success: true, path: savePath, count: transactions.length };
 }
 
 /**
