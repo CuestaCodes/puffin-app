@@ -98,6 +98,43 @@ return updateSubCategory(id, data);
 
 **API Client Methods:** `api.get()`, `api.post()`, `api.patch()`, `api.delete()` (not `api.del`).
 
+**`api.*` never throws — it resolves with `{ error }`.** `apiRequest` catches handler and
+network failures and returns `{ error, status }` (`lib/services/api-client.ts`). So this is
+not error handling, and always reports success:
+
+```typescript
+try {
+  await api.delete('/api/thing');      // resolves even when the handler threw
+  toast.success('Deleted');            // fires on failure too
+} catch {
+  toast.error('Failed');               // unreachable for a handler error
+}
+```
+
+Check the value instead:
+
+```typescript
+const result = await api.delete<{ success: boolean }>('/api/thing');
+if (result.error || !result.data?.success) throw new Error(result.error || 'Delete failed');
+```
+
+This is invisible in review — the code looks defensive — and the failure mode is the worst
+kind: a destructive action reporting success while the data is untouched. It produced two
+Major findings in one review, plus a pre-existing bulk delete that had been discarding
+failures silently.
+
+**For a batch, `Promise.all` is doubly wrong here.** It cannot see `{ error }` results at
+all, and a genuine rejection skips everything after the `await` — including the refetch —
+leaving deleted rows on screen. Use `Promise.allSettled`, count both shapes of failure, and
+always refetch:
+
+```typescript
+const results = await Promise.allSettled(ids.map(id => api.delete(`/api/x/${id}`)));
+const failed = results.filter(
+  r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
+).length;
+```
+
 **Multi-step DB writes:** Wrap in a transaction when the writes must succeed or fail
 *together* — a write plus its dependent write, or a delete-then-reinsert.
 
@@ -214,7 +251,21 @@ DELETE FROM note;
 - **Cloud:** Timestamp with 5s buffer for clock skew
 
 ### Device-Specific Data
-`local_user` and `sync_log` are NOT synced. **CRITICAL:** Sync pull must save/restore `local_user` to prevent lockout.
+**Only `local_user` is genuinely device-specific.** Sync pull must save/restore it to
+prevent lockout.
+
+**`sync_log` is NOT protected, despite being conceptually device-local.** Sync replaces the
+whole database file: push runs `wal_checkpoint(TRUNCATE)` and uploads all of `puffin.db`,
+and pull downloads, replaces the file, and restores `local_user` alone
+(`app/api/sync/pull/route.ts`, `lib/services/handlers/sync.ts`). So `sync_log` rows are
+uploaded to Drive on every push and wiped on every pull.
+
+**Therefore a new table cannot be made "not synced" by intent.** Keeping data out of sync
+means either adding it to the save/restore dance in *both* pull paths **and** vacuuming to
+a scrubbed copy before push — or storing it outside the database entirely. The import
+action log took the second route: `action-log.jsonl` sits beside `puffin.db`, so it is
+untouched by both directions for free and needs no schema migration. See
+`lib/action-log-file.ts`.
 
 ### Session Tracking (Tauri)
 `SESSION_ID` + `LAST_MODIFY_SESSION_KEY` in localStorage blocks edits when local_only changes exist from previous session.
@@ -578,6 +629,40 @@ Key permissions in `src-tauri/capabilities/default.json`:
 - `dialog:allow-open/save` - File pickers
 
 **Debugging:** Permission errors include the required identifier.
+
+### Saving a File: Never Hand the Webview a Blob
+
+A `Blob` + `URL.createObjectURL` + `a.click()` download *works* in the Tauri webview, which
+is what makes this so easy to miss. WebView2 accepts it and writes the file to the user's
+Downloads folder — with no save prompt, no path, and nothing on screen. The user presses
+Export, sees nothing happen, and reasonably concludes the button is broken.
+
+Use the dialog plugin and report the path back:
+
+```typescript
+const { save } = await import('@tauri-apps/plugin-dialog');
+const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
+const savePath = await save({ defaultPath, filters: [{ name: 'CSV', extensions: ['csv'] }] });
+if (!savePath) return { success: false, cancelled: true };   // cancel is not a failure
+await writeTextFile(savePath, contents);
+return { success: true, path: savePath };
+```
+
+Then surface `path` in the success toast — "Saved to C:\…\file.csv" — because naming the
+location is the entire point. Browser dev has no dialog, so it keeps the blob download and
+should say "Saved to your Downloads folder" rather than nothing.
+
+Two things this needs that are easy to miss:
+- **`fs:allow-write-file` must be scoped to where the dialog can land.** It was granted for
+  `$APPDATA/**` only, while read/exists/copy already allowed `$DOWNLOAD`, `$DOCUMENT` and
+  `$HOME`; a save anywhere else failed at runtime.
+- **Capability changes need a `tauri:dev` restart**, not a hot reload — they compile into
+  the Rust binary.
+
+Only fall back to a blob when the *plugin import* fails. Wrapping the write in the same
+`try` turns a real write failure into a silent Downloads download while the UI reports the
+path the user chose.
 
 ## Performance
 
