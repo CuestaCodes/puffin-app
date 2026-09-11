@@ -16,6 +16,7 @@ import { parseCSV, detectColumnMapping } from '@/lib/csv/parser';
 import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
 import { cn } from '@/lib/utils';
 import { saveLastImport, clearLastImport } from '@/lib/import-undo';
+import { recordImportMapping } from '@/lib/action-log';
 import type {
   CSVParseResult,
   ColumnMapping,
@@ -60,6 +61,11 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [sources, setSources] = useState<Source[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [hasHeaders, setHasHeaders] = useState(false);
+  // What auto-detection proposed, kept so the action log can tell an accepted
+  // suggestion apart from one the user corrected. columnMapping/dateFormat are
+  // overwritten by the user, so the originals have to be stashed separately.
+  const [detectedMapping, setDetectedMapping] = useState<ColumnMapping | null>(null);
+  const [detectedDateFormat, setDetectedDateFormat] = useState<DateFormat>('auto');
 
   // Fetch sources on mount
   useEffect(() => {
@@ -87,6 +93,7 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
 
       // Auto-detect column mapping
       const detectedMapping = detectColumnMapping(result.headers);
+      setDetectedMapping(detectedMapping);
       if (detectedMapping) {
         setColumnMapping(detectedMapping);
       } else {
@@ -95,14 +102,16 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       }
 
       // Auto-detect date format from samples
+      let detectedFormat: DateFormat = 'auto';
       if (detectedMapping && detectedMapping.date >= 0) {
         const dateSamples = result.rows
           .slice(0, 10)
           .map(row => row[detectedMapping.date])
           .filter(Boolean);
-        const detectedFormat = detectDateFormat(dateSamples);
+        detectedFormat = detectDateFormat(dateSamples);
         setDateFormat(detectedFormat);
       }
+      setDetectedDateFormat(detectedFormat);
 
       setCurrentStep('mapping');
     } catch (err) {
@@ -314,12 +323,29 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
       setImportResult(result.data);
       setCurrentStep('complete');
 
+      const sourceName = selectedSourceId
+        ? sources.find(s => s.id === selectedSourceId)?.name || null
+        : null;
+
+      // Record the mapping choices for future import automation. Opt-in and
+      // local only; never throws, so it cannot turn a successful import into a
+      // failed one.
+      await recordImportMapping({
+        importKind: 'csv',
+        headers: preview.headers,
+        hasHeaders,
+        suggestedMapping: detectedMapping,
+        finalMapping: columnMapping,
+        detectedDateFormat,
+        finalDateFormat: dateFormat,
+        sourceName,
+        batchId: result.data.batchId ?? null,
+        rowsParsed: preview.rows.length,
+        rowsImported: result.data.imported,
+      });
+
       // Save import info for undo functionality
       if (result.data.batchId && result.data.imported > 0) {
-        const sourceName = selectedSourceId
-          ? sources.find(s => s.id === selectedSourceId)?.name || null
-          : null;
-
         saveLastImport({
           batchId: result.data.batchId,
           timestamp: Date.now(),
@@ -368,13 +394,25 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [preview, onComplete, selectedSourceId, sources]);
+  }, [
+    preview,
+    onComplete,
+    selectedSourceId,
+    sources,
+    hasHeaders,
+    detectedMapping,
+    detectedDateFormat,
+    columnMapping,
+    dateFormat,
+  ]);
 
   const handleReset = () => {
     setCurrentStep('upload');
     setParseResult(null);
     setColumnMapping({ date: -1, description: -1, amount: -1, ignore: [] });
     setDateFormat('auto');
+    setDetectedMapping(null);
+    setDetectedDateFormat('auto');
     setPreview(null);
     setError(null);
     setImportResult(null);

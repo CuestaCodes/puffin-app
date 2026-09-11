@@ -26,6 +26,7 @@ import { parsePastedText, detectPasteColumnMapping, parseAmount } from '@/lib/pa
 import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
 import { cn } from '@/lib/utils';
 import { saveLastImport, clearLastImport } from '@/lib/import-undo';
+import { recordImportMapping } from '@/lib/action-log';
 import type {
   CSVParseResult,
   ColumnMapping,
@@ -74,6 +75,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const [sources, setSources] = useState<Source[]>([]);
   const [treatAsExpenses, setTreatAsExpenses] = useState(true);
   const [hasHeaders, setHasHeaders] = useState(false);
+  // What auto-detection proposed, kept so the action log can tell an accepted
+  // suggestion apart from one the user corrected. columnMapping/dateFormat are
+  // overwritten by the user, so the originals have to be stashed separately.
+  const [detectedMapping, setDetectedMapping] = useState<ColumnMapping | null>(null);
+  const [detectedDateFormat, setDetectedDateFormat] = useState<DateFormat>('auto');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch sources on mount
@@ -107,19 +113,22 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
 
       // Auto-detect column mapping
       const detectedMapping = detectPasteColumnMapping(result.headers, result.rows);
+      setDetectedMapping(detectedMapping);
       if (detectedMapping) {
         setColumnMapping(detectedMapping);
       }
 
       // Auto-detect date format from samples
+      let detectedFormat: DateFormat = 'auto';
       if (detectedMapping && detectedMapping.date >= 0) {
         const dateSamples = result.rows
           .slice(0, 10)
           .map(row => row[detectedMapping.date])
           .filter(Boolean);
-        const detectedFormat = detectDateFormat(dateSamples);
+        detectedFormat = detectDateFormat(dateSamples);
         setDateFormat(detectedFormat);
       }
+      setDetectedDateFormat(detectedFormat);
 
       setCurrentStep('mapping');
     } catch (err) {
@@ -321,12 +330,29 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
       setImportResult(importData);
       setCurrentStep('complete');
 
+      const sourceName = selectedSourceId
+        ? sources.find(s => s.id === selectedSourceId)?.name || null
+        : null;
+
+      // Record the mapping choices for future import automation. Opt-in and
+      // local only; never throws, so it cannot turn a successful import into a
+      // failed one.
+      await recordImportMapping({
+        importKind: 'paste',
+        headers: preview.headers,
+        hasHeaders,
+        suggestedMapping: detectedMapping,
+        finalMapping: columnMapping,
+        detectedDateFormat,
+        finalDateFormat: dateFormat,
+        sourceName,
+        batchId: importData.batchId ?? null,
+        rowsParsed: preview.rows.length,
+        rowsImported: importData.imported,
+      });
+
       // Save import info for undo functionality
       if (importData.batchId && importData.imported > 0) {
-        const sourceName = selectedSourceId
-          ? sources.find(s => s.id === selectedSourceId)?.name || null
-          : null;
-
         saveLastImport({
           batchId: importData.batchId,
           timestamp: Date.now(),

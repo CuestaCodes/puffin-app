@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { api, isTauriContext } from '@/lib/services';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,8 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { readActionLogPreference, writeActionLogPreference } from '@/lib/action-log';
+import type { ActionLogEntry } from '@/types/action-log';
 import {
   ArrowLeft,
   Download,
@@ -27,6 +41,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Calendar,
+  ClipboardList,
 } from 'lucide-react';
 
 interface DataManagementProps {
@@ -62,6 +77,13 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingBackup, setIsExportingBackup] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+
+  // Import activity log
+  const [actionLogEnabled, setActionLogEnabled] = useState(false);
+  const [actionLogCount, setActionLogCount] = useState<number | null>(null);
+  const [isExportingActionLog, setIsExportingActionLog] = useState(false);
+  const [showClearActionLogDialog, setShowClearActionLogDialog] = useState(false);
+  const [isClearingActionLog, setIsClearingActionLog] = useState(false);
 
   // Dialogs
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -109,10 +131,25 @@ export function DataManagement({ onBack }: DataManagementProps) {
     }
   }, []);
 
+  // Count entries already in the import activity log. Runs even when logging is
+  // off, so a log recorded earlier is still visible and clearable.
+  const fetchActionLogCount = useCallback(async () => {
+    try {
+      const result = await api.get<{ entries: ActionLogEntry[] }>('/api/action-log');
+      setActionLogCount(result.data?.entries?.length ?? 0);
+    } catch (error) {
+      console.error('Failed to read import log:', error);
+      setActionLogCount(null);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
     fetchBackups();
-  }, [fetchStats, fetchBackups]);
+    fetchActionLogCount();
+    // Preference lives in localStorage, so it can only be read after mount
+    setActionLogEnabled(readActionLogPreference());
+  }, [fetchStats, fetchBackups, fetchActionLogCount]);
 
   // Format bytes to human readable
   const formatBytes = (bytes: number): string => {
@@ -146,11 +183,24 @@ export function DataManagement({ onBack }: DataManagementProps) {
   const handleExportCSV = async () => {
     setIsExporting(true);
     try {
-      const result = await api.get<{ csv: string; filename: string } | Blob>('/api/data/export/transactions');
+      const result = await api.get<
+        | { success: boolean; path?: string; cancelled?: boolean; count?: number }
+        | { csv: string; filename: string }
+        | Blob
+      >('/api/data/export/transactions');
 
-      // Handle Tauri mode (returns data object) vs web mode (returns blob)
-      if (result.data && 'csv' in result.data) {
-        // Tauri mode - create blob from CSV string
+      // Tauri opens a save dialog and returns the chosen path, so the user is
+      // told where the file went; a blob download lands in Downloads silently.
+      if (result.data && 'cancelled' in result.data && result.data.cancelled) {
+        return;
+      }
+
+      if (result.data && 'path' in result.data && result.data.path) {
+        toast.success('Transactions exported', {
+          description: `Saved to ${result.data.path}`,
+        });
+      } else if (result.data && 'csv' in result.data) {
+        // Fallback when the dialog/fs plugin is unavailable
         const blob = new Blob([result.data.csv], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -160,7 +210,9 @@ export function DataManagement({ onBack }: DataManagementProps) {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        showSuccess('Transactions exported successfully');
+        toast.success('Transactions exported', {
+          description: 'Saved to your Downloads folder',
+        });
       } else {
         // Web mode fallback - direct fetch for blob
         const response = await fetch('/api/data/export/transactions');
@@ -174,7 +226,9 @@ export function DataManagement({ onBack }: DataManagementProps) {
           a.click();
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
-          showSuccess('Transactions exported successfully');
+          toast.success('Transactions exported', {
+            description: 'Saved to your Downloads folder',
+          });
         } else {
           showError('Failed to export transactions');
         }
@@ -184,6 +238,97 @@ export function DataManagement({ onBack }: DataManagementProps) {
       showError('Failed to export transactions');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Toggle import activity logging
+  const handleToggleActionLog = (enabled: boolean) => {
+    setActionLogEnabled(enabled);
+    writeActionLogPreference(enabled);
+  };
+
+  // Export the import activity log as JSONL
+  //
+  // Tauri opens a save dialog and returns the chosen path, so the user is told
+  // where the file went. A blob download does work in the webview, but WebView2
+  // drops it into Downloads silently — the export looks like it did nothing.
+  // Browser dev has no dialog, so it keeps the blob path.
+  const handleExportActionLog = async () => {
+    setIsExportingActionLog(true);
+    try {
+      const result = await api.get<{
+        success: boolean;
+        empty?: boolean;
+        cancelled?: boolean;
+        path?: string;
+        jsonl?: string;
+        filename?: string;
+        count?: number;
+      }>('/api/action-log/export');
+
+      const data = result.data;
+      if (!data) throw new Error(result.error || 'No response from export');
+
+      if (data.empty) {
+        setActionLogCount(0);
+        toast.error('No import log recorded yet', {
+          description: 'Turn on "Record import mapping choices", then run an import.',
+        });
+        return;
+      }
+
+      // User dismissed the save dialog — not a failure, and not worth a toast
+      if (data.cancelled) return;
+
+      const count = data.count ?? 0;
+      const label = `Exported ${count} import${count !== 1 ? 's' : ''}`;
+
+      if (data.path) {
+        setActionLogCount(count);
+        toast.success(label, { description: `Saved to ${data.path}` });
+        return;
+      }
+
+      if (data.jsonl) {
+        const blob = new Blob([data.jsonl], { type: 'application/x-ndjson' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename || 'puffin-import-log.jsonl';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        setActionLogCount(count);
+        toast.success(label, { description: 'Saved to your Downloads folder' });
+        return;
+      }
+
+      throw new Error('Export returned no file');
+    } catch (error) {
+      console.error('Import log export error:', error);
+      toast.error('Failed to export import log', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setIsExportingActionLog(false);
+    }
+  };
+
+  // Clear the import activity log
+  const handleClearActionLog = async () => {
+    setIsClearingActionLog(true);
+    try {
+      await api.delete('/api/action-log');
+      setActionLogCount(0);
+      toast.success('Import log cleared');
+    } catch (error) {
+      console.error('Failed to clear import log:', error);
+      toast.error('Failed to clear import log');
+    } finally {
+      setIsClearingActionLog(false);
+      setShowClearActionLogDialog(false);
     }
   };
 
@@ -531,6 +676,78 @@ export function DataManagement({ onBack }: DataManagementProps) {
         </CardContent>
       </Card>
 
+      {/* Import Activity Log Section */}
+      <Card className="border-slate-800 bg-slate-900/50">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-sky-950/50 border border-sky-900/50">
+              <ClipboardList className="w-5 h-5 text-sky-400" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="text-lg text-slate-100">Import Activity Log</CardTitle>
+              <CardDescription className="text-slate-400">
+                Optional record of your import column choices
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="action-log-enabled"
+              checked={actionLogEnabled}
+              onCheckedChange={(checked) => handleToggleActionLog(checked === true)}
+              aria-label="Record import mapping choices"
+              className="mt-0.5 shrink-0"
+            />
+            <div className="min-w-0">
+              <Label
+                htmlFor="action-log-enabled"
+                className="text-slate-200 cursor-pointer"
+              >
+                Record import mapping choices
+              </Label>
+              <p className="text-sm text-slate-400 mt-1">
+                Logs which columns you map to which fields, so Puffin can learn to suggest
+                the mapping for each bank. Stored on this device only &mdash; never synced or
+                uploaded, and no amounts or descriptions are recorded.
+              </p>
+            </div>
+          </div>
+
+          <p className="text-sm text-slate-500">
+            {actionLogCount === null
+              ? 'Log unavailable'
+              : `${actionLogCount} import${actionLogCount !== 1 ? 's' : ''} recorded`}
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button
+              onClick={handleExportActionLog}
+              disabled={isExportingActionLog}
+              variant="outline"
+              className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              {isExportingActionLog ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <FileDown className="w-4 h-4 mr-2" />
+              )}
+              Export Log (.jsonl)
+            </Button>
+            <Button
+              onClick={() => setShowClearActionLogDialog(true)}
+              disabled={isClearingActionLog || actionLogCount === 0}
+              variant="outline"
+              className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear Log
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Import Section */}
       <Card className="border-slate-800 bg-slate-900/50">
         <CardHeader>
@@ -869,6 +1086,36 @@ export function DataManagement({ onBack }: DataManagementProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Clear Import Log Confirmation */}
+      <AlertDialog open={showClearActionLogDialog} onOpenChange={setShowClearActionLogDialog}>
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              Clear import log?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              This permanently deletes the{' '}
+              <strong className="text-amber-400">{actionLogCount ?? 0}</strong> recorded
+              import{actionLogCount !== 1 ? 's' : ''}. Your transactions are not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-700 text-slate-300 hover:bg-slate-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearActionLog}
+              disabled={isClearingActionLog}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {isClearingActionLog ? 'Clearing...' : 'Clear Log'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }

@@ -435,12 +435,33 @@ export async function handleExportTransactions(ctx: HandlerContext): Promise<unk
 
   const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
 
-  // Return CSV data (caller will handle download)
-  return {
-    csv,
-    filename: `puffin-transactions-${new Date().toISOString().split('T')[0]}.csv`,
-    mimeType: 'text/csv',
-  };
+  const defaultName = `puffin-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+
+  // Open a save dialog rather than returning a blob for the browser to download.
+  // A blob download does work in the webview, but WebView2 drops the file into
+  // Downloads with no prompt and no path, so the export reads as having done
+  // nothing at all. Matches handleExportBackup and handleActionLogExport.
+  try {
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
+    const savePath = await save({
+      defaultPath: defaultName,
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+
+    if (!savePath) {
+      return { success: false, cancelled: true };
+    }
+
+    await writeTextFile(savePath, csv);
+
+    return { success: true, path: savePath, count: transactions.length };
+  } catch {
+    // Dialog/fs plugin unavailable - fall back to handing the CSV back for a
+    // blob download rather than failing the export outright
+    return { csv, filename: defaultName, mimeType: 'text/csv' };
+  }
 }
 
 /**

@@ -221,6 +221,17 @@ export function initializeTauriHandlers(): void {
     return handleImportBackup;
   });
 
+  // Import action log handler
+  registerHandler('/api/action-log', async () => {
+    const { handleActionLog } = await import('./action-log');
+    return handleActionLog;
+  });
+
+  registerHandler('/api/action-log/export', async () => {
+    const { handleActionLogExport } = await import('./action-log');
+    return handleActionLogExport;
+  });
+
   // Net worth handlers
   registerHandler('/api/net-worth', async () => {
     const { handleNetWorth } = await import('./net-worth');
