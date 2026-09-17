@@ -14,6 +14,7 @@ import {
   selectBackupsToPrune,
   serializeBackupSettings,
   toBackupListing,
+  UNREADABLE_SETTINGS,
   type BackupDirectoryIO,
   type BackupFileEntry,
 } from './backup-retention';
@@ -161,12 +162,16 @@ describe('toBackupListing', () => {
 });
 
 describe('settings', () => {
-  it('defaults when the file is missing, empty or corrupt', () => {
+  it('uses the default only when there is no settings file', () => {
     expect(parseBackupSettings(null)).toEqual({ keep: DEFAULT_BACKUPS_TO_KEEP });
-    expect(parseBackupSettings('')).toEqual({ keep: DEFAULT_BACKUPS_TO_KEEP });
-    expect(parseBackupSettings('{not json')).toEqual({ keep: DEFAULT_BACKUPS_TO_KEEP });
-    expect(parseBackupSettings('null')).toEqual({ keep: DEFAULT_BACKUPS_TO_KEEP });
-    expect(parseBackupSettings('{"keep":"lots"}')).toEqual({ keep: DEFAULT_BACKUPS_TO_KEEP });
+  });
+
+  it('keeps the maximum when a settings file is present but unusable', () => {
+    // Pruning to the default here would delete backups the user chose to keep
+    for (const contents of ['', '{"ke', '{not json', 'null', '{}', '{"keep":"lots"}', '{"keep":null}']) {
+      expect(parseBackupSettings(contents)).toEqual(UNREADABLE_SETTINGS);
+    }
+    expect(UNREADABLE_SETTINGS.keep).toBe(MAX_BACKUPS_TO_KEEP);
   });
 
   it('clamps an out-of-range stored value rather than rejecting it', () => {

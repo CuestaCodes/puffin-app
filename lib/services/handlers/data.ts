@@ -9,6 +9,7 @@ import { getDatabase, getDatabasePath, backup as vacuumBackup } from '../tauri-d
 import {
   MAX_BACKUPS_TO_KEEP,
   MIN_BACKUPS_TO_KEEP,
+  isBackupFilename,
   parseBackupSettingsUpdate,
 } from '@/lib/backup-retention';
 import {
@@ -293,6 +294,12 @@ export async function handleBackup(ctx: HandlerContext): Promise<unknown> {
 
   if (!filename) {
     throw new Error('Backup filename required');
+  }
+
+  // Matches the dev route's path-traversal guard: a name like `..\puffin.db`
+  // would otherwise resolve outside backups/ and restore over, or delete, the live database
+  if (!isBackupFilename(filename)) {
+    throw new Error('Invalid backup filename');
   }
 
   if (method === 'POST') {

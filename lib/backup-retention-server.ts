@@ -12,7 +12,9 @@ import { getDatabasePath } from '@/lib/db';
 import { getBackupsDir } from '@/lib/data/utils';
 import {
   BACKUP_SETTINGS_FILENAME,
+  UNREADABLE_SETTINGS,
   buildBackupFilename,
+  clampBackupsToKeep,
   listBackups,
   parseBackupSettings,
   pruneBackups,
@@ -55,13 +57,14 @@ export function readBackupSettings(): BackupSettings {
   const settingsPath = path.join(getDataDir(), BACKUP_SETTINGS_FILENAME);
   try {
     return parseBackupSettings(fs.existsSync(settingsPath) ? fs.readFileSync(settingsPath, 'utf-8') : null);
-  } catch {
-    return parseBackupSettings(null);
+  } catch (err) {
+    console.warn('Failed to read backup settings, keeping the maximum:', err);
+    return UNREADABLE_SETTINGS;
   }
 }
 
 export function writeBackupSettings(keep: number): BackupSettings {
-  const settings = parseBackupSettings(serializeBackupSettings({ keep }));
+  const settings = { keep: clampBackupsToKeep(keep) };
   fs.writeFileSync(path.join(getDataDir(), BACKUP_SETTINGS_FILENAME), serializeBackupSettings(settings));
   return settings;
 }

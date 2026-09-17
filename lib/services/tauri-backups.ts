@@ -11,7 +11,9 @@
 
 import {
   BACKUP_SETTINGS_FILENAME,
+  UNREADABLE_SETTINGS,
   buildBackupFilename,
+  clampBackupsToKeep,
   listBackups,
   parseBackupSettings,
   pruneBackups,
@@ -69,14 +71,15 @@ export async function readBackupSettings(): Promise<BackupSettings> {
     const { exists, readTextFile } = await import('@tauri-apps/plugin-fs');
     const settingsPath = await getSettingsPath();
     return parseBackupSettings((await exists(settingsPath)) ? await readTextFile(settingsPath) : null);
-  } catch {
-    return parseBackupSettings(null);
+  } catch (err) {
+    console.warn('Failed to read backup settings, keeping the maximum:', err);
+    return UNREADABLE_SETTINGS;
   }
 }
 
 export async function writeBackupSettings(keep: number): Promise<BackupSettings> {
   const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-  const settings = parseBackupSettings(serializeBackupSettings({ keep }));
+  const settings = { keep: clampBackupsToKeep(keep) };
   await writeTextFile(await getSettingsPath(), serializeBackupSettings(settings));
   return settings;
 }

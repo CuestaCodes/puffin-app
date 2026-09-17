@@ -81,7 +81,10 @@ export function DataManagement({ onBack }: DataManagementProps) {
   // Backups
   const [backups, setBackups] = useState<LocalBackup[]>([]);
   const [isLoadingBackups, setIsLoadingBackups] = useState(true);
+  // Without a successful listing the number of backups on disk is unknown
+  const [backupsLoadFailed, setBackupsLoadFailed] = useState(false);
   const [backupsToKeep, setBackupsToKeep] = useState<number | null>(null);
+  const [backupSettingsLoadFailed, setBackupSettingsLoadFailed] = useState(false);
   // A lower limit that would delete backups, held until the user confirms it
   const [pendingBackupsToKeep, setPendingBackupsToKeep] = useState<number | null>(null);
   const [isSavingBackupsToKeep, setIsSavingBackupsToKeep] = useState(false);
@@ -136,11 +139,14 @@ export function DataManagement({ onBack }: DataManagementProps) {
       const result = await api.get<BackupListResponse>('/api/data/backups');
       if (result.data) {
         setBackups(result.data.backups || []);
-      } else if (result.error) {
+        setBackupsLoadFailed(false);
+      } else {
         console.error('Failed to fetch backups:', result.error);
+        setBackupsLoadFailed(true);
       }
     } catch (error) {
       console.error('Failed to fetch backups:', error);
+      setBackupsLoadFailed(true);
     } finally {
       if (!background) setIsLoadingBackups(false);
     }
@@ -150,8 +156,10 @@ export function DataManagement({ onBack }: DataManagementProps) {
     const result = await api.get<BackupSettingsResponse>('/api/data/backup-settings');
     if (result.data) {
       setBackupsToKeep(result.data.keep);
+      setBackupSettingsLoadFailed(false);
     } else {
       console.error('Failed to read backup settings:', result.error);
+      setBackupSettingsLoadFailed(true);
     }
   }, []);
 
@@ -581,12 +589,17 @@ export function DataManagement({ onBack }: DataManagementProps) {
       ? [...BACKUPS_TO_KEEP_OPTIONS]
       : [...BACKUPS_TO_KEEP_OPTIONS, backupsToKeep].sort((a, b) => a - b);
 
-  // Lowering the limit deletes backups straight away, so confirm when it would
+  // Lowering the limit deletes backups straight away, so confirm when it would.
+  // If the list failed to load, the count is unknown: confirm any decrease.
   const handleBackupsToKeepChange = (value: string) => {
     const keep = Number(value);
     if (keep === backupsToKeep) return;
 
-    if (backups.length > keep) {
+    const mayDelete = backupsLoadFailed
+      ? backupsToKeep === null || keep < backupsToKeep
+      : backups.length > keep;
+
+    if (mayDelete) {
       setPendingBackupsToKeep(keep);
     } else {
       saveBackupsToKeep(keep);
@@ -911,14 +924,14 @@ export function DataManagement({ onBack }: DataManagementProps) {
               <Select
                 value={backupsToKeep === null ? '' : String(backupsToKeep)}
                 onValueChange={handleBackupsToKeepChange}
-                disabled={backupsToKeep === null || isSavingBackupsToKeep}
+                disabled={backupsToKeep === null || isSavingBackupsToKeep || isLoadingBackups}
               >
                 <SelectTrigger
                   id="backups-to-keep"
                   aria-label="Backups to keep"
                   className="w-full lg:w-40 bg-slate-800/50 border-slate-700 text-slate-100"
                 >
-                  <SelectValue placeholder="Loading..." />
+                  <SelectValue placeholder={backupSettingsLoadFailed ? 'Unavailable' : 'Loading...'} />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-900 border-slate-700">
                   {backupsToKeepOptions.map((count) => (
@@ -930,6 +943,9 @@ export function DataManagement({ onBack }: DataManagementProps) {
               </Select>
             </div>
             <p className="text-sm text-slate-500 lg:pb-2">
+              {backupSettingsLoadFailed && (
+                <span className="text-amber-400">Couldn&apos;t load this setting. </span>
+              )}
               The oldest are deleted automatically whenever a new backup is made.
               {backups.length > 0 && (
                 <>
@@ -1214,7 +1230,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
       <AlertDialog
         open={pendingBackupsToKeep !== null}
         onOpenChange={(open) => {
-          if (!open && !isSavingBackupsToKeep) setPendingBackupsToKeep(null);
+          if (!open) setPendingBackupsToKeep(null);
         }}
       >
         <AlertDialogContent className="bg-slate-900 border-slate-700">
@@ -1224,40 +1240,48 @@ export function DataManagement({ onBack }: DataManagementProps) {
               Delete older backups?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              Keeping only the newest{' '}
-              <strong className="text-amber-400">{pendingBackupsToKeep}</strong> will permanently
-              delete the oldest{' '}
-              <strong className="text-amber-400">
-                {Math.max(0, backups.length - (pendingBackupsToKeep ?? 0))}
-              </strong>{' '}
-              of your {backups.length} backups
-              {pendingBackupsToKeep !== null && backups[pendingBackupsToKeep] && (
+              {backupsLoadFailed ? (
                 <>
-                  {' '}&mdash; everything from{' '}
-                  <span className="text-slate-300">
-                    {new Date(backups[pendingBackupsToKeep].createdAt).toLocaleString()}
-                  </span>{' '}
-                  and older
+                  Keeping only the newest{' '}
+                  <strong className="text-amber-400">{pendingBackupsToKeep}</strong> will permanently
+                  delete any older backups. The backup list couldn&apos;t be loaded, so Puffin
+                  can&apos;t say how many that is. Your current data is not affected.
+                </>
+              ) : (
+                <>
+                  Keeping only the newest{' '}
+                  <strong className="text-amber-400">{pendingBackupsToKeep}</strong> will permanently
+                  delete the oldest{' '}
+                  <strong className="text-amber-400">
+                    {Math.max(0, backups.length - (pendingBackupsToKeep ?? 0))}
+                  </strong>{' '}
+                  of your {backups.length} backups
+                  {pendingBackupsToKeep !== null && backups[pendingBackupsToKeep] && (
+                    <>
+                      {' '}&mdash; everything from{' '}
+                      <span className="text-slate-300">
+                        {new Date(backups[pendingBackupsToKeep].createdAt).toLocaleString()}
+                      </span>{' '}
+                      and older
+                    </>
+                  )}
+                  . Your current data is not affected.
                 </>
               )}
-              . Your current data is not affected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel
-              disabled={isSavingBackupsToKeep}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            >
+            <AlertDialogCancel className="border-slate-700 text-slate-300 hover:bg-slate-800">
               Cancel
             </AlertDialogCancel>
+            {/* Radix closes the dialog on click; progress shows on the disabled select and the toast */}
             <AlertDialogAction
               onClick={() => {
                 if (pendingBackupsToKeep !== null) saveBackupsToKeep(pendingBackupsToKeep);
               }}
-              disabled={isSavingBackupsToKeep}
               className="bg-red-600 hover:bg-red-500 text-white"
             >
-              {isSavingBackupsToKeep ? 'Deleting...' : 'Delete Backups'}
+              Delete Backups
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

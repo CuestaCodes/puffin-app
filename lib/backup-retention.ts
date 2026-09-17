@@ -113,19 +113,34 @@ export function parseBackupSettingsUpdate(body: unknown): number | null {
 }
 
 /**
- * Parse settings file contents. A missing or corrupt file yields the default
- * rather than an error — a bad settings file must never stop a backup being made.
+ * What to prune to when a settings file exists but cannot be read or parsed.
+ *
+ * The limit decides what gets deleted, so an unknown limit must fail toward
+ * keeping more. Falling back to the default would let a half-written file, or a
+ * read blocked by antivirus, silently delete backups a user chose to keep.
+ */
+export const UNREADABLE_SETTINGS: BackupSettings = { keep: MAX_BACKUPS_TO_KEEP };
+
+/**
+ * Parse settings file contents; `null` means there is no file.
+ *
+ * No file is a fresh install and gets the default. A file that is present but
+ * empty, corrupt or holds no usable number gets UNREADABLE_SETTINGS. Neither
+ * throws — a bad settings file must never stop a backup being made.
  */
 export function parseBackupSettings(contents: string | null): BackupSettings {
-  if (!contents) return { keep: DEFAULT_BACKUPS_TO_KEEP };
+  if (contents === null) return { keep: DEFAULT_BACKUPS_TO_KEEP };
 
   try {
     const parsed: unknown = JSON.parse(contents);
     const keep = parsed && typeof parsed === 'object' ? (parsed as { keep?: unknown }).keep : undefined;
-    return { keep: clampBackupsToKeep(keep) };
+    if (typeof keep === 'number' && Number.isFinite(keep)) {
+      return { keep: clampBackupsToKeep(keep) };
+    }
   } catch {
-    return { keep: DEFAULT_BACKUPS_TO_KEEP };
+    // Corrupt — fall through to the fail-safe
   }
+  return UNREADABLE_SETTINGS;
 }
 
 export function serializeBackupSettings(settings: BackupSettings): string {
