@@ -38,10 +38,33 @@ interface DashboardState {
   year: number;
 }
 
+type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
+
+interface SettingsState {
+  view: SettingsView;
+}
+
 interface PageState {
   transactions: TransactionsState;
   monthlyBudget: MonthlyBudgetState;
   dashboard: DashboardState;
+  settings: SettingsState;
+}
+
+/**
+ * Land directly on the Sync sub-view when arriving via the Reconnect modal,
+ * which sets `puffin_action_reauth` in sessionStorage and then reloads — so this
+ * is read when the provider first mounts. Don't clear the flag here —
+ * SyncManagement consumes it once it mounts to fire the OAuth flow automatically.
+ */
+function getInitialSettingsView(): SettingsView {
+  if (typeof window === 'undefined') return 'main';
+  try {
+    if (sessionStorage.getItem('puffin_action_reauth') === '1') return 'sync';
+  } catch {
+    // ignore
+  }
+  return 'main';
 }
 
 // Default state values
@@ -62,6 +85,9 @@ const getDefaultState = (): PageState => ({
     collapsedCategories: new Set(),
     year: new Date().getFullYear(),
   },
+  settings: {
+    view: getInitialSettingsView(),
+  },
 });
 
 // Context value interface
@@ -70,6 +96,7 @@ interface PageStateContextValue {
   setTransactionsState: (partial: Partial<TransactionsState>) => void;
   setMonthlyBudgetState: (partial: Partial<MonthlyBudgetState>) => void;
   setDashboardState: (partial: Partial<DashboardState>) => void;
+  setSettingsState: (partial: Partial<SettingsState>) => void;
 }
 
 const PageStateContext = createContext<PageStateContextValue | null>(null);
@@ -98,6 +125,13 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setSettingsState = useCallback((partial: Partial<SettingsState>) => {
+    setState(prev => ({
+      ...prev,
+      settings: { ...prev.settings, ...partial },
+    }));
+  }, []);
+
   return (
     <PageStateContext.Provider
       value={{
@@ -105,6 +139,7 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
         setTransactionsState,
         setMonthlyBudgetState,
         setDashboardState,
+        setSettingsState,
       }}
     >
       {children}
@@ -145,5 +180,21 @@ export function useDashboardState() {
   };
 }
 
+export function useSettingsState() {
+  const { state, setSettingsState } = usePageState();
+  return {
+    ...state.settings,
+    setSettingsState,
+  };
+}
+
 // Export types for use in components
-export type { TransactionsState, MonthlyBudgetState, DashboardState, SortField, SortOrder };
+export type {
+  TransactionsState,
+  MonthlyBudgetState,
+  DashboardState,
+  SettingsState,
+  SettingsView,
+  SortField,
+  SortOrder,
+};

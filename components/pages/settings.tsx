@@ -1,32 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ListTree, Sparkles, CloudUpload, Database, Shield } from 'lucide-react';
 import { CategoryManagement, RulesManagement, SyncManagement, DataManagement, SecuritySettings } from '@/components/settings';
 import { useTauri } from '@/components/tauri-provider';
-
-type SettingsView = 'main' | 'categories' | 'rules' | 'sync' | 'data' | 'security';
-
-/**
- * Land directly on the Sync sub-view when arriving via the Reconnect modal
- * (which sets `puffin_action_reauth` in sessionStorage before navigating).
- * Don't clear the flag here — SyncManagement consumes it once it mounts to
- * fire the OAuth flow automatically.
- */
-function getInitialSettingsView(): SettingsView {
-  if (typeof window === 'undefined') return 'main';
-  try {
-    if (sessionStorage.getItem('puffin_action_reauth') === '1') return 'sync';
-  } catch {
-    // ignore
-  }
-  return 'main';
-}
+import { useSettingsState, type SettingsView } from '@/hooks/use-page-state';
 
 export function SettingsPage() {
-  const [currentView, setCurrentView] = useState<SettingsView>(getInitialSettingsView);
+  // Held in page state rather than locally, so leaving Settings and coming back
+  // returns to the same sub-page. Re-selecting Settings in the sidebar resets it
+  // (see AppShellContent).
+  const { view: currentView, setSettingsState } = useSettingsState();
+  const setCurrentView = useCallback(
+    (view: SettingsView) => setSettingsState({ view }),
+    [setSettingsState]
+  );
   const { isTauri, appVersion } = useTauri();
 
   // Render the category management page

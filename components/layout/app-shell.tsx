@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { SyncProvider, useSyncContext } from '@/hooks/use-sync-context';
-import { PageStateProvider } from '@/hooks/use-page-state';
+import { PageStateProvider, usePageState } from '@/hooks/use-page-state';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
 import { Dashboard } from '@/components/pages/dashboard';
@@ -42,6 +42,16 @@ function AppShellContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { logout } = useAuth();
   const { syncStatus, needsResolution, isLoading, refetch } = useSyncContext();
+  const { setSettingsState } = usePageState();
+
+  // Settings remembers its sub-page for the session, so arriving from another
+  // page restores it. Clicking Settings while already there is the way home.
+  const handleNavigate = useCallback((page: PageId) => {
+    if (page === 'settings' && currentPage === 'settings') {
+      setSettingsState({ view: 'main' });
+    }
+    setCurrentPage(page);
+  }, [currentPage, setSettingsState]);
 
   // Strip the URL hint params after we've consumed them (mounting-side effect,
   // not during render — calling replaceState in the useState initializer trips
@@ -85,7 +95,7 @@ function AppShellContent() {
       {/* Sidebar */}
       <Sidebar 
         currentPage={currentPage} 
-        onNavigate={setCurrentPage}
+        onNavigate={handleNavigate}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
