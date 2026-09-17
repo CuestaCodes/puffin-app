@@ -22,6 +22,12 @@ For the selected task, work through each phase sequentially:
 
 #### Phase 1: Discovery & Planning
 - Read the task file completely
+- **Verify the spec's findings against the current code before presenting decisions.** Specs
+  are written at discovery time and go stale: check every claimed behaviour and every
+  `file:line` reference, and record corrections in the task file. On `backup-retention`, three
+  findings were wrong or missing, and one correction (dev API routes run server-side and cannot
+  read `localStorage`) changed which storage option should be recommended — presenting the spec
+  as written would have steered the user to the weaker choice
 - Present the "Key Decisions Required" to the user
 - Wait for user input on each decision
 - Update the task file with decisions made
@@ -77,7 +83,9 @@ For the selected task, work through each phase sequentially:
 - Address Critical and Major issues, committing fixes to `vX.Y-dev`
 - Re-run the same command as needed. Do NOT move the `reviewed` marker between runs — it must stay put so each re-review still shows the original change alongside the fixes
 - Document Minor issues if not fixing
-- **Gate:** No Critical or Major issues remain
+- If review fixes changed logic or tests, ask the user to rerun `npm run test` from PowerShell
+  before closing the gate — the Phase 4 result predates those changes and no longer covers them
+- **Gate:** No Critical or Major issues remain (and tests re-confirmed if fixes touched code)
 
 ---
 
