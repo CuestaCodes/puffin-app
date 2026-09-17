@@ -90,9 +90,15 @@ Your data is stored locally at:
 
 ## Backup & Restore
 
-### Local Backups
-- Go to Settings > Data > Create Backup
-- Saves a `.db` file you can store anywhere
+### Exporting a Backup
+- Go to Settings > Data Management > Export Full Backup (.db)
+- Saves a `.db` file you can store anywhere, and restore from Import & Restore
+
+### Automatic Local Backups
+- Puffin saves a backup before every sync upload, sync download, restore and clear
+- It keeps the newest 10 by default and deletes older ones automatically — change this under
+  Settings > Data Management > Local Backups > Backups to keep (1 to 50)
+- Restore or delete any of them from the same list
 
 ### Google Drive Sync (Optional)
 1. Go to Settings > Sync
