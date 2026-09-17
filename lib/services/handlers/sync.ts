@@ -475,22 +475,16 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
     const { readFile } = await import('@tauri-apps/plugin-fs');
     const { appDataDir, join } = await import('@tauri-apps/api/path');
 
-    // Create a backup first
+    // Create a backup first, then prune to the configured limit
     const dataDir = await appDataDir();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const backupPath = await join(dataDir, 'backups', `pre-sync-${timestamp}.db`);
-
-    // Ensure backups directory exists
-    const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
-    const backupsDir = await join(dataDir, 'backups');
-    if (!await exists(backupsDir)) {
-      await mkdir(backupsDir, { recursive: true });
-    }
+    const { prepareBackupPath, pruneLocalBackups } = await import('../tauri-backups');
+    const backup = await prepareBackupPath('pre-sync');
 
     // Create backup using VACUUM INTO
     const { getDatabase } = await import('../tauri-db');
     const db = await getDatabase();
-    await db.execute(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+    await db.execute(`VACUUM INTO '${backup.path.replace(/'/g, "''")}'`);
+    await pruneLocalBackups(backup.filename);
 
     // Checkpoint WAL to ensure all data is in main file
     await db.execute('PRAGMA wal_checkpoint(TRUNCATE)');
@@ -822,22 +816,17 @@ export async function handleSyncPull(ctx: HandlerContext): Promise<unknown> {
     const { writeFile } = await import('@tauri-apps/plugin-fs');
     const { appDataDir, join } = await import('@tauri-apps/api/path');
 
-    // Create a backup first
+    // Create a backup first, then prune to the configured limit
     const dataDir = await appDataDir();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const backupPath = await join(dataDir, 'backups', `pre-pull-${timestamp}.db`);
-
-    // Ensure backups directory exists
-    const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
-    const backupsDir = await join(dataDir, 'backups');
-    if (!await exists(backupsDir)) {
-      await mkdir(backupsDir, { recursive: true });
-    }
+    const { exists } = await import('@tauri-apps/plugin-fs');
+    const { prepareBackupPath, pruneLocalBackups } = await import('../tauri-backups');
+    const backup = await prepareBackupPath('pre-pull');
 
     // Create backup of current database
     const { getDatabase, resetDatabaseConnection } = await import('../tauri-db');
     const db = await getDatabase();
-    await db.execute(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+    await db.execute(`VACUUM INTO '${backup.path.replace(/'/g, "''")}'`);
+    await pruneLocalBackups(backup.filename);
 
     // CRITICAL: Save local_user data before replacing database
     // Each device should keep its own PIN independently of synced data

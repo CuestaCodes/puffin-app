@@ -6,6 +6,23 @@
  */
 
 import { getDatabase, getDatabasePath, backup as vacuumBackup } from '../tauri-db';
+import {
+  MAX_BACKUPS_TO_KEEP,
+  MIN_BACKUPS_TO_KEEP,
+  parseBackupSettingsUpdate,
+} from '@/lib/backup-retention';
+import {
+  listLocalBackups,
+  prepareBackupPath,
+  pruneLocalBackups,
+  readBackupSettings,
+  writeBackupSettings,
+} from '../tauri-backups';
+import type {
+  BackupListResponse,
+  BackupSettingsResponse,
+  BackupSettingsUpdateResponse,
+} from '@/types/backups';
 
 interface HandlerContext {
   method: string;
@@ -92,13 +109,9 @@ export async function handleClear(ctx: HandlerContext): Promise<unknown> {
 
   // Create a backup before clearing (using VACUUM INTO)
   try {
-    const dbPath = await getDatabasePath();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const separator = dbPath.includes('\\') ? '\\' : '/';
-    const backupPath = dbPath.replace('puffin.db', `backups${separator}pre-clear-${timestamp}.db`);
-
-    // Ensure backups directory exists via parent path
-    await vacuumBackup(backupPath);
+    const backup = await prepareBackupPath('pre-clear');
+    await vacuumBackup(backup.path);
+    await pruneLocalBackups(backup.filename);
   } catch (err) {
     console.warn('Failed to create pre-clear backup:', err);
     // Continue with clear even if backup fails
@@ -201,70 +214,35 @@ export async function handleBackups(ctx: HandlerContext): Promise<unknown> {
   const { method } = ctx;
 
   if (method === 'GET') {
-    // Try to list backups using Tauri fs plugin
+    // Newest first, dated from the filename timestamp — see lib/backup-retention.ts
     try {
-      const { readDir, exists } = await import('@tauri-apps/plugin-fs');
-      const { appDataDir, join } = await import('@tauri-apps/api/path');
-
-      const dataDir = await appDataDir();
-      const backupsDir = await join(dataDir, 'backups');
-
-      // Check if backups directory exists
-      const dirExists = await exists(backupsDir);
-      if (!dirExists) {
-        return { backups: [] };
-      }
-
-      // Read directory contents
-      const entries = await readDir(backupsDir);
-      const backups = entries
-        .filter(entry => entry.name?.endsWith('.db'))
-        .map(entry => ({
-          filename: entry.name,
-          size: 0, // Size not available without stat
-          createdAt: new Date().toISOString(), // Timestamp not available without stat
-        }));
-
-      return { backups };
-    } catch {
-      // fs plugin not available, return empty list
-      console.log('Backup listing not available in Tauri mode without fs plugin');
-      return { backups: [], message: 'Backup listing not available in desktop mode' };
+      const response: BackupListResponse = { backups: await listLocalBackups() };
+      return response;
+    } catch (err) {
+      console.error('Failed to list backups:', err);
+      throw new Error('Failed to list backups');
     }
   }
 
   if (method === 'POST') {
     // Create a new backup
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-
-      // Get backups directory path
-      const { appDataDir, join } = await import('@tauri-apps/api/path');
-      const dataDir = await appDataDir();
-      const backupsDir = await join(dataDir, 'backups');
-
-      // Ensure backups directory exists
-      try {
-        const { mkdir, exists } = await import('@tauri-apps/plugin-fs');
-        const dirExists = await exists(backupsDir);
-        if (!dirExists) {
-          await mkdir(backupsDir, { recursive: true });
-        }
-      } catch {
-        // mkdir might not be available, try backup anyway
-      }
-
-      const filename = `puffin-backup-${timestamp}.db`;
-      const backupPath = await join(backupsDir, filename);
+      const backup = await prepareBackupPath('manual');
 
       // Use VACUUM INTO to create backup
-      await vacuumBackup(backupPath);
+      await vacuumBackup(backup.path);
+
+      const { stat } = await import('@tauri-apps/plugin-fs');
+      const { size } = await stat(backup.path);
+
+      // Enforce the shared retention limit
+      await pruneLocalBackups(backup.filename);
 
       return {
         success: true,
         backup: {
-          filename,
-          size: 0,
+          filename: backup.filename,
+          size,
           createdAt: new Date().toISOString(),
         },
       };
@@ -272,6 +250,34 @@ export async function handleBackups(ctx: HandlerContext): Promise<unknown> {
       console.error('Failed to create backup:', err);
       throw new Error('Failed to create backup');
     }
+  }
+
+  throw new Error(`Method ${method} not allowed`);
+}
+
+/**
+ * Backup retention setting - /api/data/backup-settings
+ * GET = read, PATCH = change and prune immediately. Mirrors app/api/data/backup-settings/route.ts.
+ */
+export async function handleBackupSettings(ctx: HandlerContext): Promise<unknown> {
+  const { method, body } = ctx;
+
+  if (method === 'GET') {
+    const response: BackupSettingsResponse = { keep: (await readBackupSettings()).keep };
+    return response;
+  }
+
+  if (method === 'PATCH') {
+    const keep = parseBackupSettingsUpdate(body);
+    if (keep === null) {
+      throw new Error(`keep must be a whole number from ${MIN_BACKUPS_TO_KEEP} to ${MAX_BACKUPS_TO_KEEP}`);
+    }
+
+    const settings = await writeBackupSettings(keep);
+    const pruned = await pruneLocalBackups(undefined, settings.keep);
+
+    const response: BackupSettingsUpdateResponse = { keep: settings.keep, pruned };
+    return response;
   }
 
   throw new Error(`Method ${method} not allowed`);
@@ -306,13 +312,14 @@ export async function handleBackup(ctx: HandlerContext): Promise<unknown> {
       }
 
       // Create a pre-restore backup of current database
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-      const preRestoreBackup = await join(dataDir, 'backups', `pre-restore-${timestamp}.db`);
+      let preRestoreFilename: string | undefined;
 
       try {
         if (await exists(dbPath)) {
-          await copyFile(dbPath, preRestoreBackup);
-          console.log('[Restore] Created pre-restore backup:', preRestoreBackup);
+          const preRestoreBackup = await prepareBackupPath('pre-restore');
+          await copyFile(dbPath, preRestoreBackup.path);
+          preRestoreFilename = preRestoreBackup.filename;
+          console.log('[Restore] Created pre-restore backup:', preRestoreBackup.path);
         }
       } catch (err) {
         console.warn('[Restore] Failed to create pre-restore backup:', err);
@@ -348,6 +355,9 @@ export async function handleBackup(ctx: HandlerContext): Promise<unknown> {
       }
 
       console.log('[Restore] SUCCESS - Restore complete');
+
+      // Prune only after the copy, so the backup being restored from is still there to copy
+      await pruneLocalBackups(preRestoreFilename);
 
       // Force page reload
       if (typeof window !== 'undefined') {
@@ -547,17 +557,20 @@ export async function handleImportBackup(ctx: HandlerContext): Promise<unknown> 
     const dbPath = await getDatabasePath();
     console.log('[Import] Target database path:', dbPath);
 
-    // Create a backup of current database before replacing
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const preRestoreBackup = dbPath.replace('puffin.db', `puffin-pre-restore-${timestamp}.db`);
+    // Create a backup of current database before replacing. It goes in backups/
+    // like every other backup — it used to sit beside puffin.db, where it was
+    // neither listed nor pruned.
+    let preRestoreFilename: string | undefined;
 
     try {
       // Check if current db exists before backing up
       const dbExists = await exists(dbPath);
       console.log('[Import] Current DB exists:', dbExists);
       if (dbExists) {
-        await copyFile(dbPath, preRestoreBackup);
-        console.log('[Import] Created pre-restore backup:', preRestoreBackup);
+        const preRestoreBackup = await prepareBackupPath('pre-restore');
+        await copyFile(dbPath, preRestoreBackup.path);
+        preRestoreFilename = preRestoreBackup.filename;
+        console.log('[Import] Created pre-restore backup:', preRestoreBackup.path);
       }
     } catch (err) {
       console.warn('[Import] Failed to create pre-restore backup:', err);
@@ -610,6 +623,8 @@ export async function handleImportBackup(ctx: HandlerContext): Promise<unknown> 
     }
 
     console.log('[Import] SUCCESS - Restore complete');
+
+    await pruneLocalBackups(preRestoreFilename);
 
     // Force page reload to pick up new database
     if (typeof window !== 'undefined') {

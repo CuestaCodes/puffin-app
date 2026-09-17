@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getDatabasePath, resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
 import { getBackupsDir, MAX_BACKUP_SIZE } from '@/lib/data/utils';
+import { buildBackupFilename } from '@/lib/backup-retention';
+import { pruneLocalBackups } from '@/lib/backup-retention-server';
 import fs from 'fs';
 import path from 'path';
 
@@ -59,8 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a backup of current database before restoring
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const preRestoreBackup = `pre-restore-${timestamp}.db`;
+    const preRestoreBackup = buildBackupFilename('pre-restore');
     const preRestorePath = path.join(backupsDir, preRestoreBackup);
 
     // Close database connection and reset initialization flag before file operations
@@ -76,6 +77,8 @@ export async function POST(request: NextRequest) {
 
     // Clean up any stale WAL/SHM files from the old database
     cleanupWalFiles(dbPath);
+
+    await pruneLocalBackups(preRestoreBackup);
 
     return NextResponse.json({
       success: true,

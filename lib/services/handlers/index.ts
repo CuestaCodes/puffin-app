@@ -191,6 +191,11 @@ export function initializeTauriHandlers(): void {
     return handleBackups;
   });
 
+  registerHandler('/api/data/backup-settings', async () => {
+    const { handleBackupSettings } = await import('./data');
+    return handleBackupSettings;
+  });
+
   registerHandler('/api/data/backups/[filename]', async () => {
     const { handleBackup } = await import('./data');
     return handleBackup;

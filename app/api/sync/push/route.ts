@@ -9,11 +9,11 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 import { SyncConfigManager } from '@/lib/sync/config';
+import { prepareBackupPath, pruneLocalBackups } from '@/lib/backup-retention-server';
 
 // Database paths
 const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'puffin.db');
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 
 /**
  * Checkpoint the WAL file to ensure all data is in the main database file
@@ -32,29 +32,13 @@ function checkpointDatabase(): void {
 }
 
 /**
- * Create a local backup before sync
+ * Create a local backup before sync, then prune to the configured limit
  */
-function createLocalBackup(): string {
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  }
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = path.join(BACKUP_DIR, `puffin-backup-${timestamp}.db`);
-  
-  fs.copyFileSync(DB_PATH, backupPath);
-  
-  // Keep only last 5 backups
-  const backups = fs.readdirSync(BACKUP_DIR)
-    .filter(f => f.startsWith('puffin-backup-') && f.endsWith('.db'))
-    .sort()
-    .reverse();
-  
-  for (const old of backups.slice(5)) {
-    fs.unlinkSync(path.join(BACKUP_DIR, old));
-  }
-
-  return backupPath;
+async function createLocalBackup(): Promise<string> {
+  const backup = prepareBackupPath('pre-sync');
+  fs.copyFileSync(DB_PATH, backup.path);
+  await pruneLocalBackups(backup.filename);
+  return backup.path;
 }
 
 export async function POST() {
@@ -85,7 +69,7 @@ export async function POST() {
     checkpointDatabase();
 
     // Create local backup before push
-    createLocalBackup();
+    await createLocalBackup();
 
     // Upload to Google Drive
     const driveService = new GoogleDriveService();

@@ -3,40 +3,18 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getDatabasePath, getDatabase, initializeDatabase } from '@/lib/db';
-import { getBackupsDir } from '@/lib/data/utils';
+import { listLocalBackups, prepareBackupPath, pruneLocalBackups } from '@/lib/backup-retention-server';
+import type { BackupListResponse } from '@/types/backups';
 import fs from 'fs';
-import path from 'path';
-
-const MAX_BACKUPS = 10;
 
 export async function GET() {
   const auth = await requireAuth();
   if (!auth.isAuthenticated) return auth.response;
 
   try {
-    const backupsDir = getBackupsDir();
-
-    // Ensure backups directory exists
-    if (!fs.existsSync(backupsDir)) {
-      return NextResponse.json({ backups: [] });
-    }
-
-    // List all .db files in the backups directory
-    const files = fs.readdirSync(backupsDir)
-      .filter(file => file.endsWith('.db'))
-      .map(filename => {
-        const filepath = path.join(backupsDir, filename);
-        const stats = fs.statSync(filepath);
-        return {
-          filename,
-          size: stats.size,
-          createdAt: stats.birthtime.toISOString(),
-          modifiedAt: stats.mtime.toISOString(),
-        };
-      })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    return NextResponse.json({ backups: files });
+    // Newest first, dated from the filename timestamp — see lib/backup-retention.ts
+    const response: BackupListResponse = { backups: await listLocalBackups() };
+    return NextResponse.json(response);
   } catch (error) {
     console.error('List backups error:', error);
     return NextResponse.json(
@@ -52,7 +30,6 @@ export async function POST() {
 
   try {
     const dbPath = getDatabasePath();
-    const backupsDir = getBackupsDir();
 
     // Check if database file exists
     if (!fs.existsSync(dbPath)) {
@@ -62,54 +39,25 @@ export async function POST() {
       );
     }
 
-    // Ensure backups directory exists
-    if (!fs.existsSync(backupsDir)) {
-      fs.mkdirSync(backupsDir, { recursive: true });
-    }
-
     // Checkpoint WAL to ensure all recent writes are in the main .db file
     initializeDatabase();
     const db = getDatabase();
     db.pragma('wal_checkpoint(TRUNCATE)');
 
-    // Generate backup filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const filename = `puffin-backup-${timestamp}.db`;
-    const backupPath = path.join(backupsDir, filename);
-
     // Copy the database file (now includes all recent changes)
-    fs.copyFileSync(dbPath, backupPath);
+    const backup = prepareBackupPath('manual');
+    fs.copyFileSync(dbPath, backup.path);
+    const stats = fs.statSync(backup.path);
 
-    // Get the backup file stats
-    const stats = fs.statSync(backupPath);
-
-    // Enforce backup limit - delete oldest backups beyond MAX_BACKUPS
-    const allBackups = fs.readdirSync(backupsDir)
-      .filter(file => file.endsWith('.db'))
-      .map(file => ({
-        filename: file,
-        path: path.join(backupsDir, file),
-        mtime: fs.statSync(path.join(backupsDir, file)).mtime.getTime(),
-      }))
-      .sort((a, b) => b.mtime - a.mtime); // Newest first
-
-    if (allBackups.length > MAX_BACKUPS) {
-      const toDelete = allBackups.slice(MAX_BACKUPS);
-      for (const backup of toDelete) {
-        try {
-          fs.unlinkSync(backup.path);
-        } catch (err) {
-          console.warn(`Failed to delete old backup ${backup.filename}:`, err);
-        }
-      }
-    }
+    // Enforce the shared retention limit
+    await pruneLocalBackups(backup.filename);
 
     return NextResponse.json({
       success: true,
       backup: {
-        filename,
+        filename: backup.filename,
         size: stats.size,
-        createdAt: stats.birthtime.toISOString(),
+        createdAt: new Date().toISOString(),
       },
     });
   } catch (error) {

@@ -11,43 +11,28 @@ import fs from 'fs';
 import path from 'path';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 import { SyncConfigManager } from '@/lib/sync/config';
+import { prepareBackupPath, pruneLocalBackups } from '@/lib/backup-retention-server';
 import { getDatabase, resetDatabaseConnection, cleanupWalFiles } from '@/lib/db';
 import type { LocalUser } from '@/types/database';
 
 // Database paths
 const DATA_DIR = process.env.PUFFIN_DATA_DIR || path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DATA_DIR, 'puffin.db');
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const TEMP_DOWNLOAD_PATH = path.join(DATA_DIR, 'puffin-download-temp.db');
 
 /**
- * Create a local backup before overwriting
+ * Create a local backup before overwriting, then prune to the configured limit.
+ * The new backup is protected, so the rollback below can always rely on it.
  */
-function createLocalBackup(): string | null {
+async function createLocalBackup(): Promise<string | null> {
   if (!fs.existsSync(DB_PATH)) {
     return null;
   }
 
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  }
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupPath = path.join(BACKUP_DIR, `puffin-pre-pull-${timestamp}.db`);
-  
-  fs.copyFileSync(DB_PATH, backupPath);
-  
-  // Keep only last 5 pre-pull backups
-  const backups = fs.readdirSync(BACKUP_DIR)
-    .filter(f => f.startsWith('puffin-pre-pull-') && f.endsWith('.db'))
-    .sort()
-    .reverse();
-  
-  for (const old of backups.slice(5)) {
-    fs.unlinkSync(path.join(BACKUP_DIR, old));
-  }
-
-  return backupPath;
+  const backup = prepareBackupPath('pre-pull');
+  fs.copyFileSync(DB_PATH, backup.path);
+  await pruneLocalBackups(backup.filename);
+  return backup.path;
 }
 
 export async function POST() {
@@ -67,7 +52,7 @@ export async function POST() {
     }
 
     // Create local backup before pull
-    const backupPath = createLocalBackup();
+    const backupPath = await createLocalBackup();
 
     // CRITICAL: Save local_user data before replacing database
     // Each device should keep its own PIN independently of synced data

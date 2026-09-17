@@ -26,8 +26,23 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { readActionLogPreference, writeActionLogPreference } from '@/lib/action-log';
+import { BACKUPS_TO_KEEP_OPTIONS } from '@/lib/backup-retention';
+import { withScrollPreservation } from '@/lib/utils';
 import type { ActionLogEntry } from '@/types/action-log';
+import type {
+  BackupListResponse,
+  BackupSettingsResponse,
+  BackupSettingsUpdateResponse,
+  LocalBackup,
+} from '@/types/backups';
 import {
   ArrowLeft,
   Download,
@@ -58,12 +73,6 @@ interface DatabaseStats {
   latestTransaction: string | null;
 }
 
-interface LocalBackup {
-  filename: string;
-  size: number;
-  createdAt: string;
-}
-
 export function DataManagement({ onBack }: DataManagementProps) {
   // Stats
   const [stats, setStats] = useState<DatabaseStats | null>(null);
@@ -72,6 +81,10 @@ export function DataManagement({ onBack }: DataManagementProps) {
   // Backups
   const [backups, setBackups] = useState<LocalBackup[]>([]);
   const [isLoadingBackups, setIsLoadingBackups] = useState(true);
+  const [backupsToKeep, setBackupsToKeep] = useState<number | null>(null);
+  // A lower limit that would delete backups, held until the user confirms it
+  const [pendingBackupsToKeep, setPendingBackupsToKeep] = useState<number | null>(null);
+  const [isSavingBackupsToKeep, setIsSavingBackupsToKeep] = useState(false);
 
   // Operations
   const [isExporting, setIsExporting] = useState(false);
@@ -116,18 +129,29 @@ export function DataManagement({ onBack }: DataManagementProps) {
     }
   }, []);
 
-  // Fetch local backups
-  const fetchBackups = useCallback(async () => {
-    setIsLoadingBackups(true);
+  // Fetch local backups. `background` keeps the list on screen while it refreshes.
+  const fetchBackups = useCallback(async (background = false) => {
+    if (!background) setIsLoadingBackups(true);
     try {
-      const result = await api.get<{ backups: LocalBackup[]; message?: string }>('/api/data/backups');
+      const result = await api.get<BackupListResponse>('/api/data/backups');
       if (result.data) {
         setBackups(result.data.backups || []);
+      } else if (result.error) {
+        console.error('Failed to fetch backups:', result.error);
       }
     } catch (error) {
       console.error('Failed to fetch backups:', error);
     } finally {
-      setIsLoadingBackups(false);
+      if (!background) setIsLoadingBackups(false);
+    }
+  }, []);
+
+  const fetchBackupSettings = useCallback(async () => {
+    const result = await api.get<BackupSettingsResponse>('/api/data/backup-settings');
+    if (result.data) {
+      setBackupsToKeep(result.data.keep);
+    } else {
+      console.error('Failed to read backup settings:', result.error);
     }
   }, []);
 
@@ -146,10 +170,11 @@ export function DataManagement({ onBack }: DataManagementProps) {
   useEffect(() => {
     fetchStats();
     fetchBackups();
+    fetchBackupSettings();
     fetchActionLogCount();
     // Preference lives in localStorage, so it can only be read after mount
     setActionLogEnabled(readActionLogPreference());
-  }, [fetchStats, fetchBackups, fetchActionLogCount]);
+  }, [fetchStats, fetchBackups, fetchBackupSettings, fetchActionLogCount]);
 
   // Format bytes to human readable
   const formatBytes = (bytes: number): string => {
@@ -457,6 +482,8 @@ export function DataManagement({ onBack }: DataManagementProps) {
         setShowClearDialog(false);
         setClearConfirmText('');
         fetchStats();
+        // Clearing made a pre-clear backup, which may also have pruned the oldest
+        fetchBackups(true);
       } else {
         showError(result.error || 'Failed to clear transactions');
       }
@@ -508,7 +535,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
         showSuccess('Backup deleted');
         setShowDeleteDialog(false);
         setSelectedBackup(null);
-        fetchBackups();
+        await withScrollPreservation(() => fetchBackups(true));
       } else {
         showError(result.error || 'Failed to delete backup');
       }
@@ -517,6 +544,52 @@ export function DataManagement({ onBack }: DataManagementProps) {
       showError('Failed to delete backup');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const saveBackupsToKeep = async (keep: number) => {
+    setIsSavingBackupsToKeep(true);
+    try {
+      // api.* resolves with { error } rather than throwing
+      const result = await api.patch<BackupSettingsUpdateResponse>('/api/data/backup-settings', { keep });
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Save failed');
+      }
+
+      setBackupsToKeep(result.data.keep);
+      const { pruned } = result.data;
+      toast.success(`Keeping the newest ${result.data.keep} backup${result.data.keep !== 1 ? 's' : ''}`, {
+        description: pruned > 0 ? `Deleted ${pruned} older backup${pruned !== 1 ? 's' : ''}` : undefined,
+      });
+      if (pruned > 0) {
+        await withScrollPreservation(() => fetchBackups(true));
+      }
+    } catch (error) {
+      console.error('Failed to save backup settings:', error);
+      toast.error('Failed to change backup limit', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setIsSavingBackupsToKeep(false);
+      setPendingBackupsToKeep(null);
+    }
+  };
+
+  // A hand-edited settings file can hold a value that is not a preset; still show it
+  const backupsToKeepOptions: number[] =
+    backupsToKeep === null || (BACKUPS_TO_KEEP_OPTIONS as readonly number[]).includes(backupsToKeep)
+      ? [...BACKUPS_TO_KEEP_OPTIONS]
+      : [...BACKUPS_TO_KEEP_OPTIONS, backupsToKeep].sort((a, b) => a - b);
+
+  // Lowering the limit deletes backups straight away, so confirm when it would
+  const handleBackupsToKeepChange = (value: string) => {
+    const keep = Number(value);
+    if (keep === backupsToKeep) return;
+
+    if (backups.length > keep) {
+      setPendingBackupsToKeep(keep);
+    } else {
+      saveBackupsToKeep(keep);
     }
   };
 
@@ -818,10 +891,10 @@ export function DataManagement({ onBack }: DataManagementProps) {
             <div className="p-2 rounded-lg bg-violet-950/50 border border-violet-900/50">
               <Calendar className="w-5 h-5 text-violet-400" />
             </div>
-            <div>
+            <div className="min-w-0">
               <CardTitle className="text-lg text-slate-100">Local Backups</CardTitle>
               <CardDescription className="text-slate-400">
-                Automatic backups created before sync operations
+                Automatic backups created before sync, restore and clear
               </CardDescription>
               <p className="text-xs text-slate-500 mt-1">
                 Stored in: <code className="text-slate-400">%APPDATA%\com.cuestacodes.puffin\backups</code>
@@ -829,30 +902,69 @@ export function DataManagement({ onBack }: DataManagementProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-2 lg:gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="backups-to-keep" className="text-slate-300">
+                Backups to keep
+              </Label>
+              <Select
+                value={backupsToKeep === null ? '' : String(backupsToKeep)}
+                onValueChange={handleBackupsToKeepChange}
+                disabled={backupsToKeep === null || isSavingBackupsToKeep}
+              >
+                <SelectTrigger
+                  id="backups-to-keep"
+                  aria-label="Backups to keep"
+                  className="w-full lg:w-40 bg-slate-800/50 border-slate-700 text-slate-100"
+                >
+                  <SelectValue placeholder="Loading..." />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  {backupsToKeepOptions.map((count) => (
+                    <SelectItem key={count} value={String(count)} className="text-slate-300">
+                      {count} backup{count !== 1 ? 's' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-sm text-slate-500 lg:pb-2">
+              The oldest are deleted automatically whenever a new backup is made.
+              {backups.length > 0 && (
+                <>
+                  {' '}{backups.length} on disk, {formatBytes(backups.reduce((total, b) => total + b.size, 0))} total.
+                </>
+              )}
+            </p>
+          </div>
+
           {isLoadingBackups ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
             </div>
           ) : backups.length > 0 ? (
-            <div className="space-y-2">
+            <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
               {backups.map((backup) => (
                 <div
                   key={backup.filename}
-                  className="flex items-center justify-between p-3 rounded-lg bg-slate-800/50"
+                  className="flex items-center justify-between gap-2 p-3 rounded-lg bg-slate-800/50"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-slate-200">{backup.filename}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-200 truncate" title={backup.filename}>
+                      {backup.filename}
+                    </p>
                     <p className="text-xs text-slate-400">
                       {formatBytes(backup.size)} - {new Date(backup.createdAt).toLocaleString()}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => confirmRestoreLocalBackup(backup.filename)}
                       disabled={isRestoring}
+                      aria-label={`Restore ${backup.filename}`}
                       className="text-slate-400 hover:text-cyan-400"
                     >
                       <Upload className="w-4 h-4" />
@@ -862,6 +974,7 @@ export function DataManagement({ onBack }: DataManagementProps) {
                       size="sm"
                       onClick={() => confirmDeleteBackup(backup.filename)}
                       disabled={isDeleting}
+                      aria-label={`Delete ${backup.filename}`}
                       className="text-slate-400 hover:text-red-400"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1096,6 +1209,59 @@ export function DataManagement({ onBack }: DataManagementProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lower Backup Limit Confirmation */}
+      <AlertDialog
+        open={pendingBackupsToKeep !== null}
+        onOpenChange={(open) => {
+          if (!open && !isSavingBackupsToKeep) setPendingBackupsToKeep(null);
+        }}
+      >
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+              Delete older backups?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Keeping only the newest{' '}
+              <strong className="text-amber-400">{pendingBackupsToKeep}</strong> will permanently
+              delete the oldest{' '}
+              <strong className="text-amber-400">
+                {Math.max(0, backups.length - (pendingBackupsToKeep ?? 0))}
+              </strong>{' '}
+              of your {backups.length} backups
+              {pendingBackupsToKeep !== null && backups[pendingBackupsToKeep] && (
+                <>
+                  {' '}&mdash; everything from{' '}
+                  <span className="text-slate-300">
+                    {new Date(backups[pendingBackupsToKeep].createdAt).toLocaleString()}
+                  </span>{' '}
+                  and older
+                </>
+              )}
+              . Your current data is not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isSavingBackupsToKeep}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingBackupsToKeep !== null) saveBackupsToKeep(pendingBackupsToKeep);
+              }}
+              disabled={isSavingBackupsToKeep}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {isSavingBackupsToKeep ? 'Deleting...' : 'Delete Backups'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Clear Import Log Confirmation */}
       <AlertDialog open={showClearActionLogDialog} onOpenChange={setShowClearActionLogDialog}>

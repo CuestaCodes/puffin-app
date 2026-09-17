@@ -4,14 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getDatabasePath, resetDatabaseConnection } from '@/lib/db';
 import { getBackupsDir } from '@/lib/data/utils';
+import { buildBackupFilename, isBackupFilename } from '@/lib/backup-retention';
+import { pruneLocalBackups } from '@/lib/backup-retention-server';
 import fs from 'fs';
 import path from 'path';
 
 // Validate filename to prevent path traversal
 function isValidFilename(filename: string): boolean {
-  // Only allow alphanumeric, dash, underscore, dot, and must end with .db
-  const validPattern = /^[a-zA-Z0-9_-]+\.db$/;
-  return validPattern.test(filename) && !filename.includes('..');
+  return isBackupFilename(filename) && !filename.includes('..');
 }
 
 export async function DELETE(
@@ -87,8 +87,7 @@ export async function POST(
     const backupsDir = getBackupsDir();
 
     // Create a backup of current database before restoring
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const preRestoreBackup = `pre-restore-${timestamp}.db`;
+    const preRestoreBackup = buildBackupFilename('pre-restore');
     const preRestorePath = path.join(backupsDir, preRestoreBackup);
 
     // Close database connection and reset initialization flag before file operations
@@ -101,6 +100,9 @@ export async function POST(
 
     // Restore from backup
     fs.copyFileSync(backupPath, dbPath);
+
+    // Prune only after the copy, so the backup being restored from is still there to copy
+    await pruneLocalBackups(preRestoreBackup);
 
     return NextResponse.json({
       success: true,

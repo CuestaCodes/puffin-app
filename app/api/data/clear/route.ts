@@ -2,26 +2,19 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import { getDatabase, initializeDatabase, getDatabasePath } from '@/lib/db';
+import { prepareBackupPath, pruneLocalBackups } from '@/lib/backup-retention-server';
 import fs from 'fs';
-import path from 'path';
 
 export async function POST() {
   const auth = await requireAuth();
   if (!auth.isAuthenticated) return auth.response;
 
   try {
-    const dbPath = getDatabasePath();
-    const backupsDir = path.join(path.dirname(dbPath), 'backups');
-
     // Create a backup before clearing
-    if (!fs.existsSync(backupsDir)) {
-      fs.mkdirSync(backupsDir, { recursive: true });
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_');
-    const backupFilename = `pre-clear-${timestamp}.db`;
-    const backupPath = path.join(backupsDir, backupFilename);
-    fs.copyFileSync(dbPath, backupPath);
+    const backup = prepareBackupPath('pre-clear');
+    const backupFilename = backup.filename;
+    fs.copyFileSync(getDatabasePath(), backup.path);
+    await pruneLocalBackups(backupFilename);
 
     initializeDatabase();
     const db = getDatabase();
