@@ -183,11 +183,13 @@ describe('findUnparseableDates', () => {
 });
 
 describe('describeDateDetection', () => {
-  it('lists only a few examples when many dates fail', () => {
+  it('lists a few examples when many dates fail, without implying a count', () => {
     const analysis = analyseDateColumn(REPORTED_COLUMN);
     const hint = describeDateDetection(analysis, 'DD/MM/YYYY', ['a', 'b', 'c', 'd']);
 
-    expect(hint?.message).toContain('(a, b, c and 1 more)');
+    // Row count and distinct values differ when a bad date repeats, so no arithmetic
+    expect(hint?.message).toContain('(including a, b, c)');
+    expect(hint?.message).not.toContain('more');
   });
 
   it('does not repeat a value that fails more than once', () => {
@@ -237,7 +239,7 @@ describe('describeDateDetection', () => {
     expect(describeDateDetection(analysis, 'DD/MM/YYYY', unparseable)).toEqual({
       message:
         'Using DD/MM/YYYY (detected MM/DD/YYYY). ' +
-        "20 dates don't fit this format (01/13/2027, 01/14/2027, 01/15/2027 and 17 more).",
+        "20 dates don't fit this format (including 01/13/2027, 01/14/2027, 01/15/2027).",
       tone: 'warning',
     });
   });

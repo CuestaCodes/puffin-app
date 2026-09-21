@@ -443,12 +443,17 @@ function plural(count: number, singular: string, pluralForm = `${singular}s`): s
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
-/** Names the offending values, so they can be found without opening the file. */
+/**
+ * Names the offending values, so they can be found without opening the file.
+ *
+ * "and N more" is avoided deliberately: the count in the sentence is rows,
+ * these are distinct values, and one bad date repeated across rows made the two
+ * disagree ("11 dates ... and 7 more").
+ */
 function listExamples(values: string[], limit = 3): string {
   const unique = [...new Set(values)];
-  const shown = unique.slice(0, limit).join(', ');
-  const remaining = unique.length - limit;
-  return remaining > 0 ? `${shown} and ${remaining} more` : shown;
+  if (unique.length <= limit) return unique.join(', ');
+  return `including ${unique.slice(0, limit).join(', ')}`;
 }
 
 function formatLabel(format: DateFormat): string {
