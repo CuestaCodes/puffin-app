@@ -76,6 +76,9 @@ export const FOLDER_NOT_FOUND_ERROR =
   'Folder not found. Check the URL, and note that choosing an existing folder needs full ' +
   'Drive access - grant it with "Connect to Existing Backup", then try again.';
 
+/** Probe file both paths create and delete to prove write access to a folder. */
+export const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
+
 export interface FolderValidationResult {
   success: boolean;
   folderId?: string;

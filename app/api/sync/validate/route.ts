@@ -38,10 +38,15 @@ export async function POST(request: Request) {
       // choosing a folder switches away from multi-account file sync, and
       // leaving it set would keep push/pull pointed at the old backup file
       // while the UI showed the newly chosen folder.
+      // syncedDbHash/lastSyncedAt describe the *previous* target: keeping them
+      // would compare this folder's database against a baseline from another
+      // one, and report "in sync" when the two differ.
+      const isNewTarget = SyncConfigManager.getConfig().folderId !== result.folderId;
       SyncConfigManager.saveConfig({
         folderId: result.folderId!,
         folderName: result.folderName!,
         isFileBasedSync: false,
+        ...(isNewTarget ? { syncedDbHash: null, lastSyncedAt: null } : {}),
       });
     }
 

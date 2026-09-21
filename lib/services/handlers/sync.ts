@@ -7,6 +7,11 @@
  */
 
 import { OAuthRefreshFailedError } from '@/lib/sync/errors';
+import {
+  extractFolderIdFromUrl,
+  FOLDER_NOT_FOUND_ERROR,
+  VALIDATION_TEST_FILENAME,
+} from '@/types/sync';
 
 interface HandlerContext {
   method: string;
@@ -766,9 +771,6 @@ export async function handleOAuthUrl(ctx: HandlerContext): Promise<unknown> {
   );
 }
 
-/** Same name the dev path uses for its write-access probe (lib/sync/google-drive.ts). */
-const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
-
 /**
  * Sync validate handler - /api/sync/validate
  *
@@ -794,7 +796,6 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
     return { success: false, error: 'Folder URL is required', errorCode: 'INVALID_URL' };
   }
 
-  const { extractFolderIdFromUrl, FOLDER_NOT_FOUND_ERROR } = await import('@/types/sync');
   const folderId = extractFolderIdFromUrl(folderUrl);
   if (!folderId) {
     return { success: false, error: 'Invalid Google Drive folder URL', errorCode: 'INVALID_URL' };
@@ -875,13 +876,19 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
     // switches away from multi-account file sync, and leaving it set would keep
     // push/pull pointed at the old backup file while the UI showed the newly
     // chosen folder.
+    // syncedDbHash/lastSyncedAt describe the *previous* target: keeping them
+    // would compare this folder's database against a baseline from another one,
+    // and report "in sync" when the two differ.
     const config = getSyncConfig();
+    const isNewTarget = config.folderId !== folder.id;
     saveSyncConfig({
       ...config,
       folderId: folder.id,
       folderName: folder.name,
       isFileBasedSync: false,
       isConfigured: true,
+      syncedDbHash: isNewTarget ? null : config.syncedDbHash,
+      lastSyncedAt: isNewTarget ? null : config.lastSyncedAt,
     });
 
     return { success: true, folderId: folder.id, folderName: folder.name };

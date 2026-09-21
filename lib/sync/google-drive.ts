@@ -8,12 +8,10 @@ import fs from 'fs';
 import path from 'path';
 import { getAuthenticatedClient, OAuthRefreshFailedError } from './oauth';
 import { SyncConfigManager } from './config';
-import { FOLDER_NOT_FOUND_ERROR } from '@/types/sync';
+import { FOLDER_NOT_FOUND_ERROR, VALIDATION_TEST_FILENAME } from '@/types/sync';
 import type { FolderValidationResult } from '@/types/sync';
 
 const DATABASE_FILENAME = 'puffin-backup.db';
-const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
-
 
 /**
  * Sanitize a Google Drive ID for use in query strings
@@ -170,8 +168,13 @@ export class GoogleDriveService {
       });
 
       if (testFile.data.id) {
-        // Clean up test file
-        await this.drive!.files.delete({ fileId: testFile.data.id });
+        try {
+          await this.drive!.files.delete({ fileId: testFile.data.id });
+        } catch (err) {
+          // Leaving the probe file behind is untidy, not a validation failure.
+          // Matches handleSyncValidate in lib/services/handlers/sync.ts
+          console.warn('Failed to remove folder validation test file:', err);
+        }
       }
 
       return {
