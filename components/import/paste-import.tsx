@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
 import {
@@ -23,7 +23,13 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { parsePastedText, detectPasteColumnMapping, parseAmount } from '@/lib/paste/parser';
-import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
+import {
+  parseDate,
+  analyseDateColumn,
+  findUnparseableDates,
+  describeDateDetection,
+} from '@/lib/csv/date-parser';
+import { DateDetectionHintText } from './column-mapping';
 import { cn } from '@/lib/utils';
 import { saveLastImport, clearLastImport } from '@/lib/import-undo';
 import { recordImportMapping } from '@/lib/action-log';
@@ -66,7 +72,9 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   });
   // Track if we're using debit/credit mode vs single amount
   const useDebitCreditMode = columnMapping.debit !== undefined || columnMapping.credit !== undefined;
-  const [dateFormat, setDateFormat] = useState<DateFormat>('auto');
+  // A format the user picked by hand; null means use detection. Kept when the
+  // date column is remapped, so a deliberate choice is never overwritten.
+  const [manualDateFormat, setManualDateFormat] = useState<DateFormat | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,10 +84,30 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const [treatAsExpenses, setTreatAsExpenses] = useState(true);
   const [hasHeaders, setHasHeaders] = useState(false);
   // What auto-detection proposed, kept so the action log can tell an accepted
-  // suggestion apart from one the user corrected. columnMapping/dateFormat are
-  // overwritten by the user, so the originals have to be stashed separately.
+  // suggestion apart from one the user corrected. columnMapping is overwritten
+  // by the user, so the original has to be stashed separately.
   const [detectedMapping, setDetectedMapping] = useState<ColumnMapping | null>(null);
-  const [detectedDateFormat, setDetectedDateFormat] = useState<DateFormat>('auto');
+
+  // Date format is detected from the whole of whichever column is currently
+  // mapped to Date, so remapping the column re-detects it. Same logic and
+  // wording as the CSV importer — both come from lib/csv/date-parser.ts.
+  const dateColumnValues = useMemo(
+    () => (parseResult && columnMapping.date >= 0
+      ? parseResult.rows.map(row => row[columnMapping.date])
+      : []),
+    [parseResult, columnMapping.date]
+  );
+  const dateAnalysis = useMemo(() => analyseDateColumn(dateColumnValues), [dateColumnValues]);
+  const detectedDateFormat = dateAnalysis.format;
+  const dateFormat = manualDateFormat ?? detectedDateFormat;
+  const dateHint = useMemo(
+    () => describeDateDetection(
+      dateAnalysis,
+      dateFormat,
+      findUnparseableDates(dateColumnValues, dateFormat)
+    ),
+    [dateAnalysis, dateFormat, dateColumnValues]
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch sources on mount
@@ -118,17 +146,8 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
         setColumnMapping(detectedMapping);
       }
 
-      // Auto-detect date format from samples
-      let detectedFormat: DateFormat = 'auto';
-      if (detectedMapping && detectedMapping.date >= 0) {
-        const dateSamples = result.rows
-          .slice(0, 10)
-          .map(row => row[detectedMapping.date])
-          .filter(Boolean);
-        detectedFormat = detectDateFormat(dateSamples);
-        setDateFormat(detectedFormat);
-      }
-      setDetectedDateFormat(detectedFormat);
+      // New text starts from detection again
+      setManualDateFormat(null);
 
       setCurrentStep('mapping');
     } catch (err) {
@@ -521,6 +540,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const handleReset = () => {
     setPastedText('');
     setParseResult(null);
+    setManualDateFormat(null);
     setPreview(null);
     setError(null);
     setCurrentStep('paste');
@@ -871,8 +891,11 @@ Example:
             {/* Date format selection */}
             <div className="space-y-2">
               <Label className="text-slate-300">Date Format</Label>
-              <Select value={dateFormat} onValueChange={(v) => setDateFormat(v as DateFormat)}>
-                <SelectTrigger className="w-full bg-slate-800/50 border-slate-700 text-slate-100">
+              <Select value={dateFormat} onValueChange={(v) => setManualDateFormat(v as DateFormat)}>
+                <SelectTrigger
+                  aria-label="Date format"
+                  className="w-full bg-slate-800/50 border-slate-700 text-slate-100"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
@@ -883,6 +906,7 @@ Example:
                   <SelectItem value="DD-MM-YYYY">DD-MM-YYYY (15-01-2024)</SelectItem>
                 </SelectContent>
               </Select>
+              <DateDetectionHintText hint={dateHint} />
             </div>
 
             {/* Source selection */}

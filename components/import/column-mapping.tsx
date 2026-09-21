@@ -1,16 +1,18 @@
 'use client';
 
 import React from 'react';
-import { ArrowRight, Check, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Check, AlertTriangle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import type { ColumnMapping, DateFormat, CSVParseResult } from '@/types/import';
+import type { ColumnMapping, DateFormat, CSVParseResult, DateDetectionHint } from '@/types/import';
 
 interface ColumnMappingProps {
   parseResult: CSVParseResult;
   mapping: ColumnMapping;
   dateFormat: DateFormat;
+  /** What detection concluded about the mapped date column, and why */
+  dateHint?: DateDetectionHint | null;
   onMappingChange: (mapping: ColumnMapping) => void;
   onDateFormatChange: (format: DateFormat) => void;
   onContinue: () => void;
@@ -35,6 +37,7 @@ export function ColumnMappingComponent({
   parseResult,
   mapping,
   dateFormat,
+  dateHint,
   onMappingChange,
   onDateFormatChange,
   onContinue,
@@ -144,6 +147,7 @@ export function ColumnMappingComponent({
             </button>
           ))}
         </div>
+        <DateDetectionHintText hint={dateHint} />
       </div>
 
       {/* Required Fields */}
@@ -357,3 +361,21 @@ export function ColumnMappingComponent({
   );
 }
 
+/** One line under a date format picker; shared with the paste importer. */
+export function DateDetectionHintText({ hint }: { hint?: DateDetectionHint | null }) {
+  if (!hint) return null;
+
+  const Icon = hint.tone === 'warning' ? AlertTriangle : Info;
+  return (
+    <p
+      role="status"
+      className={cn(
+        'flex items-start gap-1.5 text-xs',
+        hint.tone === 'warning' ? 'text-amber-400' : 'text-slate-400'
+      )}
+    >
+      <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0">{hint.message}</span>
+    </p>
+  );
+}

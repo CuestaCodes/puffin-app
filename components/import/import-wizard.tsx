@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
 import { FileSpreadsheet, ArrowLeft, CheckCircle } from 'lucide-react';
@@ -13,7 +13,12 @@ import { FileUpload } from './file-upload';
 import { ColumnMappingComponent } from './column-mapping';
 import { PreviewTable } from './preview-table';
 import { parseCSV, detectColumnMapping } from '@/lib/csv/parser';
-import { parseDate, detectDateFormat } from '@/lib/csv/date-parser';
+import {
+  parseDate,
+  analyseDateColumn,
+  findUnparseableDates,
+  describeDateDetection,
+} from '@/lib/csv/date-parser';
 import { cn } from '@/lib/utils';
 import { saveLastImport, clearLastImport } from '@/lib/import-undo';
 import { recordImportMapping } from '@/lib/action-log';
@@ -52,7 +57,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     amount: -1,
     ignore: [],
   });
-  const [dateFormat, setDateFormat] = useState<DateFormat>('auto');
+  // A format the user picked by hand; null means use detection. Kept when the
+  // date column is remapped, so a deliberate choice is never overwritten.
+  const [manualDateFormat, setManualDateFormat] = useState<DateFormat | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +69,29 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [hasHeaders, setHasHeaders] = useState(false);
   // What auto-detection proposed, kept so the action log can tell an accepted
-  // suggestion apart from one the user corrected. columnMapping/dateFormat are
-  // overwritten by the user, so the originals have to be stashed separately.
+  // suggestion apart from one the user corrected. columnMapping is overwritten
+  // by the user, so the original has to be stashed separately.
   const [detectedMapping, setDetectedMapping] = useState<ColumnMapping | null>(null);
-  const [detectedDateFormat, setDetectedDateFormat] = useState<DateFormat>('auto');
+
+  // Date format is detected from the whole of whichever column is currently
+  // mapped to Date, so remapping the column re-detects it.
+  const dateColumnValues = useMemo(
+    () => (parseResult && columnMapping.date >= 0
+      ? parseResult.rows.map(row => row[columnMapping.date])
+      : []),
+    [parseResult, columnMapping.date]
+  );
+  const dateAnalysis = useMemo(() => analyseDateColumn(dateColumnValues), [dateColumnValues]);
+  const detectedDateFormat = dateAnalysis.format;
+  const dateFormat = manualDateFormat ?? detectedDateFormat;
+  const dateHint = useMemo(
+    () => describeDateDetection(
+      dateAnalysis,
+      dateFormat,
+      findUnparseableDates(dateColumnValues, dateFormat)
+    ),
+    [dateAnalysis, dateFormat, dateColumnValues]
+  );
 
   // Fetch sources on mount
   useEffect(() => {
@@ -101,17 +127,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         setColumnMapping({ date: -1, description: -1, amount: -1, ignore: [] });
       }
 
-      // Auto-detect date format from samples
-      let detectedFormat: DateFormat = 'auto';
-      if (detectedMapping && detectedMapping.date >= 0) {
-        const dateSamples = result.rows
-          .slice(0, 10)
-          .map(row => row[detectedMapping.date])
-          .filter(Boolean);
-        detectedFormat = detectDateFormat(dateSamples);
-        setDateFormat(detectedFormat);
-      }
-      setDetectedDateFormat(detectedFormat);
+      // A new file starts from detection again
+      setManualDateFormat(null);
 
       setCurrentStep('mapping');
     } catch (err) {
@@ -410,9 +427,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     setCurrentStep('upload');
     setParseResult(null);
     setColumnMapping({ date: -1, description: -1, amount: -1, ignore: [] });
-    setDateFormat('auto');
+    setManualDateFormat(null);
     setDetectedMapping(null);
-    setDetectedDateFormat('auto');
     setPreview(null);
     setError(null);
     setImportResult(null);
@@ -520,8 +536,9 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               parseResult={parseResult}
               mapping={columnMapping}
               dateFormat={dateFormat}
+              dateHint={dateHint}
               onMappingChange={setColumnMapping}
-              onDateFormatChange={setDateFormat}
+              onDateFormatChange={setManualDateFormat}
               onContinue={handleMappingContinue}
               onBack={() => setCurrentStep('upload')}
             />

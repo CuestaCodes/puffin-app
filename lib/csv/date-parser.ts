@@ -1,5 +1,9 @@
 // Date format detection and parsing utilities
-import type { DateFormat } from '@/types/import';
+import type {
+  DateColumnAnalysis,
+  DateDetectionHint,
+  DateFormat,
+} from '@/types/import';
 
 interface DateParseResult {
   date: string | null; // YYYY-MM-DD format
@@ -251,49 +255,276 @@ function parseMonthName(monthStr: string): number | null {
 }
 
 /**
- * Detect the most likely date format from a sample of dates
- * Optimized with early termination when confidence is high
+ * Detect the most likely date format for a column of dates.
+ * Pass the whole column — see analyseDateColumn.
  */
-export function detectDateFormat(samples: string[]): DateFormat {
-  const formatCounts: Record<DateFormat, number> = {
-    'YYYY-MM-DD': 0,
-    'DD/MM/YYYY': 0,
-    'MM/DD/YYYY': 0,
-    'DD-MM-YYYY': 0,
-    'auto': 0,
-  };
-  
-  const minSamplesForConfidence = Math.min(5, samples.length);
-  let processedCount = 0;
-  
-  for (const sample of samples) {
-    const result = detectAndParseDate(sample);
-    if (result.format !== 'auto' && result.confidence >= 0.6) {
-      formatCounts[result.format]++;
-      processedCount++;
-      
-      // Early termination: if one format has clear majority, stop
-      if (processedCount >= minSamplesForConfidence) {
-        const maxCount = Math.max(...Object.values(formatCounts));
-        if (maxCount >= minSamplesForConfidence * 0.8) {
-          break;
-        }
-      }
-    }
+export function detectDateFormat(values: string[]): DateFormat {
+  return analyseDateColumn(values).format;
+}
+
+/**
+ * How much tighter one reading's typical gap between consecutive dates must be
+ * before the date order is trusted to settle a fully ambiguous column.
+ */
+const SEQUENCE_TIGHTNESS_RATIO = 2;
+
+/** Consecutive differing pairs needed before the date order is trusted at all. */
+const SEQUENCE_MIN_PAIRS = 2;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+type NumericReading =
+  | { kind: 'dayFirst' }
+  | { kind: 'monthFirst' }
+  | { kind: 'ambiguous'; key: string; dayFirstTime: number; monthFirstTime: number };
+
+function expandYear(year: number): number {
+  return year < 100 ? (year > 50 ? 1900 + year : 2000 + year) : year;
+}
+
+/**
+ * Classify a `NN/NN/YYYY` value by which orders produce a real date. Uses date
+ * validity rather than "a number above 12", so `31/04` (valid neither way) is
+ * not counted as evidence for anything.
+ */
+function readNumericDate(value: string): NumericReading | null {
+  const match = value.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+  if (!match) return null;
+
+  const first = parseInt(match[1], 10);
+  const second = parseInt(match[2], 10);
+  const year = expandYear(parseInt(match[3], 10));
+
+  const asDayFirst = isValidDate(year, second, first);
+  const asMonthFirst = isValidDate(year, first, second);
+
+  if (asDayFirst && asMonthFirst) {
+    return {
+      kind: 'ambiguous',
+      key: `${first}-${second}-${year}`,
+      dayFirstTime: Date.UTC(year, second - 1, first),
+      monthFirstTime: Date.UTC(year, first - 1, second),
+    };
   }
-  
-  // Find the most common format
-  let maxCount = 0;
-  let detectedFormat: DateFormat = 'auto';
-  
-  for (const [format, count] of Object.entries(formatCounts)) {
-    if (count > maxCount && format !== 'auto') {
-      maxCount = count;
-      detectedFormat = format as DateFormat;
-    }
+  if (asDayFirst) return { kind: 'dayFirst' };
+  if (asMonthFirst) return { kind: 'monthFirst' };
+  return null;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Settle a column where every date could be either order, using the order the
+ * dates appear in. Statements list transactions chronologically and usually a
+ * few days apart, so the right reading has small gaps between neighbours while
+ * the wrong one jumps by months: `01/02, 03/02, 05/02` is 1, 3, 5 Feb as DD/MM
+ * but 2 Jan, 2 Mar, 2 May as MM/DD.
+ *
+ * Only decides when one reading is clearly tighter; otherwise returns null.
+ */
+function resolveBySequence(
+  readings: Extract<NumericReading, { kind: 'ambiguous' }>[]
+): 'DD/MM/YYYY' | 'MM/DD/YYYY' | null {
+  const dayFirstGaps: number[] = [];
+  const monthFirstGaps: number[] = [];
+
+  for (let i = 1; i < readings.length; i++) {
+    const prev = readings[i - 1];
+    const curr = readings[i];
+    // Same-day neighbours say nothing about order; both readings agree on them
+    if (prev.key === curr.key) continue;
+    dayFirstGaps.push(Math.abs(curr.dayFirstTime - prev.dayFirstTime) / DAY_MS);
+    monthFirstGaps.push(Math.abs(curr.monthFirstTime - prev.monthFirstTime) / DAY_MS);
   }
-  
-  return detectedFormat;
+
+  if (dayFirstGaps.length < SEQUENCE_MIN_PAIRS) return null;
+
+  const dayFirstMedian = median(dayFirstGaps);
+  const monthFirstMedian = median(monthFirstGaps);
+
+  if (dayFirstMedian * SEQUENCE_TIGHTNESS_RATIO <= monthFirstMedian) return 'DD/MM/YYYY';
+  if (monthFirstMedian * SEQUENCE_TIGHTNESS_RATIO <= dayFirstMedian) return 'MM/DD/YYYY';
+  return null;
+}
+
+/**
+ * Work out a date column's format from every value in it, and why.
+ *
+ * Decisive dates outrank ambiguous ones. `01/13/2027` can only be MM/DD, while
+ * `01/02/2027` could be either; counting both as equal votes let 24 ambiguous
+ * rows outvote 20 decisive ones and import a whole MM/DD statement as DD/MM.
+ *
+ * Numeric columns never come back as `'auto'`. `'auto'` parses each row on its
+ * own, so a column with dates in both orders would import silently mixed; an
+ * explicit format instead makes the rows that don't fit show as invalid.
+ */
+export function analyseDateColumn(values: string[]): DateColumnAnalysis {
+  let total = 0;
+  let iso = 0;
+  let text = 0;
+  let dayFirst = 0;
+  let monthFirst = 0;
+  const ambiguousReadings: Extract<NumericReading, { kind: 'ambiguous' }>[] = [];
+
+  for (const raw of values) {
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    if (!value) continue;
+    total++;
+
+    const isoMatch = value.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (isoMatch && isValidDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]))) {
+      iso++;
+      continue;
+    }
+
+    const numeric = readNumericDate(value);
+    if (numeric) {
+      if (numeric.kind === 'dayFirst') dayFirst++;
+      else if (numeric.kind === 'monthFirst') monthFirst++;
+      else ambiguousReadings.push(numeric);
+      continue;
+    }
+
+    // Month-name dates are unambiguous on their own and parse one at a time.
+    // The confidence floor excludes the JS Date last resort, which accepts junk.
+    const parsed = detectAndParseDate(value);
+    if (parsed.date !== null && parsed.confidence >= 0.8) text++;
+  }
+
+  const ambiguous = ambiguousReadings.length;
+  const numericCount = dayFirst + monthFirst + ambiguous;
+  const counts = { total, dayFirst, monthFirst, ambiguous };
+
+  if (iso > 0 && iso >= numericCount && iso >= text) {
+    return { format: 'YYYY-MM-DD', basis: 'iso', ...counts };
+  }
+
+  if (numericCount > 0 && numericCount >= text) {
+    if (dayFirst > 0 && monthFirst > 0) {
+      // A tie keeps the DD/MM default
+      const format = monthFirst > dayFirst ? 'MM/DD/YYYY' : 'DD/MM/YYYY';
+      return { format, basis: 'conflict', ...counts };
+    }
+    if (dayFirst > 0) return { format: 'DD/MM/YYYY', basis: 'decisive', ...counts };
+    if (monthFirst > 0) return { format: 'MM/DD/YYYY', basis: 'decisive', ...counts };
+
+    const bySequence = resolveBySequence(ambiguousReadings);
+    if (bySequence) return { format: bySequence, basis: 'sequence', ...counts };
+
+    // Nothing settles it: DD/MM, the order Australian and most non-US banks use
+    return { format: 'DD/MM/YYYY', basis: 'default', ...counts };
+  }
+
+  if (text > 0) return { format: 'auto', basis: 'text', ...counts };
+
+  return { format: 'auto', basis: 'none', ...counts };
+}
+
+/**
+ * The non-empty values that fail to parse under `format`.
+ *
+ * Returns the values rather than a count so the hint can name them: being told
+ * "1 date doesn't fit" means hunting through the file for it.
+ */
+export function findUnparseableDates(values: string[], format: DateFormat): string[] {
+  const failures: string[] = [];
+  for (const raw of values) {
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    if (value && parseDate(value, format) === null) failures.push(value);
+  }
+  return failures;
+}
+
+function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+/** Names the offending values, so they can be found without opening the file. */
+function listExamples(values: string[], limit = 3): string {
+  const unique = [...new Set(values)];
+  const shown = unique.slice(0, limit).join(', ');
+  const remaining = unique.length - limit;
+  return remaining > 0 ? `${shown} and ${remaining} more` : shown;
+}
+
+function formatLabel(format: DateFormat): string {
+  return format === 'auto' ? 'Auto-detect' : format;
+}
+
+/**
+ * The one-line explanation shown under the date format picker, shared by the
+ * CSV and paste importers so both say the same thing. `selectedFormat` is the
+ * format currently in use, which differs from `analysis.format` once the user
+ * has picked one by hand.
+ */
+export function describeDateDetection(
+  analysis: DateColumnAnalysis,
+  selectedFormat: DateFormat,
+  unparseable: string[]
+): DateDetectionHint | null {
+  if (analysis.total === 0) return null;
+
+  // Nothing recognised already says every date fails; the count would repeat it
+  const misfit = unparseable.length > 0 && analysis.basis !== 'none'
+    ? ` ${plural(unparseable.length, 'date')} ${unparseable.length === 1 ? "doesn't" : "don't"}` +
+      ` fit this format (${listExamples(unparseable)}).`
+    : '';
+
+  if (selectedFormat !== analysis.format) {
+    const detected = analysis.basis === 'none' ? '' : ` (detected ${formatLabel(analysis.format)})`;
+    const autoNote = selectedFormat === 'auto'
+      ? ' Each date is read on its own, so dates that could be either order are read as DD/MM.'
+      : '';
+    return {
+      message: `Using ${formatLabel(selectedFormat)}${detected}.${autoNote}${misfit}`,
+      tone: unparseable.length > 0 ? 'warning' : 'info',
+    };
+  }
+
+  const fmt = formatLabel(analysis.format);
+  let message: string;
+  let tone: DateDetectionHint['tone'] = 'info';
+
+  switch (analysis.basis) {
+    case 'iso':
+      message = `Detected ${fmt}.`;
+      break;
+    case 'decisive': {
+      const evidence = analysis.format === 'MM/DD/YYYY' ? analysis.monthFirst : analysis.dayFirst;
+      message = `Detected ${fmt}: ${plural(evidence, 'date')} can only be read this way.`;
+      break;
+    }
+    case 'conflict':
+      message =
+        `Dates in both orders found (${analysis.dayFirst} only fit DD/MM, ` +
+        `${analysis.monthFirst} only fit MM/DD). Using ${fmt}` +
+        (analysis.dayFirst === analysis.monthFirst ? '.' : ', the more common one.');
+      tone = 'warning';
+      break;
+    case 'sequence':
+      message = `Every date could be either order. Assumed ${fmt} because the dates run in sequence that way.`;
+      break;
+    case 'default':
+      message =
+        `Every date could be either order, so ${fmt} was assumed. ` +
+        'Check the preview and choose the other order if the dates look wrong.';
+      tone = 'warning';
+      break;
+    case 'text':
+      message = 'Dates use month names, so each is read as written.';
+      break;
+    case 'none':
+      message = 'No dates recognised in this column. Check that the right column is mapped to Date.';
+      tone = 'warning';
+      break;
+  }
+
+  if (misfit) tone = 'warning';
+  return { message: message + misfit, tone };
 }
 
 /**
