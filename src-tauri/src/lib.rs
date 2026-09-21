@@ -196,26 +196,33 @@ async fn start_oauth_flow(
     });
 
     // Open the OAuth URL in the default browser
-    // Printed so the sign-in can be finished by hand if the browser hand-off
-    // fails: the callback server below keeps listening for 5 minutes, so
-    // pasting this into a signed-in browser still completes the flow.
+    // Printed for `tauri:dev`, and emitted so the UI can offer a "Copy link"
+    // button: a packaged build has no console, and the browser hand-off can
+    // fail (wrong default browser, no signed-in session). The callback server
+    // below keeps listening for 5 minutes, so pasting this into a signed-in
+    // browser still completes the flow.
     println!("[OAuth] Sign-in URL: {}", auth_url.as_str());
+    let _ = app.emit("oauth-sign-in-url", auth_url.as_str());
 
     if let Err(e) = open::that(auth_url.as_str()) {
         return Err(format!("Failed to open browser: {}", e));
     }
 
-    // Focus the main window after a short delay to let the browser open
-    let handle = app.clone();
-    thread::spawn(move || {
-        thread::sleep(Duration::from_millis(500));
-        if let Some(window) = handle.get_webview_window("main") {
-            let _ = window.set_focus();
-        }
-    });
+    // Deliberately NOT focusing the app here. Raising Puffin while the user is
+    // being sent to the browser buries the consent page they were just handed:
+    // it loads correctly, then vanishes behind the app half a second later.
+    // The window is raised below instead, once the browser is finished with.
 
     // Wait for the callback result
-    match rx.recv_timeout(Duration::from_secs(300)) {
+    let result = rx.recv_timeout(Duration::from_secs(300));
+
+    // The user is back from the browser either way - on success there is a
+    // result to show, and on timeout an error - so raise the window for both.
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_focus();
+    }
+
+    match result {
         Ok(result) => Ok(result),
         Err(_) => Err("OAuth timeout - no response received".to_string()),
     }
