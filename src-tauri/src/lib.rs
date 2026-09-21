@@ -196,6 +196,11 @@ async fn start_oauth_flow(
     });
 
     // Open the OAuth URL in the default browser
+    // Printed so the sign-in can be finished by hand if the browser hand-off
+    // fails: the callback server below keeps listening for 5 minutes, so
+    // pasting this into a signed-in browser still completes the flow.
+    println!("[OAuth] Sign-in URL: {}", auth_url.as_str());
+
     if let Err(e) = open::that(auth_url.as_str()) {
         return Err(format!("Failed to open browser: {}", e));
     }

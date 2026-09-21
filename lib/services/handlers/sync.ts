@@ -766,18 +766,123 @@ export async function handleOAuthUrl(ctx: HandlerContext): Promise<unknown> {
   );
 }
 
+/** Same name the dev path uses for its write-access probe (lib/sync/google-drive.ts). */
+const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
+
 /**
  * Sync validate handler - /api/sync/validate
+ *
+ * Mirrors app/api/sync/validate/route.ts, which calls
+ * GoogleDriveService.validateFolder: check the ID is a folder we can read, prove
+ * we can write to it, then save it to config. Returns FolderValidationResult in
+ * both paths rather than throwing, because the UI reads `result.data.error`.
+ *
+ * This used to throw "not supported in Tauri mode yet". With the embedded Google
+ * Picker blocked by WebView2 (see tasks/oauth-browser-focus.md), manual entry is
+ * the only way to choose a folder on the shipping target, so that stub left
+ * desktop users unable to configure sync at all.
  */
 export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> {
-  const { method } = ctx;
+  const { method, body } = ctx;
 
   if (method !== 'POST') {
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // Folder validation requires OAuth token - not fully supported in Tauri mode yet
-  throw new Error('Folder validation requires OAuth authentication. Please complete OAuth setup first.');
+  const folderUrl = (body as { folderUrl?: unknown } | undefined)?.folderUrl;
+  if (!folderUrl || typeof folderUrl !== 'string') {
+    return { success: false, error: 'Folder URL is required', errorCode: 'INVALID_URL' };
+  }
+
+  const { extractFolderIdFromUrl } = await import('@/types/sync');
+  const folderId = extractFolderIdFromUrl(folderUrl);
+  if (!folderId) {
+    return { success: false, error: 'Invalid Google Drive folder URL', errorCode: 'INVALID_URL' };
+  }
+
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    return {
+      success: false,
+      error: tokenResult.error,
+      errorCode: tokenResult.errorCode ?? 'AUTH_REQUIRED',
+    };
+  }
+  const authHeader = { Authorization: `Bearer ${tokenResult.token}` };
+
+  try {
+    // Step 1: the folder exists and we can see it
+    const metaResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}` +
+        '?fields=id,name,mimeType&supportsAllDrives=true',
+      { headers: authHeader }
+    );
+
+    if (!metaResponse.ok) {
+      if (metaResponse.status === 404) {
+        return { success: false, error: 'Folder not found', errorCode: 'NOT_FOUND' };
+      }
+      if (metaResponse.status === 401 || metaResponse.status === 403) {
+        return {
+          success: false,
+          error: 'No access to this folder. Check the account you signed in with.',
+          errorCode: 'NO_ACCESS',
+        };
+      }
+      return { success: false, error: 'Failed to validate folder' };
+    }
+
+    const folder = (await metaResponse.json()) as { id: string; name: string; mimeType: string };
+
+    if (folder.mimeType !== 'application/vnd.google-apps.folder') {
+      return { success: false, error: 'The provided ID is not a folder', errorCode: 'NOT_FOUND' };
+    }
+
+    // Step 2: prove we can write, by creating a test file and deleting it again
+    const testResponse = await fetch(
+      'https://www.googleapis.com/drive/v3/files?fields=id&supportsAllDrives=true',
+      {
+        method: 'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: VALIDATION_TEST_FILENAME, parents: [folderId] }),
+      }
+    );
+
+    if (!testResponse.ok) {
+      return {
+        success: false,
+        error: 'This folder is read-only for your account',
+        errorCode: 'READ_ONLY',
+      };
+    }
+
+    const testFile = (await testResponse.json()) as { id?: string };
+    if (testFile.id) {
+      try {
+        await fetch(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(testFile.id)}?supportsAllDrives=true`,
+          { method: 'DELETE', headers: authHeader }
+        );
+      } catch (err) {
+        // Leaving the probe file behind is untidy, not a validation failure
+        console.warn('Failed to remove folder validation test file:', err);
+      }
+    }
+
+    // Step 3: save it, the same two fields the dev route saves
+    const config = getSyncConfig();
+    saveSyncConfig({
+      ...config,
+      folderId: folder.id,
+      folderName: folder.name,
+      isConfigured: true,
+    });
+
+    return { success: true, folderId: folder.id, folderName: folder.name };
+  } catch (error) {
+    console.error('Folder validation error:', error);
+    return { success: false, error: 'Failed to validate folder' };
+  }
 }
 
 /**
