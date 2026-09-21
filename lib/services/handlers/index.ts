@@ -155,6 +155,26 @@ export function initializeTauriHandlers(): void {
     return handleSyncToken;
   });
 
+  registerHandler('/api/sync/folder', async () => {
+    const { handleSyncFolder } = await import('./sync');
+    return handleSyncFolder;
+  });
+
+  registerHandler('/api/sync/folders', async () => {
+    const { handleSyncFolders } = await import('./sync');
+    return handleSyncFolders;
+  });
+
+  registerHandler('/api/sync/backups', async () => {
+    const { handleSyncBackups } = await import('./sync');
+    return handleSyncBackups;
+  });
+
+  registerHandler('/api/sync/file', async () => {
+    const { handleSyncFile } = await import('./sync');
+    return handleSyncFile;
+  });
+
   registerHandler('/api/sync/validate', async () => {
     const { handleSyncValidate } = await import('./sync');
     return handleSyncValidate;

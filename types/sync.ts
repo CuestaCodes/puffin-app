@@ -79,6 +79,66 @@ export const FOLDER_NOT_FOUND_ERROR =
 /** Probe file both paths create and delete to prove write access to a folder. */
 export const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
 
+/** A Drive folder offered as a sync target. */
+export interface DriveFolderCandidate {
+  id: string;
+  name: string;
+  /** Carries Puffin's private appProperties marker, so Puffin created it */
+  createdByPuffin: boolean;
+  /** Drive's `shared` flag: other people can see inside it */
+  shared?: boolean;
+  createdTime?: string | null;
+}
+
+/** A Drive file offered as a sync target (multi-account sync). */
+export interface DriveBackupCandidate {
+  id: string;
+  name: string;
+  /** Owned by someone else and shared with this account */
+  sharedWithMe?: boolean;
+  owner?: string | null;
+  modifiedTime?: string | null;
+  size?: number | null;
+}
+
+/** POST /api/sync/folder — create, reuse, or select a sync folder */
+export interface SyncFolderSelectionResponse {
+  success: boolean;
+  folderId?: string;
+  folderName?: string;
+  /** A new folder was created rather than an existing one reused */
+  created?: boolean;
+  /** The chosen folder is shared with other people */
+  shared?: boolean;
+  /** Folders of that name exist that Puffin cannot claim: the user must choose */
+  needsConfirmation?: boolean;
+  candidates?: DriveFolderCandidate[];
+  error?: string;
+  errorCode?: FolderValidationResult['errorCode'];
+}
+
+/** GET /api/sync/folders */
+export interface DriveFolderListResponse {
+  folders: DriveFolderCandidate[];
+  error?: string;
+}
+
+/** GET /api/sync/backups */
+export interface DriveBackupListResponse {
+  files: DriveBackupCandidate[];
+  error?: string;
+}
+
+/** POST /api/sync/file — connect to a shared database file */
+export interface SyncFileSelectionResponse {
+  success: boolean;
+  fileId?: string;
+  fileName?: string;
+  sharedWithMe?: boolean;
+  error?: string;
+  errorCode?: FolderValidationResult['errorCode'];
+}
+
 export interface FolderValidationResult {
   success: boolean;
   folderId?: string;

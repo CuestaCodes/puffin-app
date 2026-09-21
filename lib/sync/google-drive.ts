@@ -9,7 +9,23 @@ import path from 'path';
 import { getAuthenticatedClient, OAuthRefreshFailedError } from './oauth';
 import { SyncConfigManager } from './config';
 import { FOLDER_NOT_FOUND_ERROR, VALIDATION_TEST_FILENAME } from '@/types/sync';
-import type { FolderValidationResult } from '@/types/sync';
+import type {
+  DriveBackupCandidate,
+  DriveFolderCandidate,
+  FolderValidationResult,
+} from '@/types/sync';
+import {
+  DRIVE_FILE_FIELDS,
+  DRIVE_FOLDER_FIELDS,
+  DRIVE_FOLDER_MIME_TYPE,
+  PUFFIN_FOLDER_APP_PROPERTIES,
+  buildBackupFileQuery,
+  buildFolderQuery as buildFolderListQuery,
+  looksLikeBackupFile,
+  sortBackupCandidates,
+  toBackupCandidate,
+  toFolderCandidate,
+} from './drive-selection';
 
 const DATABASE_FILENAME = 'puffin-backup.db';
 
@@ -217,6 +233,117 @@ export class GoogleDriveService {
         success: false, 
         error: gError.message || 'Failed to validate folder access', 
       };
+    }
+  }
+
+  /**
+   * Folders this account can see, optionally filtered to one name.
+   *
+   * At the standard `drive.file` scope Google only returns folders the app
+   * created, which is exactly what the create-or-reuse flow needs. With full
+   * access it returns everything, and the appProperties marker is what tells
+   * Puffin's own folders from the user's.
+   */
+  async listFolders(name?: string): Promise<DriveFolderCandidate[]> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) return [];
+    }
+
+    const response = await withRetry(
+      () => this.drive!.files.list({
+        q: buildFolderListQuery(name),
+        fields: `files(${DRIVE_FOLDER_FIELDS})`,
+        pageSize: 100,
+        orderBy: 'createdTime desc',
+      }),
+      'list folders'
+    );
+
+    return (response.data.files ?? []).map(toFolderCandidate);
+  }
+
+  /** Create a sync folder carrying Puffin's marker, so it can be recognised later. */
+  async createSyncFolder(name: string): Promise<DriveFolderCandidate> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) throw new Error('Not authenticated with Google');
+    }
+
+    const response = await withRetry(
+      () => this.drive!.files.create({
+        requestBody: {
+          name,
+          mimeType: DRIVE_FOLDER_MIME_TYPE,
+          appProperties: PUFFIN_FOLDER_APP_PROPERTIES,
+        },
+        fields: DRIVE_FOLDER_FIELDS,
+      }),
+      'create sync folder'
+    );
+
+    return toFolderCandidate(response.data);
+  }
+
+  /** Database files this account can see, including ones shared by other people. */
+  async listBackupFiles(): Promise<DriveBackupCandidate[]> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) return [];
+    }
+
+    const response = await withRetry(
+      () => this.drive!.files.list({
+        q: buildBackupFileQuery(),
+        fields: `files(${DRIVE_FILE_FIELDS})`,
+        pageSize: 100,
+        orderBy: 'modifiedTime desc',
+      }),
+      'list backup files'
+    );
+
+    const files = (response.data.files ?? [])
+      .map(toBackupCandidate)
+      .filter(file => looksLikeBackupFile(file.name));
+
+    return sortBackupCandidates(files);
+  }
+
+  /**
+   * Identity of one file, or null when this account cannot see it.
+   *
+   * Distinct from getFileInfo (sync status) and getFileMetadata (hash in the
+   * description); this one answers "what is this id, and is it mine?" for the
+   * shared-database selection flow.
+   */
+  async getFileIdentity(fileId: string): Promise<{
+    id: string;
+    name: string;
+    mimeType: string;
+    ownedByMe: boolean;
+  } | null> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) return null;
+    }
+
+    try {
+      const response = await this.drive!.files.get({
+        fileId,
+        fields: 'id,name,mimeType,ownedByMe',
+        supportsAllDrives: true,
+      });
+      const file = response.data;
+      return {
+        id: file.id!,
+        name: file.name!,
+        mimeType: file.mimeType!,
+        ownedByMe: file.ownedByMe ?? true,
+      };
+    } catch (error) {
+      const gError = error as { code?: number };
+      if (gError.code === 404 || gError.code === 403) return null;
+      throw error;
     }
   }
 

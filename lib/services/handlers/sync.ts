@@ -12,6 +12,29 @@ import {
   FOLDER_NOT_FOUND_ERROR,
   VALIDATION_TEST_FILENAME,
 } from '@/types/sync';
+import type {
+  FolderValidationResult,
+  DriveBackupListResponse,
+  DriveFolderCandidate,
+  DriveFolderListResponse,
+  SyncFileSelectionResponse,
+  SyncFolderSelectionResponse,
+} from '@/types/sync';
+import {
+  DEFAULT_SYNC_FOLDER_NAME,
+  DRIVE_FILE_FIELDS,
+  DRIVE_FOLDER_FIELDS,
+  DRIVE_FOLDER_MIME_TYPE,
+  PUFFIN_FOLDER_APP_PROPERTIES,
+  buildBackupFileQuery,
+  buildFolderQuery,
+  chooseSyncFolder,
+  extractDriveId,
+  looksLikeBackupFile,
+  sortBackupCandidates,
+  toBackupCandidate,
+  toFolderCandidate,
+} from '@/lib/sync/drive-selection';
 
 interface HandlerContext {
   method: string;
@@ -898,6 +921,334 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
   }
 }
 
+/** Drive REST call with the stored token; throws with Drive's own message. */
+async function driveFetch(
+  path: string,
+  token: string,
+  init?: RequestInit
+): Promise<Response> {
+  return fetch(`https://www.googleapis.com/drive/v3/${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+  });
+}
+
+/**
+ * Folders this account can offer, mirroring GoogleDriveService.listFolders.
+ * Empty at the standard scope until Puffin has created one.
+ */
+async function listDriveFolders(token: string, name?: string): Promise<DriveFolderCandidate[]> {
+  const params = new URLSearchParams({
+    q: buildFolderQuery(name),
+    fields: `files(${DRIVE_FOLDER_FIELDS})`,
+    pageSize: '100',
+    orderBy: 'createdTime desc',
+  });
+
+  const response = await driveFetch(`files?${params}`, token);
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as { files?: unknown[] };
+  return (data.files ?? []).map(file => toFolderCandidate(file as Record<string, never>));
+}
+
+/** Save a chosen folder, clearing anything that belonged to the previous target. */
+function saveFolderTarget(folder: DriveFolderCandidate): void {
+  const config = getSyncConfig();
+  const isNewTarget = config.folderId !== folder.id;
+  saveSyncConfig({
+    ...config,
+    folderId: folder.id,
+    folderName: folder.name,
+    isFileBasedSync: false,
+    isConfigured: true,
+    // A different folder holds a different database, so the previous target's
+    // baseline would make an unrelated one look already in sync
+    ...(isNewTarget ? { syncedDbHash: null, lastSyncedAt: null, backupFileId: null } : {}),
+  });
+}
+
+/**
+ * Sync folder handler - /api/sync/folder (POST)
+ * Create, reuse, or select the Drive folder to sync with.
+ * Mirrors app/api/sync/folder/route.ts.
+ */
+export async function handleSyncFolder(ctx: HandlerContext): Promise<unknown> {
+  const { method, body } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const input = (body ?? {}) as { name?: unknown; folderId?: unknown; create?: unknown };
+  const requestedName = typeof input.name === 'string' && input.name.trim()
+    ? input.name.trim()
+    : DEFAULT_SYNC_FOLDER_NAME;
+  const requestedId = typeof input.folderId === 'string' ? input.folderId.trim() : '';
+  const forceCreate = input.create === true;
+
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    const response: SyncFolderSelectionResponse = {
+      success: false,
+      error: tokenResult.error,
+      errorCode: tokenResult.errorCode ?? 'AUTH_REQUIRED',
+    };
+    return response;
+  }
+  const token = tokenResult.token;
+
+  try {
+    // Picking one of the candidates offered earlier
+    if (requestedId) {
+      const chosen = (await listDriveFolders(token)).find(folder => folder.id === requestedId);
+      if (!chosen) {
+        const response: SyncFolderSelectionResponse = {
+          success: false,
+          error: 'That folder is no longer available',
+          errorCode: 'NOT_FOUND',
+        };
+        return response;
+      }
+      saveFolderTarget(chosen);
+      const response: SyncFolderSelectionResponse = {
+        success: true,
+        folderId: chosen.id,
+        folderName: chosen.name,
+        created: false,
+        shared: chosen.shared ?? false,
+      };
+      return response;
+    }
+
+    const decision = forceCreate
+      ? ({ action: 'create' } as const)
+      : chooseSyncFolder(requestedName, await listDriveFolders(token, requestedName));
+
+    if (decision.action === 'confirm') {
+      const response: SyncFolderSelectionResponse = {
+        success: false,
+        needsConfirmation: true,
+        candidates: decision.candidates,
+      };
+      return response;
+    }
+
+    let folder: DriveFolderCandidate;
+    if (decision.action === 'reuse') {
+      folder = decision.folder;
+    } else {
+      const created = await driveFetch(`files?fields=${DRIVE_FOLDER_FIELDS}`, token, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: requestedName,
+          mimeType: DRIVE_FOLDER_MIME_TYPE,
+          appProperties: PUFFIN_FOLDER_APP_PROPERTIES,
+        }),
+      });
+
+      if (!created.ok) {
+        const response: SyncFolderSelectionResponse = {
+          success: false,
+          error: 'Could not create the folder in Google Drive',
+        };
+        return response;
+      }
+      folder = toFolderCandidate(await created.json());
+    }
+
+    saveFolderTarget(folder);
+
+    const response: SyncFolderSelectionResponse = {
+      success: true,
+      folderId: folder.id,
+      folderName: folder.name,
+      created: decision.action === 'create',
+      shared: folder.shared ?? false,
+    };
+    return response;
+  } catch (error) {
+    console.error('Sync folder selection error:', error);
+    const response: SyncFolderSelectionResponse = {
+      success: false,
+      error: 'Failed to set the sync folder',
+    };
+    return response;
+  }
+}
+
+/**
+ * Drive folder list - /api/sync/folders (GET)
+ * Mirrors app/api/sync/folders/route.ts.
+ */
+export async function handleSyncFolders(ctx: HandlerContext): Promise<unknown> {
+  const { method, params } = ctx;
+
+  if (method !== 'GET') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    const response: DriveFolderListResponse = { folders: [], error: tokenResult.error };
+    return response;
+  }
+
+  try {
+    const response: DriveFolderListResponse = {
+      folders: await listDriveFolders(tokenResult.token, params.name || undefined),
+    };
+    return response;
+  } catch (error) {
+    console.error('List Drive folders error:', error);
+    const response: DriveFolderListResponse = { folders: [], error: 'Failed to list folders' };
+    return response;
+  }
+}
+
+/**
+ * Drive backup file list - /api/sync/backups (GET)
+ * Mirrors app/api/sync/backups/route.ts.
+ */
+export async function handleSyncBackups(ctx: HandlerContext): Promise<unknown> {
+  const { method } = ctx;
+
+  if (method !== 'GET') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    const response: DriveBackupListResponse = { files: [], error: tokenResult.error };
+    return response;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q: buildBackupFileQuery(),
+      fields: `files(${DRIVE_FILE_FIELDS})`,
+      pageSize: '100',
+      orderBy: 'modifiedTime desc',
+    });
+
+    const listed = await driveFetch(`files?${params}`, tokenResult.token);
+    if (!listed.ok) {
+      const response: DriveBackupListResponse = { files: [], error: 'Failed to list backup files' };
+      return response;
+    }
+
+    const data = (await listed.json()) as { files?: unknown[] };
+    const files = (data.files ?? [])
+      .map(file => toBackupCandidate(file as Record<string, never>))
+      .filter(file => looksLikeBackupFile(file.name));
+
+    const response: DriveBackupListResponse = { files: sortBackupCandidates(files) };
+    return response;
+  } catch (error) {
+    console.error('List Drive backups error:', error);
+    const response: DriveBackupListResponse = { files: [], error: 'Failed to list backup files' };
+    return response;
+  }
+}
+
+/**
+ * Sync file handler - /api/sync/file (POST)
+ * Connect sync to one database file, for multi-account sync.
+ * Mirrors app/api/sync/file/route.ts.
+ */
+export async function handleSyncFile(ctx: HandlerContext): Promise<unknown> {
+  const { method, body } = ctx;
+
+  if (method !== 'POST') {
+    throw new Error(`Method ${method} not allowed`);
+  }
+
+  const fileUrl = (body as { fileUrl?: unknown } | undefined)?.fileUrl;
+  const fileId = typeof fileUrl === 'string' ? extractDriveId(fileUrl) : null;
+  if (!fileId) {
+    const response: SyncFileSelectionResponse = {
+      success: false,
+      error: 'Enter a Google Drive file link or ID',
+      errorCode: 'INVALID_URL',
+    };
+    return response;
+  }
+
+  const tokenResult = await getValidAccessToken();
+  if ('error' in tokenResult) {
+    const response: SyncFileSelectionResponse = {
+      success: false,
+      error: tokenResult.error,
+      errorCode: tokenResult.errorCode ?? 'AUTH_REQUIRED',
+    };
+    return response;
+  }
+
+  try {
+    const metaResponse = await driveFetch(
+      `files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,ownedByMe&supportsAllDrives=true`,
+      tokenResult.token
+    );
+
+    if (!metaResponse.ok) {
+      // A file shared from another account is invisible at the standard scope,
+      // so "not found" here usually means full access has not been granted
+      const response: SyncFileSelectionResponse = {
+        success: false,
+        error: 'File not found. Connecting to a database shared by someone else needs full Drive access.',
+        errorCode: 'NOT_FOUND',
+      };
+      return response;
+    }
+
+    const file = (await metaResponse.json()) as {
+      id: string;
+      name: string;
+      mimeType: string;
+      ownedByMe?: boolean;
+    };
+
+    if (file.mimeType === DRIVE_FOLDER_MIME_TYPE) {
+      const response: SyncFileSelectionResponse = {
+        success: false,
+        error: 'That link points to a folder. Use "Use an existing folder" instead.',
+        errorCode: 'NOT_FOUND',
+      };
+      return response;
+    }
+
+    const config = getSyncConfig();
+    const isNewTarget = config.backupFileId !== file.id;
+    saveSyncConfig({
+      ...config,
+      backupFileId: file.id,
+      folderName: file.name,
+      // File-based sync replaces folder-based: leaving the folder id set would
+      // keep push/pull pointed at the folder while the UI showed this file
+      folderId: null,
+      isFileBasedSync: true,
+      isConfigured: true,
+      ...(isNewTarget ? { syncedDbHash: null, lastSyncedAt: null } : {}),
+    });
+
+    const response: SyncFileSelectionResponse = {
+      success: true,
+      fileId: file.id,
+      fileName: file.name,
+      sharedWithMe: file.ownedByMe === false,
+    };
+    return response;
+  } catch (error) {
+    console.error('Sync file selection error:', error);
+    const response: SyncFileSelectionResponse = {
+      success: false,
+      error: 'Failed to connect to that file',
+    };
+    return response;
+  }
+}
+
 /**
  * Sync pull handler - /api/sync/pull
  * Downloads the database from Google Drive
@@ -1109,7 +1460,9 @@ async function refreshAccessToken(
  * On invalid_grant (refresh token rejected), the error result includes
  * `errorCode: 'REFRESH_FAILED'` so the UI can prompt for reconnect.
  */
-async function getValidAccessToken(): Promise<{ token: string } | { error: string; errorCode?: string }> {
+async function getValidAccessToken(): Promise<
+  { token: string } | { error: string; errorCode?: FolderValidationResult['errorCode'] }
+> {
   const stored = localStorage.getItem('puffin_oauth_tokens');
   if (!stored) {
     return { error: 'Not authenticated with Google. Sign in to check sync status.' };
