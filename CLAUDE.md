@@ -364,6 +364,23 @@ A test that needs a DOM or `localStorage` opts in per file with a docblock on li
 jsdom is already a devDependency, so nothing needs installing. Prefer this over stubbing
 a fake `localStorage` — a stub tests the stub. See `lib/auto-lock.test.ts`.
 
+**Checking pure logic without Vitest:** Vitest cannot start under WSL, but Node can run the
+repo's TypeScript directly, which is enough for any module with no DOM, no database and no Tauri
+imports:
+
+```bash
+cp lib/csv/date-parser.ts /tmp/dp.ts   # strip `import type ... from '@/...'` lines first
+node --experimental-strip-types /tmp/dp.ts
+```
+
+Use it to check expectations *before* asking for a PowerShell run — a wrong expectation otherwise
+costs a full round trip. With a ~30-line `describe`/`it`/`expect` shim the real test file runs
+this way too, which caught several wrong assertions in `date-parser.test.ts` before handover, and
+disproved a task spec's stated root cause by running the old code with one branch disabled.
+
+**This does not replace `npm run test`.** It skips mocks, jsdom and the rest of the suite, so the
+user still runs Vitest and their result is the one that counts.
+
 **Test schemas:** `lib/db/*.test.ts` files define inline `TEST_SCHEMA` strings. When adding/changing columns, update these to match `lib/db/schema.ts`.
 
 ## Code Style
@@ -653,6 +670,35 @@ grep -A25 "^## Default Permission" ~/.cargo/registry/src/*/tauri-plugin-fs-2*/pe
 `fs:default` grants `read_dir` and `exists` on app directories but **not `stat`** — so file
 size and mtime need `fs:allow-stat` (now in `default.json`). Its absence is why the backup
 listing reported every backup as 0 bytes, created "now", for its whole life.
+
+### Never Embed a Third-Party Sign-In or Picker Frame
+
+Google's Drive Picker loads `docs.google.com/picker` in an iframe. In WebView2 that frame is
+refused storage by tracking prevention, the picker 401s, and Google renders its
+**"Can't access your Google Account — try signing into your Google account or allowing cookie
+access"** page *inside the app window*, with a "Learn more" link that does nothing. The console
+names the real reason:
+
+```
+Tracking Prevention blocked access to storage for <URL>
+requestStorageAccess: Request denied because the embedded site has never been
+  interacted with as a top-level context
+```
+
+Turning tracking prevention off does not fix it — the provider also wants a prior top-level
+visit. This is not configuration; an embedded provider frame cannot work here.
+
+- **Call the provider's API and draw our own UI.** For a folder chooser that is `files.list`
+  with `mimeType = 'application/vnd.google-apps.folder'` plus the access token the app already
+  holds — no iframe, no third-party cookies, and no Picker API key.
+- **Or hand the URL to the system browser**, as `start_oauth_flow` does with `open::that`.
+  Then print or surface the URL, because the app cannot show that page itself and the user has
+  no way to recover from a failed hand-off.
+- **Symptom to recognise:** a provider error page rendered *inside* Puffin, or a link in it that
+  does nothing, means an embedded frame. A real browser window would have an address bar.
+
+Both Drive pickers are dead UI on the shipping target for this reason; see
+`tasks/oauth-browser-focus.md`.
 
 ### Saving a File: Never Hand the Webview a Blob
 

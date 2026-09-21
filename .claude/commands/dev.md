@@ -57,6 +57,11 @@ For the selected task, work through each phase sequentially:
 ---
 
 #### Phase 3: Manual Testing
+- **Build fixtures for anything data-driven, and verify them before handing them over.** Write
+  files to `tasks/fixtures/<task>/` (gitignored, and reachable from Windows), then run the new
+  code over each one to confirm what it actually produces — hand the user a numbered list with
+  the exact expected result per file. On `import-date-autodetect`, seven CSVs checked this way
+  turned Phase 3 into an unambiguous pass/fail per case, and the files remain for re-testing
 - Present the test steps to the user
 - Guide user through each step
 - Document any issues found
