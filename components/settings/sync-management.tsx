@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '@/lib/services';
+import { api, isTauriContext } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -16,11 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X,
-  Loader2, AlertTriangle, LogOut, RefreshCw,
-  FolderSync, CheckCircle2, Info, FolderOpen, ChevronDown, Settings2, FileIcon, Users, Shield
+  Loader2, AlertTriangle, LogOut,
+  FolderSync, CheckCircle2, Info, Settings2, FileIcon, Users, Shield, Copy
 } from 'lucide-react';
 import type { SyncConfig } from '@/types/sync';
-import { useGooglePicker } from '@/hooks/use-google-picker';
+import { SyncTargetPicker } from './sync-target-picker';
 import { CredentialsSetup } from './credentials-setup';
 
 interface SyncManagementProps {
@@ -33,24 +31,13 @@ interface ExtendedSyncConfig extends SyncConfig {
   hasExtendedScope: boolean;
 }
 
-interface PickerCredentials {
-  clientId: string;
-  apiKey: string;
-  configured: boolean;
-}
-
 export function SyncManagement({ onBack }: SyncManagementProps) {
   // Configuration state
   const [config, setConfig] = useState<ExtendedSyncConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [credentials, setCredentials] = useState<PickerCredentials | null>(null);
   
-  // Folder setup state
-  const [folderUrl, setFolderUrl] = useState('');
-  const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [validationSuccess, setValidationSuccess] = useState<string | null>(null);
-  const [showManualInput, setShowManualInput] = useState(false);
   
   // Sync operation state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -66,17 +53,10 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const [configResult, credResult] = await Promise.all([
-        api.get<ExtendedSyncConfig>('/api/sync/config'),
-        api.get<PickerCredentials>('/api/sync/credentials'),
-      ]);
+      const configResult = await api.get<ExtendedSyncConfig>('/api/sync/config');
 
       if (configResult.data) {
         setConfig(configResult.data);
-      }
-
-      if (credResult.data) {
-        setCredentials(credResult.data);
       }
     } catch (err) {
       console.error('Failed to fetch sync config:', err);
@@ -85,78 +65,35 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     }
   }, []);
 
-  // Handle folder selected via picker
-  const handlePickerSelect = useCallback(async (folder: { id: string; name: string }) => {
-    setIsValidating(true);
+  // Called by SyncTargetPicker once a folder or file is connected
+  const handleTargetConnected = useCallback((message: string) => {
     setValidationError(null);
-    setValidationSuccess(null);
-
-    try {
-      // Save the folder directly (picker already grants access)
-      const result = await api.post('/api/sync/config', { folderId: folder.id, folderName: folder.name });
-
-      if (result.data) {
-        setValidationSuccess(`Connected to folder: ${folder.name}`);
-        fetchConfig();
-      } else {
-        setValidationError(result.error || 'Failed to save folder configuration');
-      }
-    } catch (err) {
-      console.error('Picker save error:', err);
-      setValidationError('Failed to save folder configuration');
-    } finally {
-      setIsValidating(false);
-    }
+    setValidationSuccess(message);
+    fetchConfig();
   }, [fetchConfig]);
-
-  // Handle file selected via picker (for multi-account sync)
-  const handleFilePickerSelect = useCallback(async (file: { id: string; name: string }) => {
-    setIsValidating(true);
-    setValidationError(null);
-    setValidationSuccess(null);
-
-    try {
-      // Save the file directly with isFileBasedSync=true
-      const result = await api.post('/api/sync/config', {
-        backupFileId: file.id,
-        fileName: file.name,
-        isFileBasedSync: true,
-      });
-
-      if (result.data) {
-        setValidationSuccess(`Connected to backup file: ${file.name}`);
-        fetchConfig();
-      } else {
-        setValidationError(result.error || 'Failed to save file configuration');
-      }
-    } catch (err) {
-      console.error('File picker save error:', err);
-      setValidationError('Failed to save file configuration');
-    } finally {
-      setIsValidating(false);
-    }
-  }, [fetchConfig]);
-
-  // Google Picker hook for folders
-  const { openPicker, isLoading: isPickerLoading } = useGooglePicker({
-    clientId: credentials?.clientId || '',
-    apiKey: credentials?.apiKey || '',
-    mode: 'folder',
-    onSelect: handlePickerSelect,
-    onError: (error) => setValidationError(error),
-  });
-
-  // Google Picker hook for files (multi-account sync)
-  const { openPicker: openFilePicker, isLoading: isFilePickerLoading } = useGooglePicker({
-    clientId: credentials?.clientId || '',
-    apiKey: credentials?.apiKey || '',
-    mode: 'file',
-    onSelect: handleFilePickerSelect,
-    onError: (error) => setValidationError(error),
-  });
 
   // Track if OAuth is in progress
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  // The sign-in URL start_oauth_flow gave the default browser. Shown while the
+  // flow is waiting, because the hand-off fails silently when that browser has
+  // no signed-in Google session - and the app cannot display Google's page itself.
+  const [signInUrl, setSignInUrl] = useState<string | null>(null);
+  const [copiedSignInUrl, setCopiedSignInUrl] = useState(false);
+
+  useEffect(() => {
+    if (!isTauriContext()) return;
+    let unlisten: (() => void) | undefined;
+
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => listen<string>('oauth-sign-in-url', (event) => {
+        setSignInUrl(event.payload);
+        setCopiedSignInUrl(false);
+      }))
+      .then((fn) => { unlisten = fn; })
+      .catch(() => { /* event plugin unavailable; the browser hand-off still works */ });
+
+    return () => unlisten?.();
+  }, []);
 
   useEffect(() => {
     fetchConfig();
@@ -278,17 +215,6 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     }
   };
 
-  // Handle multi-account sync button click - show warning if extended scope needed
-  const handleMultiAccountClick = () => {
-    if (config?.hasExtendedScope) {
-      // Already have extended scope, open file picker directly
-      openFilePicker();
-    } else {
-      // Need to show warning and get extended scope
-      setShowMultiAccountWarning(true);
-    }
-  };
-
   // Handle extended scope authentication (for multi-account sync)
   const handleExtendedAuth = async () => {
     setShowMultiAccountWarning(false);
@@ -296,34 +222,6 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   };
 
   // Validate folder
-  const handleValidateFolder = async () => {
-    if (!folderUrl.trim()) {
-      setValidationError('Please enter a Google Drive folder URL');
-      return;
-    }
-
-    setIsValidating(true);
-    setValidationError(null);
-    setValidationSuccess(null);
-
-    try {
-      const result = await api.post<{ success: boolean; folderName?: string; error?: string }>('/api/sync/validate', { folderUrl: folderUrl.trim() });
-
-      if (result.data?.success) {
-        setValidationSuccess(`Connected to folder: ${result.data.folderName}`);
-        setFolderUrl('');
-        fetchConfig();
-      } else {
-        setValidationError(result.data?.error || result.error || 'Failed to validate folder');
-      }
-    } catch (err) {
-      console.error('[Validate] Error:', err);
-      setValidationError('Failed to validate folder');
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
   // Push (upload) database
   const handlePush = async () => {
     setIsSyncing(true);
@@ -547,6 +445,35 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               )}
               {isAuthenticating ? 'Authenticating...' : 'Sign in with Google'}
             </Button>
+
+            {isAuthenticating && signInUrl && (
+              <div className="mt-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 space-y-2">
+                <p className="text-xs text-slate-400">
+                  Waiting for Google in your browser. If nothing opened, or you are signed into a
+                  different account there, copy this link and open it in the right browser.
+                </p>
+                <Button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(signInUrl);
+                      setCopiedSignInUrl(true);
+                    } catch {
+                      setValidationError('Could not copy the link to the clipboard');
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                >
+                  {copiedSignInUrl ? (
+                    <Check className="w-4 h-4 mr-2 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-4 h-4 mr-2" />
+                  )}
+                  {copiedSignInUrl ? 'Link copied' : 'Copy sign-in link'}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -574,119 +501,25 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Primary: Google Picker */}
-            {credentials?.apiKey ? (
-              <Button
-                onClick={openPicker}
-                disabled={isPickerLoading || isValidating}
-                className="w-full bg-emerald-600 hover:bg-emerald-500"
-                size="lg"
-              >
-                {isPickerLoading || isValidating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FolderOpen className="w-4 h-4 mr-2" />
-                )}
-                Choose Folder from Google Drive
-              </Button>
-            ) : (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                <p className="text-sm text-amber-300">
-                  <AlertTriangle className="w-4 h-4 inline mr-2" />
-                  Google Picker requires an API Key. Add <code className="bg-slate-800 px-1 rounded">GOOGLE_API_KEY</code> to your environment.
-                </p>
-              </div>
-            )}
+            <SyncTargetPicker
+              hasExtendedScope={!!config.hasExtendedScope}
+              onGrantFullAccess={() => setShowMultiAccountWarning(true)}
+              onConnected={handleTargetConnected}
+              onError={setValidationError}
+              disabled={isAuthenticating}
+            />
 
-            {/* Security note */}
+            {/* What Puffin can actually see, which depends on the scope granted */}
             <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-slate-400">
-                  <strong className="text-emerald-400">Secure:</strong> The app only has access to the folder you select—not your entire Google Drive.
-                  You can share this folder with other users for multi-device sync.
+                  <strong className="text-emerald-400">Secure:</strong>{' '}
+                  {config.hasExtendedScope
+                    ? 'You have granted full Drive access, so Puffin can see your whole Drive. Only the sync folder is written to.'
+                    : 'Puffin can only see the folder it creates — not the rest of your Google Drive.'}
                 </p>
               </div>
-            </div>
-
-            {/* Multi-account sync option */}
-            {credentials?.apiKey && (
-              <div className="border-t border-slate-700/50 pt-4">
-                <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                  <div className="flex items-start gap-3">
-                    <Users className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm text-slate-300 font-medium mb-1">
-                        Multi-Account Sync
-                      </p>
-                      <p className="text-xs text-slate-400 mb-2">
-                        Sync a database across different Google accounts. To set up:
-                      </p>
-                      <ol className="text-xs text-slate-400 mb-3 list-decimal list-inside space-y-0.5">
-                        <li>Upload your Puffin database file to Google Drive</li>
-                        <li>Right-click the file and share it with the other account</li>
-                        <li>On both computers, click below to grant extended access, then click again to choose the shared file</li>
-                      </ol>
-                      <Button
-                        onClick={handleMultiAccountClick}
-                        disabled={isFilePickerLoading || isValidating}
-                        variant="outline"
-                        size="sm"
-                        className="border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
-                      >
-                        {isFilePickerLoading || isValidating ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <FileIcon className="w-4 h-4 mr-2" />
-                        )}
-                        Connect to Existing Backup
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Manual input fallback */}
-            <div className="border-t border-slate-700/50 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowManualInput(!showManualInput)}
-                className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300"
-              >
-                <ChevronDown className={`w-4 h-4 transition-transform ${showManualInput ? 'rotate-180' : ''}`} />
-                Or enter folder URL manually
-              </button>
-              
-              {showManualInput && (
-                <div className="mt-3 space-y-2">
-                  <Label htmlFor="folder-url" className="text-slate-300">Folder URL or ID</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="folder-url"
-                      value={folderUrl}
-                      onChange={(e) => setFolderUrl(e.target.value)}
-                      placeholder="https://drive.google.com/drive/folders/..."
-                      className="flex-1 bg-slate-800/50 border-slate-700 text-slate-100"
-                    />
-                    <Button
-                      onClick={handleValidateFolder}
-                      disabled={isValidating || !folderUrl.trim()}
-                      variant="outline"
-                      className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                    >
-                      {isValidating ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Check className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Note: Manual URL entry requires full Drive access scope.
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Sign out option */}
@@ -817,57 +650,13 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {credentials?.apiKey ? (
-              <div className="flex gap-2">
-                <Button
-                  onClick={openPicker}
-                  disabled={isPickerLoading || isValidating}
-                  variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                >
-                  {isPickerLoading || isValidating ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <FolderOpen className="w-4 h-4 mr-2" />
-                  )}
-                  Choose Folder
-                </Button>
-                <Button
-                  onClick={handleMultiAccountClick}
-                  disabled={isFilePickerLoading || isValidating}
-                  variant="outline"
-                  className="border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
-                >
-                  {isFilePickerLoading || isValidating ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <FileIcon className="w-4 h-4 mr-2" />
-                  )}
-                  Choose Backup File
-                </Button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <Input
-                  value={folderUrl}
-                  onChange={(e) => setFolderUrl(e.target.value)}
-                  placeholder="Enter new folder URL..."
-                  className="flex-1 bg-slate-800/50 border-slate-700 text-slate-100"
-                />
-                <Button
-                  onClick={handleValidateFolder}
-                  disabled={isValidating || !folderUrl.trim()}
-                  variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                >
-                  {isValidating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-            )}
+            <SyncTargetPicker
+              hasExtendedScope={!!config.hasExtendedScope}
+              onGrantFullAccess={() => setShowMultiAccountWarning(true)}
+              onConnected={handleTargetConnected}
+              onError={setValidationError}
+              disabled={isAuthenticating}
+            />
           </CardContent>
         </Card>
       )}
@@ -1001,8 +790,8 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                 <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700">
                   <p className="text-sm text-slate-300 font-medium mb-2">Alternative: Single-Account Sync</p>
                   <p className="text-xs text-slate-400">
-                    If you use the same Google account on all computers, you can use &quot;Choose Folder&quot;
-                    instead, which only requires access to the specific folder you select.
+                    If you use the same Google account on all computers, &quot;Create a folder in your
+                    Drive&quot; needs no extra permission — Puffin can only see the folder it made.
                   </p>
                 </div>
               </div>

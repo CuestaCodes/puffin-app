@@ -28,7 +28,6 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
   const [step, setStep] = useState(1);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +44,6 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
       const result = await api.post<{ success: boolean; error?: string }>('/api/sync/credentials', {
         clientId: clientId.trim(),
         clientSecret: clientSecret.trim(),
-        apiKey: apiKey.trim(),
       });
 
       if (result.data?.success) {
@@ -245,18 +243,6 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="api-key" className="text-slate-300">
-                API Key <span className="text-slate-500">(for folder picker)</span>
-              </Label>
-              <Input
-                id="api-key"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSyxxxxxxxxxxxxxxxxx"
-                className="bg-slate-800/50 border-slate-700 text-slate-100 font-mono text-sm"
-              />
-            </div>
           </div>
 
           <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
