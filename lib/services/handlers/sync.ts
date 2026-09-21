@@ -871,12 +871,16 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
       }
     }
 
-    // Step 3: save it, the same two fields the dev route saves
+    // Step 3: save it. isFileBasedSync must be cleared: choosing a folder
+    // switches away from multi-account file sync, and leaving it set would keep
+    // push/pull pointed at the old backup file while the UI showed the newly
+    // chosen folder.
     const config = getSyncConfig();
     saveSyncConfig({
       ...config,
       folderId: folder.id,
       folderName: folder.name,
+      isFileBasedSync: false,
       isConfigured: true,
     });
 

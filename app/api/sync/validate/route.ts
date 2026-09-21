@@ -34,10 +34,14 @@ export async function POST(request: Request) {
     const result = await driveService.validateFolder(folderId);
 
     if (result.success) {
-      // Save the validated folder to config
+      // Save the validated folder to config. isFileBasedSync must be cleared:
+      // choosing a folder switches away from multi-account file sync, and
+      // leaving it set would keep push/pull pointed at the old backup file
+      // while the UI showed the newly chosen folder.
       SyncConfigManager.saveConfig({
         folderId: result.folderId!,
         folderName: result.folderName!,
+        isFileBasedSync: false,
       });
     }
 
