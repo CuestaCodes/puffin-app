@@ -108,6 +108,36 @@ describe('SyncConfigManager', () => {
   });
 
   describe('saveConfig', () => {
+    it('clears a field when null is passed explicitly', () => {
+      // app/api/sync/config/route.ts passes folderId: null to leave folder-based
+      // sync, and the validate route passes syncedDbHash: null when the target
+      // changes. `??` used to drop both, keeping the stale values.
+      const existingConfig = {
+        folderId: 'folder-123',
+        folderName: 'My Folder',
+        lastSyncedAt: '2025-01-15T10:00:00.000Z',
+        userEmail: 'user@example.com',
+        syncedDbHash: 'old-hash',
+        backupFileId: null,
+        isFileBasedSync: false,
+      };
+
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(existingConfig));
+      vi.mocked(fs.writeFileSync).mockImplementation(() => {});
+      vi.mocked(fs.mkdirSync).mockImplementation(() => undefined);
+
+      SyncConfigManager.saveConfig({ folderId: null, syncedDbHash: null });
+
+      const writeCall = vi.mocked(fs.writeFileSync).mock.calls[0];
+      const written = JSON.parse(writeCall[1] as string);
+      expect(written.folderId).toBeNull();
+      expect(written.syncedDbHash).toBeNull();
+      // Untouched keys still merge from existing
+      expect(written.folderName).toBe('My Folder');
+      expect(written.userEmail).toBe('user@example.com');
+    });
+
     it('should merge partial config with existing', () => {
       const existingConfig = {
         folderId: 'folder-123',

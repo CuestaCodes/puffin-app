@@ -47,6 +47,7 @@ export async function POST(request: Request) {
         folderName: result.folderName!,
         isFileBasedSync: false,
         ...(isNewTarget ? { syncedDbHash: null, lastSyncedAt: null } : {}),
+        // saveConfig treats a passed null as "clear", so these really do reset
       });
     }
 

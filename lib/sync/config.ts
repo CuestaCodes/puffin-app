@@ -113,14 +113,22 @@ export class SyncConfigManager {
     this.ensureDataDir();
 
     const existing = this.getConfig();
+
+    // Key presence decides, not `??`: a caller passing null means "clear this".
+    // With `??` those nulls were silently dropped, so switching to file-based
+    // sync never cleared folderId despite asking to, and switching folder kept
+    // the previous target's syncedDbHash.
+    const pick = <K extends keyof StoredConfig>(key: K): StoredConfig[K] =>
+      key in config ? (config[key] as StoredConfig[K]) : existing[key];
+
     const updated: StoredConfig = {
-      folderId: config.folderId ?? existing.folderId,
-      folderName: config.folderName ?? existing.folderName,
-      lastSyncedAt: config.lastSyncedAt ?? existing.lastSyncedAt,
-      userEmail: config.userEmail ?? existing.userEmail,
-      syncedDbHash: config.syncedDbHash ?? existing.syncedDbHash,
-      backupFileId: config.backupFileId ?? existing.backupFileId,
-      isFileBasedSync: config.isFileBasedSync ?? existing.isFileBasedSync,
+      folderId: pick('folderId'),
+      folderName: pick('folderName'),
+      lastSyncedAt: pick('lastSyncedAt'),
+      userEmail: pick('userEmail'),
+      syncedDbHash: pick('syncedDbHash'),
+      backupFileId: pick('backupFileId'),
+      isFileBasedSync: pick('isFileBasedSync'),
     };
 
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf-8');
