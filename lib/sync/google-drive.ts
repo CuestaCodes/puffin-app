@@ -8,10 +8,12 @@ import fs from 'fs';
 import path from 'path';
 import { getAuthenticatedClient, OAuthRefreshFailedError } from './oauth';
 import { SyncConfigManager } from './config';
+import { FOLDER_NOT_FOUND_ERROR } from '@/types/sync';
 import type { FolderValidationResult } from '@/types/sync';
 
 const DATABASE_FILENAME = 'puffin-backup.db';
 const VALIDATION_TEST_FILENAME = '.puffin-validation-test';
+
 
 /**
  * Sanitize a Google Drive ID for use in query strings
@@ -182,10 +184,13 @@ export class GoogleDriveService {
       console.error('Folder validation error:', error);
 
       if (gError.code === 404) {
-        return { 
-          success: false, 
-          error: 'Folder not found. Please check the URL and try again.', 
-          errorCode: 'NOT_FOUND' 
+        // With the standard `drive.file` scope Google hides everything the app
+        // did not create, so an existing folder answers 404 rather than 403 —
+        // "not found" on a folder the user is looking at is otherwise baffling
+        return {
+          success: false,
+          error: FOLDER_NOT_FOUND_ERROR,
+          errorCode: 'NOT_FOUND'
         };
       }
 

@@ -794,7 +794,7 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
     return { success: false, error: 'Folder URL is required', errorCode: 'INVALID_URL' };
   }
 
-  const { extractFolderIdFromUrl } = await import('@/types/sync');
+  const { extractFolderIdFromUrl, FOLDER_NOT_FOUND_ERROR } = await import('@/types/sync');
   const folderId = extractFolderIdFromUrl(folderUrl);
   if (!folderId) {
     return { success: false, error: 'Invalid Google Drive folder URL', errorCode: 'INVALID_URL' };
@@ -820,7 +820,9 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
 
     if (!metaResponse.ok) {
       if (metaResponse.status === 404) {
-        return { success: false, error: 'Folder not found', errorCode: 'NOT_FOUND' };
+        // The standard `drive.file` scope hides anything the app did not create,
+        // so an existing folder answers 404 rather than 403
+        return { success: false, error: FOLDER_NOT_FOUND_ERROR, errorCode: 'NOT_FOUND' };
       }
       if (metaResponse.status === 401 || metaResponse.status === 403) {
         return {

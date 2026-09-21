@@ -67,6 +67,15 @@ export interface SyncCheckResponse {
   warning?: string;
 }
 
+/**
+ * Shared by the dev service (lib/sync/google-drive.ts) and the Tauri handler
+ * (lib/services/handlers/sync.ts) so both word this identically. Lives here
+ * because google-drive.ts pulls in googleapis, which must not reach the webview.
+ */
+export const FOLDER_NOT_FOUND_ERROR =
+  'Folder not found. Check the URL, and note that choosing an existing folder needs full ' +
+  'Drive access - grant it with "Connect to Existing Backup", then try again.';
+
 export interface FolderValidationResult {
   success: boolean;
   folderId?: string;
