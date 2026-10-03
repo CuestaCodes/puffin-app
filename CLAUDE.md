@@ -135,6 +135,20 @@ const failed = results.filter(
 ).length;
 ```
 
+**A handler's error can also arrive as data.** A handler that *returns*
+`{ folders: [], error }` instead of throwing resolves as a success: `result.error` is unset
+and the failure sits in `result.data.error`. Dev masks this, because the route sends the
+same body with a 4xx/5xx status and `api` sets `result.error` from it. Check both:
+
+```typescript
+if (result.error || !result.data || result.data.error) {
+  onError(result.data?.error || result.error || 'Could not list your Drive folders');
+}
+```
+
+The Drive folder list checked only `result.error`, so in the desktop app a failed listing
+rendered as "No folders found in your Drive."
+
 **Multi-step DB writes:** Wrap in a transaction when the writes must succeed or fail
 *together* — a write plus its dependent write, or a delete-then-reinsert.
 
@@ -266,6 +280,30 @@ a scrubbed copy before push — or storing it outside the database entirely. The
 action log took the second route: `action-log.jsonl` sits beside `puffin.db`, so it is
 untouched by both directions for free and needs no schema migration. See
 `lib/action-log-file.ts`.
+
+### Drive Scopes
+What the app can see in Drive depends on the scope granted, and it decides which features
+are possible at all:
+
+- **`drive.file` (standard)** — Google shows the app **only what the app created**.
+  `files.list` returns nothing else, and a `files.get` on anything else answers 404, not 403.
+  The app can create a folder and use it forever, on any device signed into the same account
+  with the same credentials.
+- **`drive` (extended, full access)** — everything, including items shared with the user.
+  Required for choosing a folder that already exists, and for multi-account sync, where the
+  database was created by someone else's copy of the app. No design choice avoids this;
+  Google's Picker was the only exception, and it cannot run in the webview.
+
+Consequences that are easy to get wrong:
+- **Explain, then ask.** Paths that need full access show why and a "Grant full access"
+  button; nothing happens until it is pressed. See `components/settings/sync-target-picker.tsx`.
+- **Ownership is proven by the `appProperties` marker, never by name.** Only the app that
+  wrote it can read it. A same-named folder without the marker is offered for confirmation,
+  never adopted silently (`chooseSyncFolder` in `lib/sync/drive-selection.ts`).
+- **`hasExtendedScope` comes from the scope Google granted on the token**, not from what was
+  requested. A narrow sign-in after a full one returns a narrow token.
+- **Queries and field lists live in `lib/sync/drive-selection.ts`** so the googleapis (dev)
+  and fetch (Tauri) transports cannot ask Drive for different things.
 
 ### Session Tracking (Tauri)
 `SESSION_ID` + `LAST_MODIFY_SESSION_KEY` in localStorage blocks edits when local_only changes exist from previous session.
@@ -690,15 +728,16 @@ visit. This is not configuration; an embedded provider frame cannot work here.
 
 - **Call the provider's API and draw our own UI.** For a folder chooser that is `files.list`
   with `mimeType = 'application/vnd.google-apps.folder'` plus the access token the app already
-  holds — no iframe, no third-party cookies, and no Picker API key.
+  holds — no iframe, no third-party cookies, and no Picker API key. **Check what the token's
+  scope lets that API see first** (see "Drive Scopes"): at `drive.file` this list is empty.
 - **Or hand the URL to the system browser**, as `start_oauth_flow` does with `open::that`.
   Then print or surface the URL, because the app cannot show that page itself and the user has
   no way to recover from a failed hand-off.
 - **Symptom to recognise:** a provider error page rendered *inside* Puffin, or a link in it that
   does nothing, means an embedded frame. A real browser window would have an address bar.
 
-Both Drive pickers are dead UI on the shipping target for this reason; see
-`tasks/oauth-browser-focus.md`.
+Both Drive pickers were dead UI on the shipping target for this reason. They were replaced by
+`components/settings/sync-target-picker.tsx`, which lists and creates through the Drive API.
 
 ### Saving a File: Never Hand the Webview a Blob
 

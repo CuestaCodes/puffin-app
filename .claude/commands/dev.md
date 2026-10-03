@@ -62,7 +62,14 @@ For the selected task, work through each phase sequentially:
   code over each one to confirm what it actually produces — hand the user a numbered list with
   the exact expected result per file. On `import-date-autodetect`, seven CSVs checked this way
   turned Phase 3 into an unambiguous pass/fail per case, and the files remain for re-testing
+- **State the starting state each step needs, and how to get there** — signed in or out, which
+  permission level, what data must already exist. On `oauth-browser-focus`, two steps could not
+  test what they claimed: one assumed a narrow-scope sign-in when the user already had full
+  access, and another had the user disconnect, which (through a bug) erased the credentials the
+  next step relied on. Each cost a full restart-and-retest round
 - Present the test steps to the user
+- After a failed round, re-list only the steps that changed, numbered afresh, each with its
+  exact expected result — do not ask the user to map old step numbers onto new behaviour
 - Guide user through each step
 - Document any issues found
 - Fix issues before proceeding
