@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/services';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +48,7 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
       });
 
       if (result.data?.success) {
+        toast.success('Google credentials saved');
         onComplete();
       } else {
         setError(result.data?.error || result.error || 'Failed to save credentials');
@@ -132,11 +134,10 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
             </div>
 
             <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-              <h4 className="font-medium text-slate-200 mb-2">Step 2: Enable APIs</h4>
+              <h4 className="font-medium text-slate-200 mb-2">Step 2: Enable the API</h4>
               <ol className="space-y-1 text-slate-400 list-decimal list-inside">
                 <li>Go to &quot;APIs &amp; Services&quot; → &quot;Library&quot;</li>
                 <li>Search and enable: <strong>Google Drive API</strong></li>
-                <li>Search and enable: <strong>Google Picker API</strong></li>
               </ol>
             </div>
 
@@ -169,15 +170,6 @@ export function CredentialsSetup({ onComplete, onCancel, isDialog = false }: Cre
                   No redirect URI configuration is needed.
                 </p>
               </div>
-            </div>
-
-            <div className="p-4 rounded-lg bg-slate-800/50 border border-slate-700">
-              <h4 className="font-medium text-slate-200 mb-2">Step 5: Create API Key</h4>
-              <ol className="space-y-1 text-slate-400 list-decimal list-inside">
-                <li>Go to &quot;Credentials&quot; → &quot;Create Credentials&quot; → &quot;API key&quot;</li>
-                <li>Copy the API key</li>
-                <li>(Optional) Restrict it to &quot;Google Picker API&quot; for security</li>
-              </ol>
             </div>
           </div>
 

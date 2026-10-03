@@ -48,6 +48,7 @@ const SYNC_CONFIG_KEY = 'puffin_sync_config';
 const SYNC_CREDENTIALS_KEY = 'puffin_sync_credentials';
 const OAUTH_AUTHENTICATED_KEY = 'puffin_oauth_authenticated';
 const OAUTH_EXTENDED_SCOPE_KEY = 'puffin_oauth_extended_scope';
+const OAUTH_TOKENS_KEY = 'puffin_oauth_tokens';
 
 // `oauthConfigured` is derived from SYNC_CREDENTIALS_KEY (single source of truth)
 // so the reconnect flow can't get stuck on a wizard prompt when valid credentials
@@ -587,18 +588,18 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
         const delimiter = '\r\n--' + boundary + '\r\n';
         const closeDelimiter = '\r\n--' + boundary + '--';
 
-        // Convert Uint8Array to base64
-        const base64Data = btoa(String.fromCharCode(...fileData));
-
-        const multipartBody =
+        // Send the database as raw bytes. Spreading it into String.fromCharCode
+        // to base64 it passes one argument per byte, which overflows the stack
+        // for any real database ("Maximum call stack size exceeded").
+        const multipartBody = new Blob([
           delimiter +
-          'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-          JSON.stringify(metadata) +
-          delimiter +
-          'Content-Type: application/octet-stream\r\n' +
-          'Content-Transfer-Encoding: base64\r\n\r\n' +
-          base64Data +
-          closeDelimiter;
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: application/octet-stream\r\n\r\n',
+          fileData,
+          closeDelimiter,
+        ]);
 
         const createResponse = await fetch(
           'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
@@ -692,9 +693,12 @@ export async function handleSyncDisconnect(ctx: HandlerContext): Promise<unknown
     throw new Error(`Method ${method} not allowed`);
   }
 
-  // Clear all sync-related localStorage
+  // Clear the connection, as SyncConfigManager.clearConfig does in dev: the
+  // sync target and the Google tokens go, the Google Cloud credentials stay.
+  // Removing the credentials here forced the setup wizard after every sign-out,
+  // while the tokens - the thing a disconnect is for - were left behind.
   localStorage.removeItem(SYNC_CONFIG_KEY);
-  localStorage.removeItem(SYNC_CREDENTIALS_KEY);
+  localStorage.removeItem(OAUTH_TOKENS_KEY);
   localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
   localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
 
@@ -766,6 +770,7 @@ function saveCredentials(data: Partial<SyncCredentials>): { success: boolean } {
 function clearCredentials(): { success: boolean } {
   localStorage.removeItem(SYNC_CREDENTIALS_KEY);
   localStorage.removeItem(SYNC_CONFIG_KEY);
+  localStorage.removeItem(OAUTH_TOKENS_KEY);
   localStorage.removeItem(OAUTH_AUTHENTICATED_KEY);
   localStorage.removeItem(OAUTH_EXTENDED_SCOPE_KEY);
 
@@ -1463,7 +1468,7 @@ async function refreshAccessToken(
 async function getValidAccessToken(): Promise<
   { token: string } | { error: string; errorCode?: FolderValidationResult['errorCode'] }
 > {
-  const stored = localStorage.getItem('puffin_oauth_tokens');
+  const stored = localStorage.getItem(OAUTH_TOKENS_KEY);
   if (!stored) {
     return { error: 'Not authenticated with Google. Sign in to check sync status.' };
   }
@@ -1512,7 +1517,7 @@ async function getValidAccessToken(): Promise<
         access_token: refreshed.access_token,
         expiry_date: Date.now() + (refreshed.expires_in * 1000),
       };
-      localStorage.setItem('puffin_oauth_tokens', JSON.stringify(updatedTokens));
+      localStorage.setItem(OAUTH_TOKENS_KEY, JSON.stringify(updatedTokens));
 
       return { token: refreshed.access_token };
     } catch (e) {
@@ -1635,7 +1640,7 @@ export async function handleOAuthToken(ctx: HandlerContext): Promise<unknown> {
     scope: tokens.scope || '',
   };
 
-  localStorage.setItem('puffin_oauth_tokens', JSON.stringify(tokenData));
+  localStorage.setItem(OAUTH_TOKENS_KEY, JSON.stringify(tokenData));
   localStorage.setItem(OAUTH_AUTHENTICATED_KEY, 'true');
 
   // Check if we have extended scope (full drive access, not just drive.file)

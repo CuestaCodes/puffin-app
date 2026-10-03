@@ -13,10 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  ArrowLeft, Cloud, CloudUpload, CloudDownload, Check, X,
+  ArrowLeft, Cloud, CloudUpload, CloudDownload, Check,
   Loader2, AlertTriangle, LogOut,
   FolderSync, CheckCircle2, Info, Settings2, FileIcon, Users, Shield, Copy
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { SyncConfig } from '@/types/sync';
 import { SyncTargetPicker } from './sync-target-picker';
 import { CredentialsSetup } from './credentials-setup';
@@ -36,13 +37,8 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   const [config, setConfig] = useState<ExtendedSyncConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [validationSuccess, setValidationSuccess] = useState<string | null>(null);
-  
   // Sync operation state
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [syncSuccess, setSyncSuccess] = useState<string | null>(null);
   
   // Dialogs
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -66,11 +62,15 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   }, []);
 
   // Called by SyncTargetPicker once a folder or file is connected
-  const handleTargetConnected = useCallback((message: string) => {
-    setValidationError(null);
-    setValidationSuccess(message);
+  const handleTargetConnected = useCallback((message: string, warning?: string) => {
+    // A warning must outlast a glance, so it holds the toast open longer
+    toast.success(message, warning ? { description: warning, duration: 15000 } : undefined);
     fetchConfig();
   }, [fetchConfig]);
+
+  const handleTargetError = useCallback((message: string) => {
+    toast.error(message);
+  }, []);
 
   // Track if OAuth is in progress
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -134,9 +134,6 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   // Start OAuth flow - handles both Tauri and dev modes
   const startOAuthFlow = async (scopeLevel: 'standard' | 'extended') => {
-    setValidationError(null);
-    setValidationSuccess(null);
-
     // In Tauri mode, use the native OAuth flow with local callback server
     // Check for both __TAURI__ (Tauri 1.x) and __TAURI_INTERNALS__ (Tauri 2.x)
     const isTauri = typeof window !== 'undefined' &&
@@ -149,7 +146,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         // Get credentials from localStorage
         const stored = localStorage.getItem('puffin_sync_credentials');
         if (!stored) {
-          setValidationError('OAuth credentials not found. Please configure your Google Cloud credentials first.');
+          toast.error('OAuth credentials not found. Please configure your Google Cloud credentials first.');
           return;
         }
 
@@ -171,12 +168,12 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         });
 
         if (result.error) {
-          setValidationError(`Authentication failed: ${result.error}`);
+          toast.error(`Authentication failed: ${result.error}`);
           return;
         }
 
         if (!result.code) {
-          setValidationError('No authorization code received');
+          toast.error('No authorization code received');
           return;
         }
 
@@ -188,14 +185,14 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         });
 
         if (tokenResult.data?.success) {
-          setValidationSuccess('Successfully connected to Google');
+          toast.success('Successfully connected to Google');
           fetchConfig();
         } else {
-          setValidationError(tokenResult.error || 'Failed to complete authentication');
+          toast.error(tokenResult.error || 'Failed to complete authentication');
         }
       } catch (err) {
         console.error('OAuth error:', err);
-        setValidationError(`Authentication failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        toast.error(`Authentication failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
         setIsAuthenticating(false);
       }
@@ -206,11 +203,11 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         if (result.data?.url) {
           window.location.href = result.data.url;
         } else {
-          setValidationError(result.error || 'Failed to start authentication');
+          toast.error(result.error || 'Failed to start authentication');
         }
       } catch (err) {
         console.error('Auth error:', err);
-        setValidationError('Failed to start authentication');
+        toast.error('Failed to start authentication');
       }
     }
   };
@@ -225,21 +222,19 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   // Push (upload) database
   const handlePush = async () => {
     setIsSyncing(true);
-    setSyncError(null);
-    setSyncSuccess(null);
 
     try {
       const result = await api.post<{ success: boolean; error?: string }>('/api/sync/push', {});
 
       if (result.data?.success) {
-        setSyncSuccess('Database uploaded successfully');
+        toast.success('Database uploaded successfully');
         fetchConfig();
       } else {
-        setSyncError(result.data?.error || result.error || 'Failed to upload database');
+        toast.error(result.data?.error || result.error || 'Failed to upload database');
       }
     } catch (err) {
       console.error('Push error:', err);
-      setSyncError('Failed to upload database');
+      toast.error('Failed to upload database');
     } finally {
       setIsSyncing(false);
     }
@@ -249,21 +244,19 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
   const handlePull = async () => {
     setShowPullWarningDialog(false);
     setIsSyncing(true);
-    setSyncError(null);
-    setSyncSuccess(null);
 
     try {
       const result = await api.post<{ success: boolean; error?: string }>('/api/sync/pull', {});
 
       if (result.data?.success) {
-        setSyncSuccess('Database downloaded successfully. Please refresh the page to see updated data.');
+        toast.success('Database downloaded successfully. Please refresh the page to see updated data.');
         fetchConfig();
       } else {
-        setSyncError(result.data?.error || result.error || 'Failed to download database');
+        toast.error(result.data?.error || result.error || 'Failed to download database');
       }
     } catch (err) {
       console.error('Pull error:', err);
-      setSyncError('Failed to download database');
+      toast.error('Failed to download database');
     } finally {
       setIsSyncing(false);
     }
@@ -291,6 +284,9 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
           oauthConfigured: config?.oauthConfigured ?? false,
           hasExtendedScope: false,
         });
+        toast.success('Disconnected from Google Drive');
+      } else {
+        toast.error(result.error || 'Failed to disconnect');
       }
     } catch (err) {
       console.error('Disconnect error:', err);
@@ -385,37 +381,6 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         </div>
       )}
 
-      {/* Success/Error Messages */}
-      {(validationSuccess || syncSuccess) && (
-        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/50 p-4 flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-          <p className="text-sm text-emerald-300">{validationSuccess || syncSuccess}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setValidationSuccess(null); setSyncSuccess(null); }}
-            className="ml-auto text-emerald-400 hover:text-emerald-300"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-
-      {(validationError || syncError) && (
-        <div className="rounded-lg bg-red-500/10 border border-red-500/50 p-4 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
-          <p className="text-sm text-red-300">{validationError || syncError}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setValidationError(null); setSyncError(null); }}
-            className="ml-auto text-red-400 hover:text-red-300"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-
       {/* Not authenticated state */}
       {!config?.isAuthenticated && (
         <Card className="border-slate-800 bg-slate-900/50">
@@ -457,8 +422,10 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
                     try {
                       await navigator.clipboard.writeText(signInUrl);
                       setCopiedSignInUrl(true);
+                      // Revert, so the button does not read as used up
+                      setTimeout(() => setCopiedSignInUrl(false), 2000);
                     } catch {
-                      setValidationError('Could not copy the link to the clipboard');
+                      toast.error('Could not copy the link to the clipboard');
                     }
                   }}
                   variant="outline"
@@ -505,7 +472,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               hasExtendedScope={!!config.hasExtendedScope}
               onGrantFullAccess={() => setShowMultiAccountWarning(true)}
               onConnected={handleTargetConnected}
-              onError={setValidationError}
+              onError={handleTargetError}
               disabled={isAuthenticating}
             />
 
@@ -654,7 +621,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               hasExtendedScope={!!config.hasExtendedScope}
               onGrantFullAccess={() => setShowMultiAccountWarning(true)}
               onConnected={handleTargetConnected}
-              onError={setValidationError}
+              onError={handleTargetError}
               disabled={isAuthenticating}
             />
           </CardContent>

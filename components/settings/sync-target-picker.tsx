@@ -33,7 +33,7 @@ interface SyncTargetPickerProps {
   /** Re-run Google sign-in asking for full access */
   onGrantFullAccess: () => void;
   /** A target was connected — the caller refreshes config and reports success */
-  onConnected: (message: string) => void;
+  onConnected: (message: string, warning?: string) => void;
   onError: (message: string) => void;
   disabled?: boolean;
 }
@@ -66,7 +66,7 @@ export function SyncTargetPicker({
   const [fileUrl, setFileUrl] = useState('');
 
   const sharedWarning = (shared?: boolean) =>
-    shared ? ' This folder is shared with other people, who will be able to read your database.' : '';
+    shared ? 'This folder is shared with other people, who will be able to read your database.' : undefined;
 
   /** POST to the folder endpoint. api.* resolves with { error }, so check the value. */
   const selectFolder = useCallback(
@@ -87,10 +87,13 @@ export function SyncTargetPicker({
         }
 
         setCandidates(null);
+        setFolders(null);
+        setBackups(null);
         onConnected(
-          (data.created
+          data.created
             ? `Created "${data.folderName}" in your Google Drive.`
-            : `Using your existing "${data.folderName}" folder.`) + sharedWarning(data.shared)
+            : `Using your existing "${data.folderName}" folder.`,
+          sharedWarning(data.shared)
         );
       } finally {
         setIsWorking(false);
@@ -139,6 +142,8 @@ export function SyncTargetPicker({
         return;
       }
       setFolderUrl('');
+      setFolders(null);
+      setBackups(null);
       onConnected(`Connected to folder: ${result.data.folderName}`);
     } finally {
       setIsWorking(false);
@@ -158,6 +163,8 @@ export function SyncTargetPicker({
           return;
         }
         setFileUrl('');
+        setFolders(null);
+        setBackups(null);
         onConnected(
           `Connected to ${result.data.fileName}` +
             (result.data.sharedWithMe ? ', shared with you by another account.' : '.')
