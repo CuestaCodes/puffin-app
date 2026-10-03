@@ -98,7 +98,7 @@ export function chooseSyncFolder(
  * Drive id from a folder URL, a file URL, or a bare id.
  *
  * Folder URLs and bare ids are handled by extractFolderIdFromUrl, which has its
- * own tests; this adds the `/file/d/<id>/` shape used by backup files.
+ * own tests; this adds the `/d/<id>/` shape used by files.
  */
 export function extractDriveId(input: string): string | null {
   if (!input || typeof input !== 'string') return null;
@@ -106,7 +106,10 @@ export function extractDriveId(input: string): string | null {
   const fromFolderOrId = extractFolderIdFromUrl(input);
   if (fromFolderOrId) return fromFolderOrId;
 
-  const fileMatch = input.trim().match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+  // `/d/<id>` covers drive.google.com/file/d/ and the docs.google.com editors,
+  // so a link to a document is recognised and can be refused by name, rather
+  // than being told it is not a link at all
+  const fileMatch = input.trim().match(/(?:drive|docs)\.google\.com\/(?:[^?#]*\/)?d\/([^/?#]+)/);
   return fileMatch?.[1] ?? null;
 }
 

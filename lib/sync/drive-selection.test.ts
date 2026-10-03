@@ -93,6 +93,13 @@ describe('extractDriveId', () => {
       .toBe('1AbCdEf_ghij-KLMNOP');
   });
 
+  it('reads an id from a Docs editor URL, so the file can be refused by name', () => {
+    expect(extractDriveId('https://docs.google.com/document/d/1AbCdEf_ghij-KLMNOP/edit?tab=t.0'))
+      .toBe('1AbCdEf_ghij-KLMNOP');
+    expect(extractDriveId('https://docs.google.com/spreadsheets/d/1AbCdEf_ghij-KLMNOP/edit#gid=0'))
+      .toBe('1AbCdEf_ghij-KLMNOP');
+  });
+
   it('still reads folder URLs and bare ids', () => {
     expect(extractDriveId('https://drive.google.com/drive/folders/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs'))
       .toBe('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs');

@@ -452,8 +452,6 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
         </Card>
       )}
 
-      {config?.isAuthenticated && signInLinkHelp}
-
       {/* Authenticated but not configured state */}
       {config?.isAuthenticated && !config?.isConfigured && (
         <Card className="border-slate-800 bg-slate-900/50">
@@ -482,6 +480,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               onGrantFullAccess={() => setShowMultiAccountWarning(true)}
               onConnected={handleTargetConnected}
               onError={handleTargetError}
+              signInHelp={signInLinkHelp}
               disabled={isAuthenticating}
             />
 
@@ -631,6 +630,7 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               onGrantFullAccess={() => setShowMultiAccountWarning(true)}
               onConnected={handleTargetConnected}
               onError={handleTargetError}
+              signInHelp={signInLinkHelp}
               disabled={isAuthenticating}
             />
           </CardContent>

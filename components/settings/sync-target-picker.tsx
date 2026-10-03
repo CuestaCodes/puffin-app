@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
 import { api } from '@/lib/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,8 @@ interface SyncTargetPickerProps {
   /** A target was connected — the caller refreshes config and reports success */
   onConnected: (message: string, warning?: string) => void;
   onError: (message: string) => void;
+  /** Shown under "Grant full access" while that sign-in waits on the browser */
+  signInHelp?: ReactNode;
   disabled?: boolean;
 }
 
@@ -52,6 +55,7 @@ export function SyncTargetPicker({
   onGrantFullAccess,
   onConnected,
   onError,
+  signInHelp,
   disabled,
 }: SyncTargetPickerProps) {
   const [folderName, setFolderName] = useState(DEFAULT_SYNC_FOLDER_NAME);
@@ -195,6 +199,7 @@ export function SyncTargetPicker({
       >
         Grant full access
       </Button>
+      {signInHelp}
     </div>
   );
 
