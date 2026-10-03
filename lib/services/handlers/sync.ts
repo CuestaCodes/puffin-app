@@ -687,6 +687,32 @@ export async function handleSyncPush(ctx: HandlerContext): Promise<unknown> {
 }
 
 /**
+ * Ask Google to revoke the stored grant. Best-effort: being offline must not
+ * stop a disconnect, so the local tokens are cleared whatever happens here.
+ */
+async function revokeGoogleAccess(): Promise<void> {
+  try {
+    const stored = localStorage.getItem(OAUTH_TOKENS_KEY);
+    if (!stored) return;
+
+    const tokens = JSON.parse(stored) as { access_token?: string; refresh_token?: string };
+    // The refresh token is the one that lasts; an expired access token cannot
+    // be revoked, and revoking either withdraws the grant
+    const token = tokens.refresh_token || tokens.access_token;
+    if (!token) return;
+
+    const response = await fetch('https://oauth2.googleapis.com/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }),
+    });
+    if (!response.ok) console.warn(`Google token revoke failed (${response.status})`);
+  } catch (error) {
+    console.warn('Google token revoke failed:', error);
+  }
+}
+
+/**
  * Sync disconnect handler - /api/sync/disconnect
  */
 export async function handleSyncDisconnect(ctx: HandlerContext): Promise<unknown> {
@@ -695,6 +721,12 @@ export async function handleSyncDisconnect(ctx: HandlerContext): Promise<unknown
   if (method !== 'POST') {
     throw new Error(`Method ${method} not allowed`);
   }
+
+  // Withdraw Puffin's access at Google too, as the dev route does. Otherwise
+  // the grant outlives the disconnect and a copied token keeps working.
+  // Google revokes the whole grant, so other devices on this account will
+  // have to sign in again - the disconnect dialog says so.
+  await revokeGoogleAccess();
 
   // Clear the connection, as SyncConfigManager.clearConfig does in dev: the
   // sync target and the Google tokens go, the Google Cloud credentials stay.

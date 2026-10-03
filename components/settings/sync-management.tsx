@@ -714,8 +714,9 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               Disconnect Sync?
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              This will remove the connection to Google Drive. Your local data and cloud backup
-              will not be deleted.
+              This will sign Puffin out of Google and withdraw its access to your Drive. Your
+              local data and cloud backup will not be deleted. Other computers syncing with
+              this Google account will need to sign in again.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

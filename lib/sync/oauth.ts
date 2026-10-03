@@ -232,7 +232,9 @@ export async function revokeTokens(): Promise<boolean> {
     if (!tokens) return true;
 
     const client = getOAuth2Client();
-    await client.revokeToken(tokens.access_token);
+    // The refresh token is the one that lasts; an expired access token cannot
+    // be revoked. Matches revokeGoogleAccess in lib/services/handlers/sync.ts
+    await client.revokeToken(tokens.refresh_token || tokens.access_token);
     return true;
   } catch (error) {
     console.error('Failed to revoke tokens:', error);
