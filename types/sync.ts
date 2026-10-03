@@ -143,6 +143,8 @@ export interface FolderValidationResult {
   success: boolean;
   folderId?: string;
   folderName?: string;
+  /** The folder is shared with other people */
+  shared?: boolean;
   error?: string;
   errorCode?: 'NOT_FOUND' | 'NO_ACCESS' | 'READ_ONLY' | 'INVALID_URL' | 'AUTH_REQUIRED' | 'REFRESH_FAILED';
 }

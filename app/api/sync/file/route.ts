@@ -6,7 +6,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleDriveService } from '@/lib/sync/google-drive';
 import { SyncConfigManager } from '@/lib/sync/config';
-import { DRIVE_FOLDER_MIME_TYPE, extractDriveId } from '@/lib/sync/drive-selection';
+import {
+  DRIVE_FOLDER_MIME_TYPE,
+  NOT_A_BACKUP_FILE_ERROR,
+  extractDriveId,
+  looksLikeBackupFile,
+} from '@/lib/sync/drive-selection';
 import type { SyncFileSelectionResponse } from '@/types/sync';
 
 export async function POST(request: NextRequest) {
@@ -52,6 +57,17 @@ export async function POST(request: NextRequest) {
       const response: SyncFileSelectionResponse = {
         success: false,
         error: 'That link points to a folder. Use "Use an existing folder" instead.',
+        errorCode: 'NOT_FOUND',
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    // Push overwrites this file's contents, so a mistyped link must not be
+    // able to point sync at a document or a photo
+    if (!looksLikeBackupFile(file.name)) {
+      const response: SyncFileSelectionResponse = {
+        success: false,
+        error: NOT_A_BACKUP_FILE_ERROR,
         errorCode: 'NOT_FOUND',
       };
       return NextResponse.json(response, { status: 400 });

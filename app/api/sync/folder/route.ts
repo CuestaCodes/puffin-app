@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Picking one of the candidates offered earlier
     if (folderId) {
-      const chosen = (await drive.listFolders()).find(f => f.id === folderId);
+      const chosen = await drive.getFolder(folderId);
       if (!chosen) {
         const response: SyncFolderSelectionResponse = {
           success: false,

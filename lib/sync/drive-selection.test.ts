@@ -5,10 +5,12 @@ import {
   toBackupCandidate,
   toFolderCandidate,
   DEFAULT_SYNC_FOLDER_NAME,
+  DRIVE_FOLDER_MIME_TYPE,
   PUFFIN_FOLDER_APP_PROPERTIES,
   PUFFIN_FOLDER_MARKER_KEY,
   chooseSyncFolder,
   extractDriveId,
+  isUsableFolder,
   looksLikeBackupFile,
   requiresFullDriveAccess,
   sortBackupCandidates,
@@ -191,5 +193,22 @@ describe('mapping Drive responses', () => {
 
   it('does not mark my own files as shared with me', () => {
     expect(toBackupCandidate({ id: 'x', name: 'a.db', ownedByMe: true }).sharedWithMe).toBe(false);
+  });
+});
+
+describe('isUsableFolder', () => {
+  it('accepts a folder that is not in the bin', () => {
+    expect(isUsableFolder({ mimeType: DRIVE_FOLDER_MIME_TYPE, trashed: false })).toBe(true);
+    // Drive omits `trashed` unless asked; absent is not trashed
+    expect(isUsableFolder({ mimeType: DRIVE_FOLDER_MIME_TYPE })).toBe(true);
+  });
+
+  it('rejects a trashed folder, so sync cannot point into the bin', () => {
+    expect(isUsableFolder({ mimeType: DRIVE_FOLDER_MIME_TYPE, trashed: true })).toBe(false);
+  });
+
+  it('rejects anything that is not a folder', () => {
+    expect(isUsableFolder({ mimeType: 'application/octet-stream', trashed: false })).toBe(false);
+    expect(isUsableFolder({})).toBe(false);
   });
 });

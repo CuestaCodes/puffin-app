@@ -24,12 +24,15 @@ import {
   DEFAULT_SYNC_FOLDER_NAME,
   DRIVE_FILE_FIELDS,
   DRIVE_FOLDER_FIELDS,
+  DRIVE_FOLDER_LOOKUP_FIELDS,
   DRIVE_FOLDER_MIME_TYPE,
+  NOT_A_BACKUP_FILE_ERROR,
   PUFFIN_FOLDER_APP_PROPERTIES,
   buildBackupFileQuery,
   buildFolderQuery,
   chooseSyncFolder,
   extractDriveId,
+  isUsableFolder,
   looksLikeBackupFile,
   sortBackupCandidates,
   toBackupCandidate,
@@ -843,7 +846,7 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
     // Step 1: the folder exists and we can see it
     const metaResponse = await fetch(
       `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}` +
-        '?fields=id,name,mimeType&supportsAllDrives=true',
+        '?fields=id,name,mimeType,shared&supportsAllDrives=true',
       { headers: authHeader }
     );
 
@@ -863,7 +866,12 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
       return { success: false, error: 'Failed to validate folder' };
     }
 
-    const folder = (await metaResponse.json()) as { id: string; name: string; mimeType: string };
+    const folder = (await metaResponse.json()) as {
+      id: string;
+      name: string;
+      mimeType: string;
+      shared?: boolean;
+    };
 
     if (folder.mimeType !== 'application/vnd.google-apps.folder') {
       return { success: false, error: 'The provided ID is not a folder', errorCode: 'NOT_FOUND' };
@@ -919,7 +927,12 @@ export async function handleSyncValidate(ctx: HandlerContext): Promise<unknown> 
       lastSyncedAt: isNewTarget ? null : config.lastSyncedAt,
     });
 
-    return { success: true, folderId: folder.id, folderName: folder.name };
+    return {
+      success: true,
+      folderId: folder.id,
+      folderName: folder.name,
+      shared: folder.shared ?? false,
+    };
   } catch (error) {
     console.error('Folder validation error:', error);
     return { success: false, error: 'Failed to validate folder' };
@@ -951,10 +964,28 @@ async function listDriveFolders(token: string, name?: string): Promise<DriveFold
   });
 
   const response = await driveFetch(`files?${params}`, token);
-  if (!response.ok) return [];
+  // Never report a failed lookup as "no folders": the caller would go on to
+  // create a second folder beside the one it could not see
+  if (!response.ok) throw new Error(`Drive folder list failed (${response.status})`);
 
   const data = (await response.json()) as { files?: unknown[] };
   return (data.files ?? []).map(file => toFolderCandidate(file as Record<string, never>));
+}
+
+/**
+ * One folder by id, or null when it is gone, trashed, or not a folder.
+ * Mirrors GoogleDriveService.getFolder.
+ */
+async function getDriveFolder(token: string, folderId: string): Promise<DriveFolderCandidate | null> {
+  const response = await driveFetch(
+    `files/${encodeURIComponent(folderId)}?fields=${DRIVE_FOLDER_LOOKUP_FIELDS}&supportsAllDrives=true`,
+    token
+  );
+  if (response.status === 404 || response.status === 403) return null;
+  if (!response.ok) throw new Error(`Drive folder lookup failed (${response.status})`);
+
+  const raw = (await response.json()) as Record<string, never>;
+  return isUsableFolder(raw) ? toFolderCandidate(raw) : null;
 }
 
 /** Save a chosen folder, clearing anything that belonged to the previous target. */
@@ -1006,7 +1037,7 @@ export async function handleSyncFolder(ctx: HandlerContext): Promise<unknown> {
   try {
     // Picking one of the candidates offered earlier
     if (requestedId) {
-      const chosen = (await listDriveFolders(token)).find(folder => folder.id === requestedId);
+      const chosen = await getDriveFolder(token, requestedId);
       if (!chosen) {
         const response: SyncFolderSelectionResponse = {
           success: false,
@@ -1196,6 +1227,10 @@ export async function handleSyncFile(ctx: HandlerContext): Promise<unknown> {
       tokenResult.token
     );
 
+    if (metaResponse.status !== 404 && metaResponse.status !== 403 && !metaResponse.ok) {
+      throw new Error(`Drive file lookup failed (${metaResponse.status})`);
+    }
+
     if (!metaResponse.ok) {
       // A file shared from another account is invisible at the standard scope,
       // so "not found" here usually means full access has not been granted
@@ -1218,6 +1253,17 @@ export async function handleSyncFile(ctx: HandlerContext): Promise<unknown> {
       const response: SyncFileSelectionResponse = {
         success: false,
         error: 'That link points to a folder. Use "Use an existing folder" instead.',
+        errorCode: 'NOT_FOUND',
+      };
+      return response;
+    }
+
+    // Push overwrites this file's contents, so a mistyped link must not be
+    // able to point sync at a document or a photo
+    if (!looksLikeBackupFile(file.name)) {
+      const response: SyncFileSelectionResponse = {
+        success: false,
+        error: NOT_A_BACKUP_FILE_ERROR,
         errorCode: 'NOT_FOUND',
       };
       return response;

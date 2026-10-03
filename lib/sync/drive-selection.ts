@@ -120,6 +120,9 @@ export function looksLikeBackupFile(name: string): boolean {
   return /\.db$/i.test(name.trim());
 }
 
+export const NOT_A_BACKUP_FILE_ERROR =
+  'That is not a Puffin database. Choose a file whose name ends in .db.';
+
 /** Most recently changed first — the copy someone just shared is the one wanted. */
 export function sortBackupCandidates(files: DriveBackupCandidate[]): DriveBackupCandidate[] {
   return [...files].sort(
@@ -136,6 +139,8 @@ export function sortBackupCandidates(files: DriveBackupCandidate[]): DriveBackup
  * folder" on one path only.
  */
 export const DRIVE_FOLDER_FIELDS = 'id,name,createdTime,shared,appProperties';
+/** For looking one folder up by id: the list query filters these, a get cannot. */
+export const DRIVE_FOLDER_LOOKUP_FIELDS = `${DRIVE_FOLDER_FIELDS},mimeType,trashed`;
 export const DRIVE_FILE_FIELDS = 'id,name,mimeType,shared,modifiedTime,size,ownedByMe,owners(displayName)';
 
 /** Single-quote is the only character that can break a Drive query string. */
@@ -174,6 +179,11 @@ interface RawDriveFile {
   size?: string | number | null;
   ownedByMe?: boolean | null;
   owners?: { displayName?: string | null }[] | null;
+}
+
+/** A looked-up id is only a valid sync target if it is a folder that is not in the bin. */
+export function isUsableFolder(raw: { mimeType?: string | null; trashed?: boolean | null }): boolean {
+  return raw.mimeType === DRIVE_FOLDER_MIME_TYPE && raw.trashed !== true;
 }
 
 export function toFolderCandidate(raw: RawDriveFolder): DriveFolderCandidate {

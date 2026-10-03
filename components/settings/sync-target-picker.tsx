@@ -106,7 +106,8 @@ export function SyncTargetPicker({
     setIsWorking(true);
     try {
       const result = await api.get<DriveFolderListResponse>('/api/sync/folders');
-      if (result.error || !result.data) {
+      // The desktop handler reports a failure inside the data, not as result.error
+      if (result.error || !result.data || result.data.error) {
         onError(result.data?.error || result.error || 'Could not list your Drive folders');
         return;
       }
@@ -120,7 +121,7 @@ export function SyncTargetPicker({
     setIsWorking(true);
     try {
       const result = await api.get<DriveBackupListResponse>('/api/sync/backups');
-      if (result.error || !result.data) {
+      if (result.error || !result.data || result.data.error) {
         onError(result.data?.error || result.error || 'Could not list database files');
         return;
       }
@@ -144,7 +145,7 @@ export function SyncTargetPicker({
       setFolderUrl('');
       setFolders(null);
       setBackups(null);
-      onConnected(`Connected to folder: ${result.data.folderName}`);
+      onConnected(`Connected to folder: ${result.data.folderName}`, sharedWarning(result.data.shared));
     } finally {
       setIsWorking(false);
     }
@@ -399,9 +400,10 @@ export function SyncTargetPicker({
               A folder called &ldquo;{folderName}&rdquo; already exists
             </AlertDialogTitle>
             <AlertDialogDescription className="text-slate-400">
-              Puffin cannot tell whether it created {candidates?.length === 1 ? 'this folder' : 'these folders'},
-              so it will not use {candidates?.length === 1 ? 'it' : 'one'} without asking. Use an existing
-              folder, or create another with the same name.
+              {candidates?.every((folder) => folder.createdByPuffin)
+                ? 'Puffin created more than one folder with this name, so it cannot tell which one your other devices use.'
+                : `Puffin did not create ${candidates?.length === 1 ? 'this folder' : 'these folders'}, so it will not use ${candidates?.length === 1 ? 'it' : 'one'} without asking.`}{' '}
+              Use an existing folder, or create another with the same name.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

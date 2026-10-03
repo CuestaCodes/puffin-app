@@ -17,10 +17,12 @@ import type {
 import {
   DRIVE_FILE_FIELDS,
   DRIVE_FOLDER_FIELDS,
+  DRIVE_FOLDER_LOOKUP_FIELDS,
   DRIVE_FOLDER_MIME_TYPE,
   PUFFIN_FOLDER_APP_PROPERTIES,
   buildBackupFileQuery,
   buildFolderQuery as buildFolderListQuery,
+  isUsableFolder,
   looksLikeBackupFile,
   sortBackupCandidates,
   toBackupCandidate,
@@ -160,7 +162,7 @@ export class GoogleDriveService {
       // Step 1: Get folder metadata to verify it exists and user has access
       const folderResponse = await this.drive!.files.get({
         fileId: folderId,
-        fields: 'id,name,mimeType,capabilities',
+        fields: 'id,name,mimeType,capabilities,shared',
       });
 
       const folder = folderResponse.data;
@@ -197,6 +199,7 @@ export class GoogleDriveService {
         success: true,
         folderId: folder.id!,
         folderName: folder.name!,
+        shared: folder.shared ?? false,
       };
     } catch (error: unknown) {
       const gError = error as { code?: number; message?: string };
@@ -261,6 +264,32 @@ export class GoogleDriveService {
     );
 
     return (response.data.files ?? []).map(toFolderCandidate);
+  }
+
+  /**
+   * One folder by id, or null when it is gone, trashed, or not a folder.
+   *
+   * Looked up directly rather than found in listFolders(): that list stops at
+   * 100, so a folder offered by a name search could be missing from it.
+   */
+  async getFolder(folderId: string): Promise<DriveFolderCandidate | null> {
+    if (!this.drive) {
+      const initialized = await this.initialize();
+      if (!initialized) return null;
+    }
+
+    try {
+      const response = await this.drive!.files.get({
+        fileId: folderId,
+        fields: DRIVE_FOLDER_LOOKUP_FIELDS,
+        supportsAllDrives: true,
+      });
+      return isUsableFolder(response.data) ? toFolderCandidate(response.data) : null;
+    } catch (error) {
+      const gError = error as { code?: number };
+      if (gError.code === 404 || gError.code === 403) return null;
+      throw error;
+    }
   }
 
   /** Create a sync folder carrying Puffin's marker, so it can be recognised later. */

@@ -134,6 +134,9 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
 
   // Start OAuth flow - handles both Tauri and dev modes
   const startOAuthFlow = async (scopeLevel: 'standard' | 'extended') => {
+    // A link from an earlier attempt points at a callback server that is gone
+    setSignInUrl(null);
+
     // In Tauri mode, use the native OAuth flow with local callback server
     // Check for both __TAURI__ (Tauri 1.x) and __TAURI_INTERNALS__ (Tauri 2.x)
     const isTauri = typeof window !== 'undefined' &&
@@ -312,6 +315,39 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
     return `${days} day${days === 1 ? '' : 's'} ago`;
   };
 
+  // Offered wherever a sign-in is waiting on the browser - the first sign-in
+  // and the full-access upgrade alike
+  const signInLinkHelp = isAuthenticating && signInUrl && (
+    <div className="p-3 rounded-lg bg-slate-800/50 border border-slate-700 space-y-2">
+      <p className="text-xs text-slate-400">
+        Waiting for Google in your browser. If nothing opened, or you are signed into a
+        different account there, copy this link and open it in the right browser.
+      </p>
+      <Button
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(signInUrl);
+            setCopiedSignInUrl(true);
+            // Revert, so the button does not read as used up
+            setTimeout(() => setCopiedSignInUrl(false), 2000);
+          } catch {
+            toast.error('Could not copy the link to the clipboard');
+          }
+        }}
+        variant="outline"
+        size="sm"
+        className="border-slate-700 text-slate-300 hover:bg-slate-800"
+      >
+        {copiedSignInUrl ? (
+          <Check className="w-4 h-4 mr-2 text-emerald-400" />
+        ) : (
+          <Copy className="w-4 h-4 mr-2" />
+        )}
+        {copiedSignInUrl ? 'Link copied' : 'Copy sign-in link'}
+      </Button>
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -411,39 +447,12 @@ export function SyncManagement({ onBack }: SyncManagementProps) {
               {isAuthenticating ? 'Authenticating...' : 'Sign in with Google'}
             </Button>
 
-            {isAuthenticating && signInUrl && (
-              <div className="mt-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700 space-y-2">
-                <p className="text-xs text-slate-400">
-                  Waiting for Google in your browser. If nothing opened, or you are signed into a
-                  different account there, copy this link and open it in the right browser.
-                </p>
-                <Button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(signInUrl);
-                      setCopiedSignInUrl(true);
-                      // Revert, so the button does not read as used up
-                      setTimeout(() => setCopiedSignInUrl(false), 2000);
-                    } catch {
-                      toast.error('Could not copy the link to the clipboard');
-                    }
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                >
-                  {copiedSignInUrl ? (
-                    <Check className="w-4 h-4 mr-2 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-4 h-4 mr-2" />
-                  )}
-                  {copiedSignInUrl ? 'Link copied' : 'Copy sign-in link'}
-                </Button>
-              </div>
-            )}
+            {signInLinkHelp && <div className="mt-3">{signInLinkHelp}</div>}
           </CardContent>
         </Card>
       )}
+
+      {config?.isAuthenticated && signInLinkHelp}
 
       {/* Authenticated but not configured state */}
       {config?.isAuthenticated && !config?.isConfigured && (
