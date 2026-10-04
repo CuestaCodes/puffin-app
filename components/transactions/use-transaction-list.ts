@@ -26,6 +26,13 @@ interface TransactionListResponse {
   totalPages: number;
 }
 
+interface PendingBulkCategory {
+  ids: string[];
+  categoryId: string | null;
+  /** How many of the other selected rows already have a different category. */
+  overwriteCount: number;
+}
+
 interface UseTransactionListOptions {
   /** Filters, search, page and sort. The caller owns where this lives. */
   state: TransactionListState;
@@ -54,6 +61,8 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  // A bulk categorise waiting on confirmation because it would replace existing categories.
+  const [pendingBulkCategory, setPendingBulkCategory] = useState<PendingBulkCategory | null>(null);
 
   // Data
   const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
@@ -156,10 +165,13 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
     return () => clearTimeout(timer);
   }, [searchInput, searchQuery, setState]);
 
-  // Clear selection when data changes
+  // Clear the selection when the rows on screen are different rows. Keyed on the ids
+  // rather than on `transactions`, so editing or categorising one row in place does not
+  // throw away a selection the user is still building.
+  const rowIds = transactions.map(tx => tx.id).join(',');
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [transactions]);
+  }, [rowIds]);
 
   // Filters and sort reset the page in the same update that changes them, so the fetch
   // runs once. A fresh list starts at the top, so any pending pager request is dropped.
@@ -266,10 +278,7 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
     });
   };
 
-  const handleCategoryChange = async (txId: string, categoryId: string | null) => {
-    // Categorising a selected row categorises the whole selection, like delete does.
-    // Captured now: the optimistic update below changes the rows, which clears it.
-    const ids = selectedIds.has(txId) && selectedIds.size > 1 ? Array.from(selectedIds) : [txId];
+  const applyCategory = async (ids: string[], categoryId: string | null) => {
     const idSet = new Set(ids);
 
     // Optimistically update the UI first
@@ -278,6 +287,8 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
         ? { ...tx, sub_category_id: categoryId }
         : tx
     ));
+    // A bulk action is finished with its selection.
+    if (ids.length > 1) setSelectedIds(new Set());
 
     try {
       // allSettled, and an explicit check of result.error, because api.* resolves
@@ -304,9 +315,9 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
 
       onDataChanged?.();
       if (categoryChangeLeavesFilter(categoryId, filters, scope)) {
-        // The new category means this row no longer matches the active filter, so it
+        // The new category means these rows no longer match the active filter, so they
         // should drop from the list. Reconcile on the next navigation/action (see the
-        // pagination handlers) rather than pulling it out from under the user.
+        // pagination handlers) rather than pulling them out from under the user.
         needsReconcile.current = true;
       }
     } catch (error) {
@@ -314,6 +325,37 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
       // Revert on failure by refetching, in place (see above).
       fetchTransactions(true);
     }
+  };
+
+  const handleCategoryChange = (txId: string, categoryId: string | null) => {
+    // Categorising a selected row categorises the whole selection, like delete does.
+    if (!selectedIds.has(txId) || selectedIds.size < 2) {
+      applyCategory([txId], categoryId);
+      return;
+    }
+
+    const ids = Array.from(selectedIds);
+    // The row the user changed is their explicit choice. The others are changed on
+    // their behalf, so ask before replacing a category one of them already has.
+    const overwriteCount = transactions.filter(tx =>
+      tx.id !== txId &&
+      selectedIds.has(tx.id) &&
+      tx.sub_category_id !== null &&
+      tx.sub_category_id !== categoryId
+    ).length;
+
+    if (overwriteCount > 0) {
+      setPendingBulkCategory({ ids, categoryId, overwriteCount });
+    } else {
+      applyCategory(ids, categoryId);
+    }
+  };
+
+  const confirmBulkCategory = () => {
+    if (!pendingBulkCategory) return;
+    const { ids, categoryId } = pendingBulkCategory;
+    setPendingBulkCategory(null);
+    applyCategory(ids, categoryId);
   };
 
   const handleSplitTransaction = (tx: TransactionWithCategory) => {
@@ -470,6 +512,9 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
     handleTransactionSaved,
     handleTransactionDeleted,
     handleCategoryChange,
+    pendingBulkCategory,
+    setPendingBulkCategory,
+    confirmBulkCategory,
     handleSplitTransaction,
     handleUnsplitTransaction,
     handleSplitSuccess,

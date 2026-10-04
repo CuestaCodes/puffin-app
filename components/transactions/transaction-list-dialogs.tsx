@@ -47,7 +47,14 @@ export function TransactionListDialogs({ list, defaultDate }: TransactionListDia
     setShowBulkDeleteConfirm,
     bulkDeleteCount,
     isBulkDeleting,
+    pendingBulkCategory,
+    setPendingBulkCategory,
+    confirmBulkCategory,
   } = list;
+
+  const bulkCategoryCount = pendingBulkCategory?.ids.length ?? 0;
+  const overwriteCount = pendingBulkCategory?.overwriteCount ?? 0;
+  const removingCategory = pendingBulkCategory?.categoryId === null;
 
   return (
     <>
@@ -112,6 +119,38 @@ export function TransactionListDialogs({ list, defaultDate }: TransactionListDia
               className="bg-red-600 hover:bg-red-500 text-white"
             >
               {isBulkDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Categorise Confirmation Dialog */}
+      <AlertDialog
+        open={!!pendingBulkCategory}
+        onOpenChange={(open) => !open && setPendingBulkCategory(null)}
+      >
+        <AlertDialogContent className="bg-slate-900 border-slate-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-100">
+              {removingCategory
+                ? `Remove the category from ${bulkCategoryCount} transactions?`
+                : `Change the category of ${bulkCategoryCount} transactions?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              {overwriteCount} of the other selected transactions already{' '}
+              {overwriteCount === 1 ? 'has' : 'have'} a category, which will be{' '}
+              {removingCategory ? 'removed' : 'replaced'}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-700 text-slate-300 hover:bg-slate-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkCategory}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white"
+            >
+              {removingCategory ? 'Remove category' : 'Change category'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
