@@ -325,7 +325,7 @@ npm run build:static # Static export (moves API routes temporarily)
 
 **WSL:** Run `npm ci` on target platform before building (native modules are platform-specific).
 
-**Dev server (for Claude):** This repo's `node_modules` is normally installed on Windows, so `npm run dev` and `npm run tauri:dev` will fail under WSL with native-module errors (`lightningcss`, `better-sqlite3`). Do NOT run any dev command or `npm ci` from WSL — instead, ask the user to start `npm run tauri:dev` (preferred) or `npm run dev` from Windows PowerShell themselves and report back. Code edits, `npm run lint` and `npx tsc --noEmit` can still be run from WSL. **`npm run test` cannot** — Vitest fails to start at all under WSL (`Cannot find module '@rollup/rollup-linux-x64-gnu'`), before reaching any test, so there is no subset that works. Write tests from WSL, then ask the user to run `npm run test` from PowerShell and report the result.
+**Dev server (for Claude):** This repo's `node_modules` is normally installed on Windows, so `npm run dev` and `npm run tauri:dev` will fail under WSL with native-module errors (`lightningcss`, `better-sqlite3`). Do NOT run any dev command or `npm ci` from WSL — instead, ask the user to start `npm run tauri:dev` (preferred) or `npm run dev` from Windows PowerShell themselves and report back. Code edits, `npm run lint` and `npx tsc --noEmit` can still be run from WSL — but both are slow across `/mnt/e` (each has exceeded two minutes), so run them with a long timeout and lint only the paths you touched (`npx eslint <paths>`). **`npm run test` cannot** — Vitest fails to start at all under WSL (`Cannot find module '@rollup/rollup-linux-x64-gnu'`), before reaching any test, so there is no subset that works. Write tests from WSL, then ask the user to run `npm run test` from PowerShell and report the result.
 
 **Committing from WSL:** The husky pre-commit hook runs `npm run test`, which requires native modules (`rollup`). Since `node_modules` is Windows-installed, this fails under WSL. Use `git commit --no-verify` to skip the hook — tests should be verified from PowerShell before or after committing.
 
@@ -491,14 +491,15 @@ Always debounce API calls triggered by user input (`SEARCH_DEBOUNCE_MS` in
 **The fetch must read the debounced value.** A timer sitting next to a fetch is not a
 debounce if the raw input is still in the fetch callback's dependencies — the callback's
 identity changes on every keystroke and the effect refires immediately, whatever the timer
-does. Both transaction lists shipped like this: a 300ms timer that only ever debounced the
+does. Both transaction lists (two separate implementations at the time) shipped like this: a 300ms timer that only ever debounced the
 page reset, while a ten-letter search ran ten queries and flashed the spinner ten times.
 
 ```typescript
-// searchQuery keeps the input responsive; debouncedSearch is what the fetch depends on.
-const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
-const fetchThings = useCallback(async () => { /* uses debouncedSearch */ },
-  [debouncedSearch /* NOT searchQuery */]);
+// searchInput keeps the input responsive; searchQuery (committed after the debounce) is
+// what the fetch depends on. See components/transactions/use-transaction-list.ts.
+const [searchInput, setSearchInput] = useState(searchQuery);
+const fetchThings = useCallback(async () => { /* uses searchQuery */ },
+  [searchQuery /* NOT searchInput */]);
 ```
 
 Commit the debounced value and any page reset in the same timer callback so the fetch runs
@@ -560,10 +561,38 @@ const fetchTransactions = useCallback(async (background = false) => {
 
 Two follow-on rules learned the hard way:
 - **If a background fetch triggers a second fetch, that one is background too.** The page
-  clamp in `transactions.tsx` re-arms its preserve flag before `setPage`, or the follow-up
+  clamp in `use-transaction-list.ts` re-arms its preserve flag before setting the page, or the follow-up
   collapses the list the first fetch just held steady.
 - **Removing a spinner removes feedback.** If it was the only sign an operation ran, replace
   it — the bulk budget actions had to gain toasts reporting what they changed.
+
+### Transaction List
+
+**There is one transaction list.** The Transactions page and the list embedded in Monthly
+Budget are the same code, so a list fix or feature is made once and appears on both:
+
+| Piece | File |
+|-------|------|
+| Fetch, paging, reconcile, search, selection, every row action | `components/transactions/use-transaction-list.ts` |
+| Rows, pager, selection bar | `components/transactions/transaction-table.tsx` |
+| Form, delete, split, rule and bulk-confirm dialogs | `components/transactions/transaction-list-dialogs.tsx` |
+| Query params, default sort, month range (pure, tested) | `lib/transaction-list-query.ts` |
+
+Each screen keeps only its chrome: header, search bar, empty state, and whatever is unique
+to it (import and undo-import on the Transactions page; the month scope and budget-tile
+category on Monthly Budget). If a change belongs to "the list", it goes in the shared
+pieces — never in `transactions.tsx` or `monthly-transaction-list.tsx`.
+
+They were two independent ~1,000-line copies until v2.3, and the duplication was paid for
+repeatedly: the scroll fix, the bulk-delete fix and the pagination fix were each written
+twice, and features such as duplicate existed on one screen only. Nothing here said the
+lists were meant to match, which is how they drifted.
+
+- The screen owns *where* list state lives (`PageState.transactions`,
+  `PageState.monthlyTransactions`) and passes it to the hook with an optional `scope`.
+- The fetch is keyed on the built query string, so a state change that asks for the same
+  rows does not refetch.
+- A per-row action on a selected row applies to the whole selection (delete, categorise).
 
 ### Popover in Dialog
 Add `onWheel={(e) => e.stopPropagation()}` to scrollable content inside dialogs.

@@ -67,6 +67,10 @@ For the selected task, work through each phase sequentially:
   test what they claimed: one assumed a narrow-scope sign-in when the user already had full
   access, and another had the user disconnect, which (through a bug) erased the credentials the
   next step relied on. Each cost a full restart-and-retest round
+- **Confirm every step can be performed through the UI before writing it.** Find the control
+  each step uses in the code. On `transaction-list-unification`, a step said "clear the category
+  on one row" when the row's picker had no way to clear a category — only the edit form did —
+  so the step could not be run and cost a round
 - Present the test steps to the user
 - After a failed round, re-list only the steps that changed, numbered afresh, each with its
   exact expected result — do not ask the user to map old step numbers onto new behaviour
@@ -81,7 +85,9 @@ For the selected task, work through each phase sequentially:
 - Identify what needs Vitest coverage (per CLAUDE.md: database ops, calculations, utils)
 - Skip UI component tests (no @testing-library/react)
 - Write tests in `*.test.ts` files alongside source
-- Run `npm run lint` and `npx tsc --noEmit` from WSL and fix any issues
+- Run `npm run lint` and `npx tsc --noEmit` from WSL and fix any issues. Both are slow across
+  `/mnt/e` (each has exceeded two minutes): give them a long timeout, and lint only the touched
+  paths with `npx eslint <paths>` while iterating
 - Do NOT attempt `npm run test` from WSL — Vitest cannot start there (see CLAUDE.md).
   Ask the user to run it from PowerShell and report the result; never report the suite as
   passing without having seen that result
