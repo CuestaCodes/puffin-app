@@ -17,15 +17,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { CategorySelector } from './category-selector';
 import { SourceSelector } from './source-selector';
 
-export interface FilterValues {
-  startDate: string | null;
-  endDate: string | null;
-  categoryId: string | null;
-  sourceId: string | null;
-  minAmount: number | null;
-  maxAmount: number | null;
-  uncategorized: boolean;
-}
+import type { FilterValues } from '@/types/transaction-list';
+
+export type { FilterValues };
 
 interface FiltersPopoverProps {
   filters: FilterValues;

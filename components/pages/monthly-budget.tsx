@@ -683,14 +683,16 @@ function MonthlyBudgetContent() {
             Track your spending against your budget
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="icon" onClick={goToPrevMonth} className="border-slate-700 hover:bg-slate-800" aria-label="Previous month">
-            <ChevronLeft className="w-4 h-4" />
+        {/* Month navigation on its own row: it is the only thing on the page that says
+            which month everything below belongs to. */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon-lg" onClick={goToPrevMonth} className="border-slate-700 hover:bg-slate-800" aria-label="Previous month">
+            <ChevronLeft className="w-5 h-5" />
           </Button>
           <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="min-w-[180px] border-slate-700 text-slate-300 hover:bg-slate-800">
-                <Calendar className="w-4 h-4 mr-2" />
+              <Button variant="outline" size="lg" className="min-w-[220px] border-slate-700 text-base font-semibold text-slate-100 hover:bg-slate-800">
+                <Calendar className="w-5 h-5 mr-2" />
                 {monthYear}
               </Button>
             </PopoverTrigger>
@@ -701,12 +703,13 @@ function MonthlyBudgetContent() {
               />
             </PopoverContent>
           </Popover>
-          <Button variant="outline" size="icon" onClick={goToNextMonth} className="border-slate-700 hover:bg-slate-800" aria-label="Next month">
-            <ChevronRight className="w-4 h-4" />
+          <Button variant="outline" size="icon-lg" onClick={goToNextMonth} className="border-slate-700 hover:bg-slate-800" aria-label="Next month">
+            <ChevronRight className="w-5 h-5" />
           </Button>
+        </div>
 
-          {/* Quick-fill buttons */}
-          <div className="flex flex-wrap items-center gap-2 border-l border-slate-700 pl-4 ml-2">
+        {/* Quick-fill buttons */}
+        <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -823,7 +826,6 @@ function MonthlyBudgetContent() {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
         </div>
       </div>
 

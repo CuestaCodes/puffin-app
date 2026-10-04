@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useTransactionsState, type SortField, type SortOrder } from '@/hooks/use-page-state';
+import { useState, useEffect } from 'react';
+import { useTransactionsState } from '@/hooks/use-page-state';
 import { api } from '@/lib/services';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +23,7 @@ import {
   CategorySelector,
   CategoryProvider,
   SplitModal,
-  type FilterValues
+  useTransactionList,
 } from '@/components/transactions';
 import { RuleDialog } from '@/components/rules';
 import {
@@ -43,19 +43,9 @@ import {
   formatTimeRemaining,
   type LastImportInfo,
 } from '@/lib/import-undo';
-import type { TransactionWithCategory } from '@/types/database';
 import type { ImportResult, UndoImportInfo, UndoImportResult } from '@/types/import';
-import { cn, withScrollPreservation } from '@/lib/utils';
-import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
-
-interface TransactionListResponse {
-  transactions: TransactionWithCategory[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
+import type { SortField, SortOrder } from '@/types/transaction-list';
+import { cn } from '@/lib/utils';
 
 // Moved outside component to prevent recreation on every render
 function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
@@ -67,75 +57,58 @@ function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: Sort
 
 function TransactionsPageContent() {
   // Persisted state from context (survives navigation)
+  const { setTransactionsState, ...listState } = useTransactionsState();
+  const { filters, page, sortBy, sortOrder } = listState;
+
+  // Fetching, paging, selection and every row action are shared with the Monthly
+  // Budget list. What stays here is page chrome: import and undo-import.
   const {
-    filters,
-    searchQuery,
-    page,
-    sortBy,
-    sortOrder,
-    setTransactionsState,
-  } = useTransactionsState();
+    transactions,
+    isLoading,
+    total,
+    totalPages,
+    fetchTransactions,
+    searchInput,
+    setSearchInput,
+    setFilters,
+    handleSort,
+    handleNextPage,
+    handlePrevPage,
+    selectedIds,
+    allSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    handleBulkDelete,
+    confirmBulkDelete,
+    showBulkDeleteConfirm,
+    setShowBulkDeleteConfirm,
+    bulkDeleteCount,
+    isBulkDeleting,
+    showTransactionForm,
+    handleTransactionFormOpenChange,
+    editingTransaction,
+    duplicatingTransaction,
+    deletingTransaction,
+    setDeletingTransaction,
+    splittingTransaction,
+    setSplittingTransaction,
+    creatingRuleFromTransaction,
+    setCreatingRuleFromTransaction,
+    handleAddTransaction,
+    handleEditTransaction,
+    handleDuplicateTransaction,
+    handleDeleteTransaction,
+    handleTransactionSaved,
+    handleTransactionDeleted,
+    handleCategoryChange,
+    handleSplitTransaction,
+    handleUnsplitTransaction,
+    handleSplitSuccess,
+    handleRuleCreated,
+  } = useTransactionList({ state: listState, setState: setTransactionsState });
 
-  // Wrapper setters for convenience
-  const setFilters = useCallback((newFilters: FilterValues) => {
-    setTransactionsState({ filters: newFilters });
-  }, [setTransactionsState]);
-  const setSearchQuery = useCallback((query: string) => {
-    setTransactionsState({ searchQuery: query });
-  }, [setTransactionsState]);
-  const setPage = useCallback((newPage: number) => {
-    setTransactionsState({ page: newPage });
-  }, [setTransactionsState]);
-  const setSortBy = useCallback((field: SortField) => {
-    setTransactionsState({ sortBy: field });
-  }, [setTransactionsState]);
-  const setSortOrder = useCallback((order: SortOrder) => {
-    setTransactionsState({ sortOrder: order });
-  }, [setTransactionsState]);
-
-  // Modals
   const [showImport, setShowImport] = useState(false);
-  const [showTransactionForm, setShowTransactionForm] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [duplicatingTransaction, setDuplicatingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [creatingRuleFromTransaction, setCreatingRuleFromTransaction] = useState<TransactionWithCategory | null>(null);
-
-  // Data
-  const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Pagination (local - totalPages/total come from API response)
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const limit = 20;
-  
-  // Bulk selection
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  
-  // Refs for debouncing
-  const isFirstRender = useRef(true);
-
-  // The search text the fetch actually uses. `searchQuery` updates on every keystroke to
-  // keep the input responsive; this trails it by DEBOUNCE_MS so typing fires one request
-  // instead of one per letter. Keeping searchQuery itself in the fetch dependencies is
-  // what made the existing 300ms timer ineffective - it only ever debounced the page
-  // reset, never the query.
-  const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
-
-  // Set when an in-place edit (e.g. categorising under the uncategorised/category
-  // filter) may have made rows no longer match the active filter. We defer dropping
-  // them until the next navigation/action so the list doesn't reflow mid-edit.
-  const needsReconcile = useRef(false);
-
-  // Set only by the pager, so scroll is preserved when paging but not when the
-  // filters, search or sort change - those should start the user at the top of a
-  // fresh list. Mirrors MonthlyTransactionList.
-  const preserveScrollOnPageChange = useRef(false);
 
   // Undo import state
   const [undoInfo, setUndoInfo] = useState<LastImportInfo | null>(null);
@@ -143,100 +116,6 @@ function TransactionsPageContent() {
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [undoBatchInfo, setUndoBatchInfo] = useState<UndoImportInfo | null>(null);
   const [isUndoing, setIsUndoing] = useState(false);
-
-  /**
-   * @param background refresh in place, leaving the current rows on screen.
-   *
-   * A foreground fetch swaps the table for a spinner, which collapses the scroll
-   * container and clamps the scroll position to the top. That is the jump seen when
-   * saving, deleting or splitting a row.
-   */
-  const fetchTransactions = useCallback(async (background = false) => {
-    if (!background) setIsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        sortBy,
-        sortOrder,
-      });
-
-      if (debouncedSearch) params.set('search', debouncedSearch);
-      if (filters.startDate) params.set('startDate', filters.startDate);
-      if (filters.endDate) params.set('endDate', filters.endDate);
-      if (filters.categoryId) params.set('categoryId', filters.categoryId);
-      if (filters.sourceId) params.set('sourceId', filters.sourceId);
-      if (filters.minAmount !== null) params.set('minAmount', filters.minAmount.toString());
-      if (filters.maxAmount !== null) params.set('maxAmount', filters.maxAmount.toString());
-      if (filters.uncategorized) params.set('uncategorized', 'true');
-
-      const result = await api.get<TransactionListResponse>(`/api/transactions?${params}`);
-      if (result.data) {
-        setTotalPages(result.data.totalPages);
-        setTotal(result.data.total);
-        // The list is now in sync with the server for the current filter.
-        needsReconcile.current = false;
-        // If the filtered set shrank (rows edited/deleted out of the active filter)
-        // and the current page is now beyond the last page, snap back into range.
-        // Skip rendering this out-of-range (empty) page and keep the current rows
-        // until the clamped page's fetch populates the list, avoiding an empty flash.
-        if (result.data.totalPages >= 1 && page > result.data.totalPages) {
-          // The follow-up fetch for the clamped page belongs to this same in-place
-          // operation, so it must not collapse the list either.
-          preserveScrollOnPageChange.current = true;
-          setPage(result.data.totalPages);
-        } else {
-          setTransactions(result.data.transactions);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error);
-    } finally {
-      if (!background) setIsLoading(false);
-    }
-  }, [page, debouncedSearch, sortBy, sortOrder, filters, setPage]);
-
-  useEffect(() => {
-    if (preserveScrollOnPageChange.current) {
-      preserveScrollOnPageChange.current = false;
-      withScrollPreservation(async () => {
-        await fetchTransactions(true);
-      });
-    } else {
-      fetchTransactions();
-    }
-  }, [fetchTransactions]);
-
-  // Reset page when filters change
-  useEffect(() => {
-    // A fresh list starts at the top, so drop any pending pager request that raced this.
-    preserveScrollOnPageChange.current = false;
-    setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
-  }, [filters]);
-
-  // Debounced search. Commits the text and the page reset together, so the fetch runs
-  // once rather than twice. Skipped on first render so a restored page from saved page
-  // state is not thrown away.
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      preserveScrollOnPageChange.current = false;
-      setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- setPage is stable (useCallback wrapper)
-  }, [searchQuery]);
-
-  // Clear selection when data changes
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [transactions]);
 
   // Check for available undo import and update timer
   useEffect(() => {
@@ -251,152 +130,10 @@ function TransactionsPageContent() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-    setPage(1);
-  };
-
-  // A same-value setPage is a React no-op, so the fetch effect never runs and never
-  // clears the flag - it would leak into the next unrelated fetch.
-  const goToPage = (next: number) => {
-    if (next === page) return;
-    preserveScrollOnPageChange.current = true;
-    setPage(next);
-  };
-
-  const handleNextPage = () => {
-    if (needsReconcile.current) {
-      // First navigation after categorising under a filter: re-apply the filter in
-      // place (drop the no-longer-matching rows and renumber) instead of advancing,
-      // so we never skip past transactions the user hasn't seen. `fetchTransactions`
-      // clears the flag and clamps the page if the set shrank.
-      withScrollPreservation(async () => {
-        await fetchTransactions(true);
-      });
-    } else {
-      goToPage(Math.min(totalPages, page + 1));
-    }
-  };
-
-  const handlePrevPage = () => {
-    if (needsReconcile.current) {
-      withScrollPreservation(async () => {
-        await fetchTransactions(true);
-      });
-    } else {
-      goToPage(Math.max(1, page - 1));
-    }
-  };
-
   const handleImportComplete = (_result: ImportResult) => {
     // Always refresh - covers both import and undo cases
     fetchTransactions();
     setShowImport(false);
-  };
-
-  const handleAddTransaction = () => {
-    setEditingTransaction(null);
-    setDuplicatingTransaction(null);
-    setShowTransactionForm(true);
-  };
-
-  const handleEditTransaction = (tx: TransactionWithCategory) => {
-    setEditingTransaction(tx);
-    setDuplicatingTransaction(null);
-    setShowTransactionForm(true);
-  };
-
-  const handleDuplicateTransaction = (tx: TransactionWithCategory) => {
-    setEditingTransaction(null);
-    setDuplicatingTransaction(tx);
-    setShowTransactionForm(true);
-  };
-
-  const handleDeleteTransaction = (tx: TransactionWithCategory) => {
-    // If this transaction is selected and there are multiple selections, do bulk delete
-    if (selectedIds.has(tx.id) && selectedIds.size > 1) {
-      handleBulkDelete();
-    } else {
-      setDeletingTransaction(tx);
-    }
-  };
-
-  const handleTransactionSaved = async () => {
-    await withScrollPreservation(async () => {
-      await fetchTransactions(true);
-    });
-  };
-
-  const handleTransactionDeleted = async () => {
-    await withScrollPreservation(async () => {
-      await fetchTransactions(true);
-      setDeletingTransaction(null);
-    });
-  };
-
-  const handleCategoryChange = async (txId: string, categoryId: string | null) => {
-    // Optimistically update the UI first
-    setTransactions(prev => prev.map(tx =>
-      tx.id === txId
-        ? { ...tx, sub_category_id: categoryId }
-        : tx
-    ));
-
-    try {
-      const result = await api.patch(`/api/transactions/${txId}`, { sub_category_id: categoryId });
-
-      if (result.error) {
-        // Revert on failure by refetching. In place: an error path should quietly put
-        // the row back, not collapse the list and throw the user to the top.
-        fetchTransactions(true);
-      } else if (
-        (filters.uncategorized && categoryId !== null) ||
-        (filters.categoryId && categoryId !== filters.categoryId)
-      ) {
-        // The new category means this row no longer matches the active filter, so it
-        // should drop from the list. Reconcile on the next navigation/action (see the
-        // pagination handlers) rather than pulling it out from under the user.
-        needsReconcile.current = true;
-      }
-    } catch (error) {
-      console.error('Failed to update category:', error);
-      // Revert on failure by refetching, in place (see above).
-      fetchTransactions(true);
-    }
-  };
-
-  const handleSplitTransaction = (tx: TransactionWithCategory) => {
-    // Can't split already-split transactions or child transactions
-    if (tx.is_split || tx.parent_transaction_id) return;
-    setSplittingTransaction(tx);
-  };
-
-  const handleUnsplitTransaction = async (tx: TransactionWithCategory) => {
-    if (!tx.is_split) return;
-
-    try {
-      const result = await api.delete(`/api/transactions/${tx.id}/split`);
-
-      if (result.data) {
-        await withScrollPreservation(async () => {
-          await fetchTransactions(true);
-        });
-      }
-    } catch (error) {
-      console.error('Failed to unsplit transaction:', error);
-    }
-  };
-
-  const handleSplitSuccess = async () => {
-    await withScrollPreservation(async () => {
-      await fetchTransactions(true);
-      setSplittingTransaction(null);
-    });
   };
 
   // Undo import handlers
@@ -449,79 +186,6 @@ function TransactionsPageContent() {
       setIsUndoing(false);
     }
   };
-
-  // Bulk selection
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(transactions.map(tx => tx.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  };
-
-  const handleSelectOne = (txId: string, checked: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(txId);
-      } else {
-        next.delete(txId);
-      }
-      return next;
-    });
-  };
-
-  // Opens the confirmation. window.confirm() cannot be used here: in the Tauri
-  // webview it does not block, so the deletes fired before the user had answered.
-  const handleBulkDelete = () => {
-    if (selectedIds.size === 0) return;
-    // Snapshot the count: the dialog outlives the selection, which is cleared
-    // before the close, and would otherwise read "Delete 0 transactions?"
-    setBulkDeleteCount(selectedIds.size);
-    setShowBulkDeleteConfirm(true);
-  };
-
-  const confirmBulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-
-    setIsBulkDeleting(true);
-    try {
-      // allSettled, and an explicit check of result.error, because api.* resolves
-      // with { error } instead of rejecting. A plain Promise.all skipped the
-      // refetch on the first failure, leaving already-deleted rows on screen.
-      const results = await Promise.allSettled(
-        ids.map(id => api.delete(`/api/transactions/${id}`))
-      );
-      const failed = results.filter(
-        r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
-      ).length;
-      const deleted = ids.length - failed;
-
-      setSelectedIds(new Set());
-      await withScrollPreservation(async () => {
-        await fetchTransactions(true);
-      });
-
-      if (failed === 0) {
-        toast.success(`Deleted ${deleted} transaction${deleted !== 1 ? 's' : ''}`);
-      } else if (deleted === 0) {
-        toast.error(`Failed to delete ${failed} transaction${failed !== 1 ? 's' : ''}`);
-      } else {
-        toast.warning(`Deleted ${deleted} of ${ids.length}`, {
-          description: `${failed} could not be deleted.`,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to delete transactions:', error);
-      toast.error('Failed to delete transactions');
-    } finally {
-      setIsBulkDeleting(false);
-      setShowBulkDeleteConfirm(false);
-    }
-  };
-
-  const allSelected = transactions.length > 0 && selectedIds.size === transactions.length;
 
   const formatAmount = (amount: number): string => {
     const formatted = new Intl.NumberFormat('en-US', {
@@ -589,13 +253,14 @@ function TransactionsPageContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <Input
                   placeholder="Search transactions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500"
                 />
-                {searchQuery && (
+                {searchInput && (
                   <button
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => setSearchInput('')}
+                    aria-label="Clear search"
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                   >
                     <X className="w-4 h-4" />
@@ -632,7 +297,7 @@ function TransactionsPageContent() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedIds(new Set())}
+              onClick={clearSelection}
               className="ml-auto text-slate-400 hover:text-slate-200"
             >
               Clear selection
@@ -965,15 +630,7 @@ function TransactionsPageContent() {
       {/* Transaction Form Modal */}
       <TransactionForm
         open={showTransactionForm}
-        onOpenChange={(open) => {
-          setShowTransactionForm(open);
-          if (!open) {
-            // Clear edit/duplicate context when the dialog closes so the next
-            // "Add" click starts from a clean slate.
-            setEditingTransaction(null);
-            setDuplicatingTransaction(null);
-          }
-        }}
+        onOpenChange={handleTransactionFormOpenChange}
         transaction={editingTransaction}
         duplicateFrom={duplicatingTransaction}
         onSuccess={handleTransactionSaved}
@@ -1001,18 +658,10 @@ function TransactionsPageContent() {
         onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
         defaultMatchText={creatingRuleFromTransaction?.description || ''}
         defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
-        onSuccess={async (rule, appliedCount) => {
-          setCreatingRuleFromTransaction(null);
-          // Refresh transactions if rule was applied to update categories
-          if (appliedCount && appliedCount > 0) {
-            await withScrollPreservation(async () => {
-              await fetchTransactions(true);
-            });
-          }
-        }}
+        onSuccess={handleRuleCreated}
       />
 
-      {/* Undo Import Confirmation Dialog */}
+      {/* Bulk Delete Confirmation Dialog */}
       <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
         <AlertDialogContent className="bg-slate-900 border-slate-700">
           <AlertDialogHeader>
@@ -1043,6 +692,7 @@ function TransactionsPageContent() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Undo Import Confirmation Dialog */}
       <AlertDialog open={showUndoConfirm} onOpenChange={setShowUndoConfirm}>
         <AlertDialogContent className="bg-slate-900 border-slate-700">
           <AlertDialogHeader>

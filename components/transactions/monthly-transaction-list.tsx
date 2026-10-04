@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { api } from '@/lib/services';
+import { useEffect, useCallback, useMemo, memo } from 'react';
+import { useMonthlyTransactionsState } from '@/hooks/use-page-state';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +10,12 @@ import {
   Plus, Search, X, ChevronLeft, ChevronRight,
   Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter, Sparkles
 } from 'lucide-react';
-import {
-  TransactionForm,
-  DeleteDialog,
-  CategorySelector,
-  SplitModal,
-  FiltersPopover,
-  type FilterValues,
-} from '@/components/transactions';
+import { TransactionForm } from './transaction-form';
+import { DeleteDialog } from './delete-dialog';
+import { CategorySelector } from './category-selector';
+import { SplitModal } from './split-modal';
+import { FiltersPopover } from './filters-popover';
+import { useTransactionList } from './use-transaction-list';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,22 +26,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { toast } from 'sonner';
 import { RuleDialog } from '@/components/rules';
-import type { TransactionWithCategory } from '@/types/database';
-import { cn, withScrollPreservation } from '@/lib/utils';
-import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
-
-interface TransactionListResponse {
-  transactions: TransactionWithCategory[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-type SortField = 'date' | 'description' | 'amount';
-type SortOrder = 'asc' | 'desc';
+import { getEffectiveCategoryId, getMonthDateRange } from '@/lib/transaction-list-query';
+import type {
+  FilterValues,
+  SortField,
+  SortOrder,
+  TransactionListState,
+} from '@/types/transaction-list';
+import { cn } from '@/lib/utils';
 
 interface MonthlyTransactionListProps {
   year: number;
@@ -52,17 +43,6 @@ interface MonthlyTransactionListProps {
   onClearCategoryFilter?: () => void;
   onCategoryChange?: () => void;
 }
-
-// Empty filter values - date range is managed by the month view, so those are always null
-const emptyFilters: FilterValues = {
-  startDate: null,
-  endDate: null,
-  categoryId: null,
-  sourceId: null,
-  minAmount: null,
-  maxAmount: null,
-  uncategorized: false,
-};
 
 function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
   if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
@@ -94,326 +74,129 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
   onClearCategoryFilter,
   onCategoryChange
 }: MonthlyTransactionListProps) {
-  // Search and filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<FilterValues>(emptyFilters);
+  // Persisted state from context (survives navigation). Filters, search and sort carry
+  // across months; the page number belongs to one month and category.
+  const {
+    setMonthlyTransactionsState,
+    pageScope,
+    page: savedPage,
+    filters,
+    searchQuery,
+    sortBy,
+    sortOrder,
+  } = useMonthlyTransactionsState();
 
-  // Sync categoryFilter prop into filters state on mount and when it changes
-  // so the FiltersPopover shows the correct category when set via budget click
-  useEffect(() => {
-    setFilters(prev => ({ ...prev, categoryId: categoryFilter }));
-  }, [categoryFilter]);
+  // The month is fixed by the page, and a budget tile click fixes the category.
+  const scope = useMemo(
+    () => ({ ...getMonthDateRange(year, month), categoryId: categoryFilter }),
+    [year, month, categoryFilter]
+  );
 
-  // Modals
-  const [showTransactionForm, setShowTransactionForm] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [deletingTransaction, setDeletingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [splittingTransaction, setSplittingTransaction] = useState<TransactionWithCategory | null>(null);
-  const [creatingRuleFromTransaction, setCreatingRuleFromTransaction] = useState<TransactionWithCategory | null>(null);
-  
-  // Data
-  const [transactions, setTransactions] = useState<TransactionWithCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const limit = 20;
-  
-  // Sorting
-  const [sortBy, setSortBy] = useState<SortField>('date');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  
-  // Bulk selection
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [bulkDeleteCount, setBulkDeleteCount] = useState(0);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  
-  // Refs for debouncing
-  const isFirstRender = useRef(true);
-
-  // See the note in components/pages/transactions.tsx: the fetch trails the input so
-  // typing fires one request, not one per letter.
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  // Set only by the pager, so scroll is preserved when paging but not when the month,
-  // filters, search or sort change - those should start the user at the top of a fresh list.
-  const preserveScrollOnPageChange = useRef(false);
-
-  // Calculate date range for the month
-  const getMonthDateRange = useCallback(() => {
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-    return { startDate, endDate };
-  }, [year, month]);
-
-  /**
-   * @param background refresh in place, leaving the current rows on screen.
-   *
-   * A foreground fetch swaps the table for a spinner, which collapses the scroll
-   * container and clamps the scroll position to the top. That was the jump seen when
-   * categorising, deleting or splitting a row: not a scroll bug, but the list deleting
-   * the content whose position it was trying to preserve.
-   */
-  const fetchTransactions = useCallback(async (background = false) => {
-    if (!background) setIsLoading(true);
-    try {
-      const { startDate, endDate } = getMonthDateRange();
-      
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        sortBy,
-        sortOrder,
-        startDate,
-        endDate,
-      });
-
-      if (debouncedSearch) params.set('search', debouncedSearch);
-
-      // Category filter: prop takes priority (from clicking budget categories), then popover filter
-      const effectiveCategoryId = categoryFilter || filters.categoryId;
-      if (effectiveCategoryId) params.set('categoryId', effectiveCategoryId);
-
-      // Apply additional filters (excluding date range which is controlled by month view)
-      if (filters.sourceId) params.set('sourceId', filters.sourceId);
-      if (filters.minAmount !== null) params.set('minAmount', filters.minAmount.toString());
-      if (filters.maxAmount !== null) params.set('maxAmount', filters.maxAmount.toString());
-      if (filters.uncategorized) params.set('uncategorized', 'true');
-
-      const result = await api.get<TransactionListResponse>(`/api/transactions?${params}`);
-      if (result.data) {
-        setTransactions(result.data.transactions);
-        setTotalPages(result.data.totalPages);
-        setTotal(result.data.total);
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error);
-    } finally {
-      if (!background) setIsLoading(false);
-    }
-  }, [page, debouncedSearch, sortBy, sortOrder, categoryFilter, filters, getMonthDateRange]);
-
-  // Reset page when month, category, or filters change
-  useEffect(() => {
-    // A fresh list starts at the top, so drop any pending pager request that raced this.
-    preserveScrollOnPageChange.current = false;
-    setPage(1);
-  }, [year, month, categoryFilter, filters]);
-
-  useEffect(() => {
-    if (preserveScrollOnPageChange.current) {
-      preserveScrollOnPageChange.current = false;
-      withScrollPreservation(async () => {
-        await fetchTransactions(true);
-      });
-    } else {
-      fetchTransactions();
-    }
-  }, [fetchTransactions]);
-
-  // Debounced search. Commits the text and the page reset together, so the fetch runs
-  // once rather than twice.
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      preserveScrollOnPageChange.current = false;
-      setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Clear selection when data changes
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [transactions]);
-
-  // Paging keeps the scroll position so the pager stays under the cursor - otherwise
-  // the list jumps to the top and Next has to be hunted down again on every page.
-  const goToPage = (next: number) => {
-    // A same-value setPage is a React no-op, so the fetch effect never runs and never
-    // clears the flag - it would leak into the next unrelated fetch.
-    if (next === page) return;
-    preserveScrollOnPageChange.current = true;
-    setPage(next);
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-    setPage(1);
-  };
-
-  const handleAddTransaction = () => {
-    setEditingTransaction(null);
-    setShowTransactionForm(true);
-  };
-
-  const handleEditTransaction = (tx: TransactionWithCategory) => {
-    setEditingTransaction(tx);
-    setShowTransactionForm(true);
-  };
-
-  const handleDeleteTransaction = (tx: TransactionWithCategory) => {
-    setDeletingTransaction(tx);
-  };
-
-  const handleTransactionSaved = async () => {
-    await withScrollPreservation(async () => {
-      await fetchTransactions(true);
-      onCategoryChange?.();
-    });
-  };
-
-  const handleTransactionDeleted = async () => {
-    await withScrollPreservation(async () => {
-      await fetchTransactions(true);
-      setDeletingTransaction(null);
-      onCategoryChange?.();
-    });
-  };
-
-  const handleCategoryChange = async (txId: string, newCategoryId: string | null) => {
-    // Optimistically update the UI first
-    setTransactions(prev => prev.map(tx =>
-      tx.id === txId
-        ? { ...tx, sub_category_id: newCategoryId }
-        : tx
-    ));
-
-    try {
-      const result = await api.patch(`/api/transactions/${txId}`, { sub_category_id: newCategoryId });
-
-      if (result.data) {
-        // Notify parent to refresh budget summary
-        onCategoryChange?.();
-      } else {
-        // Revert on failure by refetching. In place: an error path should quietly put
-        // the row back, not collapse the list and throw the user to the top.
-        fetchTransactions(true);
-      }
-    } catch (error) {
-      console.error('Failed to update category:', error);
-      // Revert on failure by refetching, in place (see above).
-      fetchTransactions(true);
-    }
-  };
-
-  const handleSplitTransaction = (tx: TransactionWithCategory) => {
-    // Can't split already-split transactions or child transactions
-    if (tx.is_split || tx.parent_transaction_id) return;
-    setSplittingTransaction(tx);
-  };
-
-  const handleUnsplitTransaction = async (tx: TransactionWithCategory) => {
-    if (!tx.is_split) return;
-
-    try {
-      const result = await api.delete(`/api/transactions/${tx.id}/split`);
-
-      if (result.data) {
-        await withScrollPreservation(async () => {
-          await fetchTransactions(true);
-          onCategoryChange?.();
-        });
-      }
-    } catch (error) {
-      console.error('Failed to unsplit transaction:', error);
-    }
-  };
-
-  const handleSplitSuccess = async () => {
-    await withScrollPreservation(async () => {
-      await fetchTransactions(true);
-      onCategoryChange?.();
-      setSplittingTransaction(null);
-    });
-  };
-
-  // Bulk selection
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedIds(new Set(transactions.map(tx => tx.id)));
-    } else {
-      setSelectedIds(new Set());
-    }
-  };
-
-  const handleSelectOne = (txId: string, checked: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(txId);
-      } else {
-        next.delete(txId);
-      }
-      return next;
-    });
-  };
-
-  // Opens the confirmation. window.confirm() cannot be used here: in the Tauri
-  // webview it does not block, so the deletes fired before the user had answered.
-  const handleBulkDelete = () => {
-    if (selectedIds.size === 0) return;
-    // Snapshot the count: the dialog outlives the selection, which is cleared
-    // before the close, and would otherwise read "Delete 0 transactions?"
-    setBulkDeleteCount(selectedIds.size);
-    setShowBulkDeleteConfirm(true);
-  };
-
-  const confirmBulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-
-    setIsBulkDeleting(true);
-    try {
-      // allSettled, and an explicit check of result.error, because api.* resolves
-      // with { error } instead of rejecting. A plain Promise.all skipped the
-      // refetch on the first failure, leaving already-deleted rows on screen.
-      const results = await Promise.allSettled(
-        ids.map(id => api.delete(`/api/transactions/${id}`))
+  // A saved page only means something for the month and category it was reached in.
+  // Deriving it, rather than resetting it in an effect, means a new month fetches page 1
+  // straight away instead of fetching the stale page first.
+  const scopeKey = `${year}-${month}|${categoryFilter ?? ''}`;
+  const listState = useMemo<TransactionListState>(
+    () => ({
+      filters,
+      searchQuery,
+      sortBy,
+      sortOrder,
+      page: pageScope === scopeKey ? savedPage : 1,
+    }),
+    [filters, searchQuery, sortBy, sortOrder, pageScope, scopeKey, savedPage]
+  );
+  const setListState = useCallback(
+    (partial: Partial<TransactionListState>) => {
+      setMonthlyTransactionsState(
+        partial.page !== undefined ? { ...partial, pageScope: scopeKey } : partial
       );
-      const failed = results.filter(
-        r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
-      ).length;
-      const deleted = ids.length - failed;
+    },
+    [setMonthlyTransactionsState, scopeKey]
+  );
 
-      setSelectedIds(new Set());
-      await withScrollPreservation(async () => {
-        await fetchTransactions(true);
-        onCategoryChange?.();
-      });
+  const {
+    transactions,
+    isLoading,
+    total,
+    totalPages,
+    searchInput,
+    setSearchInput,
+    setFilters,
+    handleSort,
+    handleNextPage,
+    handlePrevPage,
+    selectedIds,
+    allSelected,
+    handleSelectAll,
+    handleSelectOne,
+    clearSelection,
+    handleBulkDelete,
+    confirmBulkDelete,
+    showBulkDeleteConfirm,
+    setShowBulkDeleteConfirm,
+    bulkDeleteCount,
+    isBulkDeleting,
+    showTransactionForm,
+    handleTransactionFormOpenChange,
+    editingTransaction,
+    duplicatingTransaction,
+    deletingTransaction,
+    setDeletingTransaction,
+    splittingTransaction,
+    setSplittingTransaction,
+    creatingRuleFromTransaction,
+    setCreatingRuleFromTransaction,
+    handleAddTransaction,
+    handleEditTransaction,
+    handleDeleteTransaction,
+    handleTransactionSaved,
+    handleTransactionDeleted,
+    handleCategoryChange,
+    handleSplitTransaction,
+    handleUnsplitTransaction,
+    handleSplitSuccess,
+    handleRuleCreated,
+  } = useTransactionList({
+    state: listState,
+    setState: setListState,
+    scope,
+    onDataChanged: onCategoryChange,
+  });
+  const { page } = listState;
 
-      if (failed === 0) {
-        toast.success(`Deleted ${deleted} transaction${deleted !== 1 ? 's' : ''}`);
-      } else if (deleted === 0) {
-        toast.error(`Failed to delete ${failed} transaction${failed !== 1 ? 's' : ''}`);
-      } else {
-        toast.warning(`Deleted ${deleted} of ${ids.length}`, {
-          description: `${failed} could not be deleted.`,
-        });
-      }
-    } catch (error) {
-      console.error('Failed to delete transactions:', error);
-      toast.error('Failed to delete transactions');
-    } finally {
-      setIsBulkDeleting(false);
-      setShowBulkDeleteConfirm(false);
+  // The budget tile's category wins over the popover's. The popover is shown the one
+  // in effect, so it reads correctly after a tile click.
+  const effectiveCategoryId = getEffectiveCategoryId(filters, scope);
+  const shownFilters = useMemo<FilterValues>(
+    () => ({ ...filters, categoryId: effectiveCategoryId }),
+    [filters, effectiveCategoryId]
+  );
+
+  // A tile click replaces a category picked in the popover; without this the popover's
+  // pick would resurface when the tile filter is cleared. The list is already filtered
+  // by the tile's category, so this changes nothing that is fetched.
+  useEffect(() => {
+    if (categoryFilter && filters.categoryId) {
+      setMonthlyTransactionsState({ filters: { ...filters, categoryId: null } });
     }
+  }, [categoryFilter, filters, setMonthlyTransactionsState]);
+
+  const handleFiltersChange = (newFilters: FilterValues) => {
+    // If user changed category via popover, clear the parent's categoryFilter
+    // so the popover selection takes effect (categoryFilter has priority otherwise)
+    const categoryChanged = newFilters.categoryId !== effectiveCategoryId;
+    if (categoryChanged) onClearCategoryFilter?.();
+    // The tile's category lives in the parent, so it is not stored here as well.
+    setFilters(categoryChanged ? newFilters : { ...newFilters, categoryId: filters.categoryId });
   };
 
-  const allSelected = transactions.length > 0 && selectedIds.size === transactions.length;
+  const handleClearCategoryFilter = () => {
+    // Clear parent's category filter (from clicking budget categories)
+    onClearCategoryFilter?.();
+    // Also clear the popover's
+    if (filters.categoryId) setFilters({ ...filters, categoryId: null });
+  };
 
   const formatAmount = (amount: number): string => {
     const formatted = new Intl.NumberFormat('en-US', {
@@ -428,6 +211,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
     });
   };
 
@@ -464,13 +248,14 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
               <Input
                 placeholder="Search transactions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-10 bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500"
               />
-              {searchQuery && (
+              {searchInput && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setSearchInput('')}
+                  aria-label="Clear search"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                 >
                   <X className="w-4 h-4" />
@@ -478,15 +263,8 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
               )}
             </div>
             <FiltersPopover
-              filters={filters}
-              onChange={(newFilters) => {
-                // If user changed category via popover, clear the parent's categoryFilter
-                // so the popover selection takes effect (categoryFilter has priority otherwise)
-                if (newFilters.categoryId !== categoryFilter) {
-                  onClearCategoryFilter?.();
-                }
-                setFilters(newFilters);
-              }}
+              filters={shownFilters}
+              onChange={handleFiltersChange}
               hideDateRange
             >
               <Button variant="outline" className="gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
@@ -494,16 +272,11 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                 Filters
               </Button>
             </FiltersPopover>
-            {(categoryFilter || filters.categoryId) && (
+            {effectiveCategoryId && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  // Clear parent's category filter (from clicking budget categories)
-                  onClearCategoryFilter?.();
-                  // Also clear local popover filter
-                  setFilters(prev => ({ ...prev, categoryId: null }));
-                }}
+                onClick={handleClearCategoryFilter}
                 className="gap-1.5 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
               >
                 <X className="w-3 h-3" />
@@ -532,7 +305,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSelectedIds(new Set())}
+                onClick={clearSelection}
                 className="ml-auto text-slate-400 hover:text-slate-200"
               >
                 Clear selection
@@ -766,7 +539,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => goToPage(Math.max(1, page - 1))}
+                      onClick={handlePrevPage}
                       disabled={page === 1}
                       className="border-slate-700"
                     >
@@ -776,7 +549,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => goToPage(Math.min(totalPages, page + 1))}
+                      onClick={handleNextPage}
                       disabled={page === totalPages}
                       className="border-slate-700"
                     >
@@ -794,8 +567,9 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
       {/* Transaction Form Modal */}
       <TransactionForm
         open={showTransactionForm}
-        onOpenChange={setShowTransactionForm}
+        onOpenChange={handleTransactionFormOpenChange}
         transaction={editingTransaction}
+        duplicateFrom={duplicatingTransaction}
         onSuccess={handleTransactionSaved}
         defaultDate={editingTransaction?.date || getDefaultTransactionDate(year, month)}
       />
@@ -851,15 +625,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
         onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
         defaultMatchText={creatingRuleFromTransaction?.description || ''}
         defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
-        onSuccess={async (_rule, appliedCount) => {
-          setCreatingRuleFromTransaction(null);
-          if (appliedCount && appliedCount > 0) {
-            await withScrollPreservation(async () => {
-              await fetchTransactions(true);
-              onCategoryChange?.();
-            });
-          }
-        }}
+        onSuccess={handleRuleCreated}
       />
     </>
   );

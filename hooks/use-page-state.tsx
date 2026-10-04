@@ -1,30 +1,19 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { FilterValues } from '@/components/transactions';
-
-// Types for sort fields (matching transactions.tsx)
-type SortField = 'date' | 'description' | 'amount';
-type SortOrder = 'asc' | 'desc';
-
-// Default filter values
-const emptyFilters: FilterValues = {
-  startDate: null,
-  endDate: null,
-  categoryId: null,
-  sourceId: null,
-  minAmount: null,
-  maxAmount: null,
-  uncategorized: false,
-};
+import { EMPTY_FILTERS } from '@/lib/transaction-list-query';
+import type { SortField, SortOrder, TransactionListState } from '@/types/transaction-list';
 
 // Page state interfaces
-interface TransactionsState {
-  filters: FilterValues;
-  searchQuery: string;
-  page: number;
-  sortBy: SortField;
-  sortOrder: SortOrder;
+type TransactionsState = TransactionListState;
+
+/**
+ * The list embedded in Monthly Budget. Its filters, search and sort carry across
+ * months; its page number does not, so `pageScope` records which month and category
+ * the saved page belongs to. A page saved under another scope reads as page 1.
+ */
+interface MonthlyTransactionsState extends TransactionListState {
+  pageScope: string;
 }
 
 interface MonthlyBudgetState {
@@ -47,6 +36,7 @@ interface SettingsState {
 interface PageState {
   transactions: TransactionsState;
   monthlyBudget: MonthlyBudgetState;
+  monthlyTransactions: MonthlyTransactionsState;
   dashboard: DashboardState;
   settings: SettingsState;
 }
@@ -70,7 +60,7 @@ function getInitialSettingsView(): SettingsView {
 // Default state values
 const getDefaultState = (): PageState => ({
   transactions: {
-    filters: emptyFilters,
+    filters: EMPTY_FILTERS,
     searchQuery: '',
     page: 1,
     sortBy: 'date',
@@ -80,6 +70,14 @@ const getDefaultState = (): PageState => ({
     currentDate: new Date(),
     selectedCategoryId: null,
     collapsedSections: new Set(),
+  },
+  monthlyTransactions: {
+    filters: EMPTY_FILTERS,
+    searchQuery: '',
+    page: 1,
+    pageScope: '',
+    sortBy: 'date',
+    sortOrder: 'desc',
   },
   dashboard: {
     collapsedCategories: new Set(),
@@ -95,6 +93,7 @@ interface PageStateContextValue {
   state: PageState;
   setTransactionsState: (partial: Partial<TransactionsState>) => void;
   setMonthlyBudgetState: (partial: Partial<MonthlyBudgetState>) => void;
+  setMonthlyTransactionsState: (partial: Partial<MonthlyTransactionsState>) => void;
   setDashboardState: (partial: Partial<DashboardState>) => void;
   setSettingsState: (partial: Partial<SettingsState>) => void;
 }
@@ -118,6 +117,13 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setMonthlyTransactionsState = useCallback((partial: Partial<MonthlyTransactionsState>) => {
+    setState(prev => ({
+      ...prev,
+      monthlyTransactions: { ...prev.monthlyTransactions, ...partial },
+    }));
+  }, []);
+
   const setDashboardState = useCallback((partial: Partial<DashboardState>) => {
     setState(prev => ({
       ...prev,
@@ -138,6 +144,7 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
         state,
         setTransactionsState,
         setMonthlyBudgetState,
+        setMonthlyTransactionsState,
         setDashboardState,
         setSettingsState,
       }}
@@ -172,6 +179,14 @@ export function useMonthlyBudgetState() {
   };
 }
 
+export function useMonthlyTransactionsState() {
+  const { state, setMonthlyTransactionsState } = usePageState();
+  return {
+    ...state.monthlyTransactions,
+    setMonthlyTransactionsState,
+  };
+}
+
 export function useDashboardState() {
   const { state, setDashboardState } = usePageState();
   return {
@@ -192,6 +207,7 @@ export function useSettingsState() {
 export type {
   TransactionsState,
   MonthlyBudgetState,
+  MonthlyTransactionsState,
   DashboardState,
   SettingsState,
   SettingsView,
