@@ -6,7 +6,6 @@ import { api } from '@/lib/services';
 import { withScrollPreservation } from '@/lib/utils';
 import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 import {
-  TRANSACTION_LIST_PAGE_SIZE,
   buildTransactionListQuery,
   categoryChangeLeavesFilter,
   getNextSort,
@@ -429,7 +428,6 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
     page,
     sortBy,
     sortOrder,
-    limit: TRANSACTION_LIST_PAGE_SIZE,
     fetchTransactions,
     refreshInPlace,
 
