@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Plus, Search, X, ChevronLeft, ChevronRight,
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter, Sparkles
+  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter, Sparkles, Copy
 } from 'lucide-react';
 import { TransactionForm } from './transaction-form';
 import { DeleteDialog } from './delete-dialog';
@@ -149,6 +149,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     setCreatingRuleFromTransaction,
     handleAddTransaction,
     handleEditTransaction,
+    handleDuplicateTransaction,
     handleDeleteTransaction,
     handleTransactionSaved,
     handleTransactionDeleted,
@@ -479,6 +480,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                               className="text-slate-400 hover:text-violet-400"
                               onClick={() => setCreatingRuleFromTransaction(tx)}
                               title="Create auto-categorization rule"
+                              aria-label="Create auto-categorization rule"
                             >
                               <Sparkles className="w-4 h-4" />
                             </Button>
@@ -490,6 +492,7 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                                 className="text-violet-400 hover:text-violet-300"
                                 onClick={() => handleUnsplitTransaction(tx)}
                                 title="Unsplit transaction"
+                                aria-label="Unsplit transaction"
                               >
                                 <Undo2 className="w-4 h-4" />
                               </Button>
@@ -500,15 +503,28 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                                 className="text-slate-400 hover:text-violet-400"
                                 onClick={() => handleSplitTransaction(tx)}
                                 title="Split transaction"
+                                aria-label="Split transaction"
                               >
                                 <Split className="w-4 h-4" />
                               </Button>
                             )}
-                            <Button 
-                              variant="ghost" 
-                              size="icon-sm" 
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-slate-400 hover:text-cyan-400"
+                              onClick={() => handleDuplicateTransaction(tx)}
+                              title="Duplicate transaction"
+                              aria-label="Duplicate transaction"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
                               className="text-slate-400 hover:text-slate-200"
                               onClick={() => handleEditTransaction(tx)}
+                              title="Edit transaction"
+                              aria-label="Edit transaction"
                             >
                               <Edit2 className="w-4 h-4" />
                             </Button>
@@ -517,6 +533,8 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
                               size="icon-sm" 
                               className="text-slate-400 hover:text-red-400"
                               onClick={() => handleDeleteTransaction(tx)}
+                              title="Delete transaction"
+                              aria-label="Delete transaction"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
