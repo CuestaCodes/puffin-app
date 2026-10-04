@@ -9,6 +9,7 @@ import {
   TRANSACTION_LIST_PAGE_SIZE,
   buildTransactionListQuery,
   categoryChangeLeavesFilter,
+  getNextSort,
 } from '@/lib/transaction-list-query';
 import type { TransactionWithCategory } from '@/types/database';
 import type {
@@ -170,11 +171,7 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
 
   const handleSort = (field: SortField) => {
     preserveScrollOnPageChange.current = false;
-    if (sortBy === field) {
-      setState({ sortOrder: sortOrder === 'asc' ? 'desc' : 'asc', page: 1 });
-    } else {
-      setState({ sortBy: field, sortOrder: 'desc', page: 1 });
-    }
+    setState({ ...getNextSort({ sortBy, sortOrder }, field), page: 1 });
   };
 
   // Paging keeps the scroll position so the pager stays under the cursor - otherwise
@@ -271,21 +268,39 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
   };
 
   const handleCategoryChange = async (txId: string, categoryId: string | null) => {
+    // Categorising a selected row categorises the whole selection, like delete does.
+    // Captured now: the optimistic update below changes the rows, which clears it.
+    const ids = selectedIds.has(txId) && selectedIds.size > 1 ? Array.from(selectedIds) : [txId];
+    const idSet = new Set(ids);
+
     // Optimistically update the UI first
     setTransactions(prev => prev.map(tx =>
-      tx.id === txId
+      idSet.has(tx.id)
         ? { ...tx, sub_category_id: categoryId }
         : tx
     ));
 
     try {
-      const result = await api.patch(`/api/transactions/${txId}`, { sub_category_id: categoryId });
+      // allSettled, and an explicit check of result.error, because api.* resolves
+      // with { error } instead of rejecting.
+      const results = await Promise.allSettled(
+        ids.map(id => api.patch(`/api/transactions/${id}`, { sub_category_id: categoryId }))
+      );
+      const failed = results.filter(
+        r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
+      ).length;
 
-      if (result.error) {
+      if (failed > 0) {
         // Revert on failure by refetching. In place: an error path should quietly put
-        // the row back, not collapse the list and throw the user to the top.
+        // the rows back, not collapse the list and throw the user to the top.
         fetchTransactions(true);
-        return;
+        if (ids.length > 1) {
+          toast.error(`Failed to categorise ${failed} of ${ids.length} transactions`);
+        }
+        if (failed === ids.length) return;
+      } else if (ids.length > 1) {
+        // The other rows changed without being touched, so say so.
+        toast.success(`Categorised ${ids.length} transactions`);
       }
 
       onDataChanged?.();
@@ -411,6 +426,9 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
     isLoading,
     total,
     totalPages,
+    page,
+    sortBy,
+    sortOrder,
     limit: TRANSACTION_LIST_PAGE_SIZE,
     fetchTransactions,
     refreshInPlace,
@@ -460,3 +478,5 @@ export function useTransactionList({ state, setState, scope, onDataChanged }: Us
     handleRuleCreated,
   };
 }
+
+export type TransactionList = ReturnType<typeof useTransactionList>;

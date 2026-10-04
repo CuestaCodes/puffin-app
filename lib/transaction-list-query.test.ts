@@ -6,6 +6,7 @@ import {
   categoryChangeLeavesFilter,
   getEffectiveCategoryId,
   getMonthDateRange,
+  getNextSort,
 } from './transaction-list-query';
 import type { TransactionListState } from '@/types/transaction-list';
 
@@ -20,6 +21,33 @@ const baseState: TransactionListState = {
 const parse = (query: string) => Object.fromEntries(new URLSearchParams(query));
 
 describe('transaction-list-query', () => {
+  describe('getNextSort', () => {
+    it('sorts a new column descending first', () => {
+      expect(getNextSort({ sortBy: 'date', sortOrder: 'desc' }, 'amount'))
+        .toEqual({ sortBy: 'amount', sortOrder: 'desc' });
+      expect(getNextSort({ sortBy: 'amount', sortOrder: 'asc' }, 'description'))
+        .toEqual({ sortBy: 'description', sortOrder: 'desc' });
+    });
+
+    it('flips to ascending on the second click', () => {
+      expect(getNextSort({ sortBy: 'amount', sortOrder: 'desc' }, 'amount'))
+        .toEqual({ sortBy: 'amount', sortOrder: 'asc' });
+    });
+
+    it('clears back to newest-first on the third click', () => {
+      expect(getNextSort({ sortBy: 'amount', sortOrder: 'asc' }, 'amount'))
+        .toEqual({ sortBy: 'date', sortOrder: 'desc' });
+      expect(getNextSort({ sortBy: 'description', sortOrder: 'asc' }, 'description'))
+        .toEqual({ sortBy: 'date', sortOrder: 'desc' });
+    });
+
+    it('toggles the date column between descending and ascending', () => {
+      const asc = getNextSort({ sortBy: 'date', sortOrder: 'desc' }, 'date');
+      expect(asc).toEqual({ sortBy: 'date', sortOrder: 'asc' });
+      expect(getNextSort(asc, 'date')).toEqual({ sortBy: 'date', sortOrder: 'desc' });
+    });
+  });
+
   describe('getMonthDateRange', () => {
     it('covers a 31-day month', () => {
       expect(getMonthDateRange(2026, 10)).toEqual({ startDate: '2026-10-01', endDate: '2026-10-31' });

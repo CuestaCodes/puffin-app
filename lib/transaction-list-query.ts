@@ -7,6 +7,8 @@
 
 import type {
   FilterValues,
+  SortField,
+  SortOrder,
   TransactionListScope,
   TransactionListState,
 } from '@/types/transaction-list';
@@ -22,6 +24,25 @@ export const EMPTY_FILTERS: FilterValues = {
   maxAmount: null,
   uncategorized: false,
 };
+
+export const DEFAULT_SORT: { sortBy: SortField; sortOrder: SortOrder } = {
+  sortBy: 'date',
+  sortOrder: 'desc',
+};
+
+/**
+ * The sort a click on a column header leads to: descending, then ascending, then back
+ * to the default (newest first). The list always has a sort, so "cleared" means default -
+ * which makes the date column, already the default, a plain two-way toggle.
+ */
+export function getNextSort(
+  current: { sortBy: SortField; sortOrder: SortOrder },
+  field: SortField
+): { sortBy: SortField; sortOrder: SortOrder } {
+  if (current.sortBy !== field) return { sortBy: field, sortOrder: 'desc' };
+  if (current.sortOrder === 'desc') return { sortBy: field, sortOrder: 'asc' };
+  return { ...DEFAULT_SORT };
+}
 
 /** First and last day of a month as YYYY-MM-DD. `month` is 1-indexed. */
 export function getMonthDateRange(year: number, month: number): { startDate: string; endDate: string } {

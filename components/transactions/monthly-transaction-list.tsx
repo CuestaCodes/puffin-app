@@ -5,36 +5,13 @@ import { useMonthlyTransactionsState } from '@/hooks/use-page-state';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Plus, Search, X, ChevronLeft, ChevronRight,
-  Trash2, Edit2, ArrowUpDown, ArrowUp, ArrowDown, Split, Undo2, Filter, Sparkles, Copy
-} from 'lucide-react';
-import { TransactionForm } from './transaction-form';
-import { DeleteDialog } from './delete-dialog';
-import { CategorySelector } from './category-selector';
-import { SplitModal } from './split-modal';
+import { Plus, Search, X, Filter } from 'lucide-react';
 import { FiltersPopover } from './filters-popover';
+import { TransactionTable } from './transaction-table';
+import { TransactionListDialogs } from './transaction-list-dialogs';
 import { useTransactionList } from './use-transaction-list';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { RuleDialog } from '@/components/rules';
 import { getEffectiveCategoryId, getMonthDateRange } from '@/lib/transaction-list-query';
-import type {
-  FilterValues,
-  SortField,
-  SortOrder,
-  TransactionListState,
-} from '@/types/transaction-list';
-import { cn } from '@/lib/utils';
+import type { FilterValues, TransactionListState } from '@/types/transaction-list';
 
 interface MonthlyTransactionListProps {
   year: number;
@@ -42,13 +19,6 @@ interface MonthlyTransactionListProps {
   categoryFilter: string | null;
   onClearCategoryFilter?: () => void;
   onCategoryChange?: () => void;
-}
-
-function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy: SortField; sortOrder: SortOrder }) {
-  if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
-  return sortOrder === 'asc' 
-    ? <ArrowUp className="w-3 h-3 text-cyan-400" />
-    : <ArrowDown className="w-3 h-3 text-cyan-400" />;
 }
 
 // Calculate default date for new transactions
@@ -115,56 +85,21 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     [setMonthlyTransactionsState, scopeKey]
   );
 
-  const {
-    transactions,
-    isLoading,
-    total,
-    totalPages,
-    searchInput,
-    setSearchInput,
-    setFilters,
-    handleSort,
-    handleNextPage,
-    handlePrevPage,
-    selectedIds,
-    allSelected,
-    handleSelectAll,
-    handleSelectOne,
-    clearSelection,
-    handleBulkDelete,
-    confirmBulkDelete,
-    showBulkDeleteConfirm,
-    setShowBulkDeleteConfirm,
-    bulkDeleteCount,
-    isBulkDeleting,
-    showTransactionForm,
-    handleTransactionFormOpenChange,
-    editingTransaction,
-    duplicatingTransaction,
-    deletingTransaction,
-    setDeletingTransaction,
-    splittingTransaction,
-    setSplittingTransaction,
-    creatingRuleFromTransaction,
-    setCreatingRuleFromTransaction,
-    handleAddTransaction,
-    handleEditTransaction,
-    handleDuplicateTransaction,
-    handleDeleteTransaction,
-    handleTransactionSaved,
-    handleTransactionDeleted,
-    handleCategoryChange,
-    handleSplitTransaction,
-    handleUnsplitTransaction,
-    handleSplitSuccess,
-    handleRuleCreated,
-  } = useTransactionList({
+  const list = useTransactionList({
     state: listState,
     setState: setListState,
     scope,
     onDataChanged: onCategoryChange,
   });
-  const { page } = listState;
+  const {
+    transactions,
+    isLoading,
+    total,
+    searchInput,
+    setSearchInput,
+    setFilters,
+    handleAddTransaction,
+  } = list;
 
   // The budget tile's category wins over the popover's. The popover is shown the one
   // in effect, so it reads correctly after a tile click.
@@ -197,23 +132,6 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
     onClearCategoryFilter?.();
     // Also clear the popover's
     if (filters.categoryId) setFilters({ ...filters, categoryId: null });
-  };
-
-  const formatAmount = (amount: number): string => {
-    const formatted = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(Math.abs(amount));
-    return amount < 0 ? `-${formatted}` : formatted;
-  };
-
-  const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
   };
 
   const monthName = new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long' });
@@ -286,34 +204,6 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
             )}
           </div>
 
-          {/* Bulk actions bar */}
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-4 p-3 mb-4 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
-              <span className="text-sm text-cyan-400 font-medium">
-                {selectedIds.size} selected
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBulkDelete}
-                  className="gap-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Delete
-                </Button>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearSelection}
-                className="ml-auto text-slate-400 hover:text-slate-200"
-              >
-                Clear selection
-              </Button>
-            </div>
-          )}
-
           {isLoading ? (
             <div className="text-center py-12 text-slate-500">
               <div className="w-8 h-8 mx-auto mb-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -342,309 +232,12 @@ export const MonthlyTransactionList = memo(function MonthlyTransactionList({
               </Button>
             </div>
           ) : (
-            <>
-              {/* Transaction table */}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="py-3 px-2 w-10">
-                        <Checkbox
-                          checked={allSelected}
-                          onCheckedChange={handleSelectAll}
-                          className="border-slate-600"
-                          aria-label="Select all"
-                        />
-                      </th>
-                      <th className="text-left py-3 px-4">
-                        <button
-                          onClick={() => handleSort('date')}
-                          className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
-                        >
-                          Date
-                          <SortIcon field="date" sortBy={sortBy} sortOrder={sortOrder} />
-                        </button>
-                      </th>
-                      <th className="text-left py-3 px-4">
-                        <button
-                          onClick={() => handleSort('description')}
-                          className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
-                        >
-                          Description
-                          <SortIcon field="description" sortBy={sortBy} sortOrder={sortOrder} />
-                        </button>
-                      </th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                        Category
-                      </th>
-                      <th className="text-right py-3 px-4">
-                        <button
-                          onClick={() => handleSort('amount')}
-                          className="flex items-center gap-1 text-xs font-medium text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors ml-auto"
-                        >
-                          Amount
-                          <SortIcon field="amount" sortBy={sortBy} sortOrder={sortOrder} />
-                        </button>
-                      </th>
-                      <th className="text-right py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {transactions.map((tx) => {
-                      // Grey out split parents and transfer category transactions
-                      const isTransfer = tx.upper_category_type === 'transfer';
-                      const isGreyedOut = tx.is_split || isTransfer;
-
-                      return (
-                      <tr
-                        key={tx.id}
-                        className={cn(
-                          'hover:bg-slate-800/50 transition-colors',
-                          selectedIds.has(tx.id) && 'bg-cyan-500/5',
-                          isGreyedOut && 'opacity-50' // Greyed out - excluded from calculations
-                        )}
-                      >
-                        <td className="py-3 px-2">
-                          <Checkbox
-                            checked={selectedIds.has(tx.id)}
-                            onCheckedChange={(checked) => handleSelectOne(tx.id, !!checked)}
-                            className="border-slate-600"
-                            aria-label={`Select ${tx.description}`}
-                          />
-                        </td>
-                        <td className="py-3 px-4 text-sm text-slate-300 whitespace-nowrap">
-                          {formatDate(tx.date)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-slate-200 max-w-[300px]">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="truncate">{tx.description}</span>
-                              {!!tx.is_split && (
-                                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-500/20 text-violet-400 border border-violet-500/30">
-                                  SPLIT
-                                </span>
-                              )}
-                              {!!tx.parent_transaction_id && (
-                                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">
-                                  CHILD
-                                </span>
-                              )}
-                              {isTransfer && (
-                                <span
-                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                                  title="Transfer transactions are excluded from budget calculations"
-                                >
-                                  TRANSFER
-                                </span>
-                              )}
-                              {tx.source_name && (
-                                <span
-                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                                  title={`Source: ${tx.source_name}`}
-                                >
-                                  {tx.source_name}
-                                </span>
-                              )}
-                            </div>
-                            {tx.notes && (
-                              <p
-                                className="text-xs text-slate-500 truncate max-w-[280px]"
-                                title={tx.notes}
-                              >
-                                {tx.notes}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm">
-                          <CategorySelector
-                            value={tx.sub_category_id}
-                            onChange={(catId) => handleCategoryChange(tx.id, catId)}
-                            compact
-                          />
-                        </td>
-                        <td className={cn(
-                          'py-3 px-4 text-sm font-mono text-right whitespace-nowrap',
-                          tx.amount < 0 ? 'text-red-400' : 'text-emerald-400'
-                        )}>
-                          {formatAmount(tx.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {/* Create Rule button */}
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-slate-400 hover:text-violet-400"
-                              onClick={() => setCreatingRuleFromTransaction(tx)}
-                              title="Create auto-categorization rule"
-                              aria-label="Create auto-categorization rule"
-                            >
-                              <Sparkles className="w-4 h-4" />
-                            </Button>
-                            {/* Split/Unsplit button */}
-                            {tx.is_split ? (
-                              <Button 
-                                variant="ghost" 
-                                size="icon-sm" 
-                                className="text-violet-400 hover:text-violet-300"
-                                onClick={() => handleUnsplitTransaction(tx)}
-                                title="Unsplit transaction"
-                                aria-label="Unsplit transaction"
-                              >
-                                <Undo2 className="w-4 h-4" />
-                              </Button>
-                            ) : !tx.parent_transaction_id && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon-sm" 
-                                className="text-slate-400 hover:text-violet-400"
-                                onClick={() => handleSplitTransaction(tx)}
-                                title="Split transaction"
-                                aria-label="Split transaction"
-                              >
-                                <Split className="w-4 h-4" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-slate-400 hover:text-cyan-400"
-                              onClick={() => handleDuplicateTransaction(tx)}
-                              title="Duplicate transaction"
-                              aria-label="Duplicate transaction"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-slate-400 hover:text-slate-200"
-                              onClick={() => handleEditTransaction(tx)}
-                              title="Edit transaction"
-                              aria-label="Edit transaction"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon-sm" 
-                              className="text-slate-400 hover:text-red-400"
-                              onClick={() => handleDeleteTransaction(tx)}
-                              title="Delete transaction"
-                              aria-label="Delete transaction"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-800">
-                  <p className="text-sm text-slate-400">
-                    Page {page} of {totalPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handlePrevPage}
-                      disabled={page === 1}
-                      className="border-slate-700"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleNextPage}
-                      disabled={page === totalPages}
-                      className="border-slate-700"
-                    >
-                      Next
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+            <TransactionTable list={list} />
           )}
         </CardContent>
       </Card>
 
-      {/* Transaction Form Modal */}
-      <TransactionForm
-        open={showTransactionForm}
-        onOpenChange={handleTransactionFormOpenChange}
-        transaction={editingTransaction}
-        duplicateFrom={duplicatingTransaction}
-        onSuccess={handleTransactionSaved}
-        defaultDate={editingTransaction?.date || getDefaultTransactionDate(year, month)}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <DeleteDialog
-        open={!!deletingTransaction}
-        onOpenChange={(open) => !open && setDeletingTransaction(null)}
-        transaction={deletingTransaction}
-        onSuccess={handleTransactionDeleted}
-      />
-
-      <SplitModal
-        open={!!splittingTransaction}
-        onOpenChange={(open) => !open && setSplittingTransaction(null)}
-        transaction={splittingTransaction}
-        onSuccess={handleSplitSuccess}
-      />
-
-      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
-        <AlertDialogContent className="bg-slate-900 border-slate-700">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-100">
-              Delete {bulkDeleteCount} transaction{bulkDeleteCount !== 1 ? 's' : ''}?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              {bulkDeleteCount === 1 ? 'It' : 'They'} will be removed from your view.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 text-slate-300 hover:bg-slate-800">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                // Keep the dialog up until the deletes resolve, so it cannot be
-                // dismissed while the requests are still in flight
-                e.preventDefault();
-                confirmBulkDelete();
-              }}
-              disabled={isBulkDeleting}
-              className="bg-red-600 hover:bg-red-500 text-white"
-            >
-              {isBulkDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Create Rule Dialog */}
-      <RuleDialog
-        open={!!creatingRuleFromTransaction}
-        onOpenChange={(open) => !open && setCreatingRuleFromTransaction(null)}
-        defaultMatchText={creatingRuleFromTransaction?.description || ''}
-        defaultCategoryId={creatingRuleFromTransaction?.sub_category_id || ''}
-        onSuccess={handleRuleCreated}
-      />
+      <TransactionListDialogs list={list} defaultDate={getDefaultTransactionDate(year, month)} />
     </>
   );
 });

@@ -8,3 +8,5 @@ export { MonthlyTransactionList } from './monthly-transaction-list';
 export { SplitModal } from './split-modal';
 export { useTransactionList } from './use-transaction-list';
 
+export { TransactionTable } from './transaction-table';
+export { TransactionListDialogs } from './transaction-list-dialogs';
