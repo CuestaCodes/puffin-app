@@ -26,6 +26,7 @@ All notable changes to Puffin will be documented in this file.
 - The Monthly Budget transaction list and the Transactions page are now the same list, so they behave identically. The Monthly Budget list gains the duplicate button, deleting a selected row now deletes the whole selection there too, its dates show the year, and its row buttons are labelled for screen readers.
 - The Monthly Budget transaction list remembers your search, filters, sort and page when you go to another screen and come back, until Puffin is closed. Search, filters and sort carry over when you change month; the page number starts again at 1.
 - The Transactions page now returns you to the page number you left. It already remembered filters, search and sort, but always went back to page 1.
+- A transaction's category can be removed straight from the list: the category picker on each row now starts with an "Uncategorized" entry. Previously the only way was to open the transaction for editing.
 - Clicking a sorted column header a third time clears the sort, returning the list to newest first.
 - Selected transactions stay selected when you edit or categorise a row in place; the selection used to be dropped by any change to the list.
 - The "selected" bar on transaction lists now floats at the bottom of the list, so Delete stays in reach however far down you have selected.

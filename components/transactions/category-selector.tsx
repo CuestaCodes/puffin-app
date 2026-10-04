@@ -132,6 +132,13 @@ export function CategorySelector({
             categories={categories}
             value={value}
             handleSelect={handleSelect}
+            onClear={() => {
+              // The compact trigger has no room for the X button the full-size
+              // selector shows, so removing a category is an entry in the list.
+              handleClear();
+              setOpen(false);
+              setSearch('');
+            }}
             getCategoryTypeColor={getCategoryTypeColor}
             isLoading={isLoading}
             error={error}
@@ -210,6 +217,7 @@ function CategoryList({
   categories,
   value,
   handleSelect,
+  onClear,
   getCategoryTypeColor,
   isLoading,
   error,
@@ -221,6 +229,8 @@ function CategoryList({
   categories: CategoriesData | null;
   value: string | null;
   handleSelect: (id: string) => void;
+  /** When given, the list leads with an "Uncategorized" entry that calls it. */
+  onClear?: () => void;
   getCategoryTypeColor: (type: UpperCategoryType) => string;
   isLoading: boolean;
   error: string | null;
@@ -238,6 +248,26 @@ function CategoryList({
         />
       </div>
       <div className="max-h-64 overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+        {onClear && !isLoading && !error && !search && (
+          <div className="py-1 border-b border-slate-800">
+            <button
+              onClick={onClear}
+              className={cn(
+                'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left',
+                'hover:bg-slate-800 transition-colors',
+                value === null && 'bg-slate-800'
+              )}
+            >
+              <Check
+                className={cn(
+                  'w-4 h-4',
+                  value === null ? 'opacity-100 text-cyan-400' : 'opacity-0'
+                )}
+              />
+              <span className="text-slate-400">Uncategorized</span>
+            </button>
+          </div>
+        )}
         {isLoading ? (
           <div className="p-4 text-center text-slate-500 text-sm">
             Loading categories...
