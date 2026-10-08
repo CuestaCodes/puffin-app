@@ -59,9 +59,9 @@ export function initializeDatabase(): void {
 
     // SCHEMA_SQL is already the latest schema, so record that. Without this the next
     // open finds no schema_version, assumes version 0 and replays every migration
-    // against tables that already have their columns.
+    // against tables that already have their columns. getSchemaVersion creates the table.
     getSchemaVersion(database);
-    setSchemaVersion(database, _CURRENT_SCHEMA_VERSION);
+    setSchemaVersion(database, CURRENT_SCHEMA_VERSION);
   } else {
     // Run migrations for existing databases
     runMigrations(database);
@@ -71,7 +71,7 @@ export function initializeDatabase(): void {
 }
 
 /** Current schema version - increment when adding new migrations */
-const _CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 6;
 
 /**
  * Get the current schema version from the database

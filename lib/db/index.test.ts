@@ -9,11 +9,14 @@ import { SCHEMA_SQL, SEED_SQL } from './schema';
 // fresh temp directory and re-imports the module.
 type DbModule = typeof import('./index');
 
+// Bump together with CURRENT_SCHEMA_VERSION in ./index. It is repeated here on purpose: a
+// migration added without updating these tests should fail them.
 const CURRENT_VERSION = 6;
 
 describe('initializeDatabase schema versioning', () => {
   let dir: string;
   let dbModule: DbModule;
+  let previousDataDir: string | undefined;
 
   const dbPath = () => path.join(dir, 'puffin.db');
 
@@ -31,6 +34,7 @@ describe('initializeDatabase schema versioning', () => {
 
   beforeEach(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'puffin-schema-'));
+    previousDataDir = process.env.PUFFIN_DATA_DIR;
     process.env.PUFFIN_DATA_DIR = dir;
     vi.resetModules();
     dbModule = await import('./index');
@@ -38,7 +42,8 @@ describe('initializeDatabase schema versioning', () => {
 
   afterEach(() => {
     dbModule.resetDatabaseConnection();
-    delete process.env.PUFFIN_DATA_DIR;
+    if (previousDataDir === undefined) delete process.env.PUFFIN_DATA_DIR;
+    else process.env.PUFFIN_DATA_DIR = previousDataDir;
     fs.rmSync(dir, { recursive: true, force: true });
   });
 

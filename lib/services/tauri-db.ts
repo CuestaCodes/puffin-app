@@ -147,7 +147,7 @@ async function initializeSchema(database: TauriDatabase): Promise<void> {
 
     // SCHEMA_SQL is already the latest schema, so record that. Without this the next
     // open finds no schema_version, assumes version 0 and replays every migration
-    // against tables that already have their columns.
+    // against tables that already have their columns. getSchemaVersion creates the table.
     await getSchemaVersion(database);
     await setSchemaVersion(database, CURRENT_SCHEMA_VERSION);
   } else {

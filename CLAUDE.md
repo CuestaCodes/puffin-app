@@ -184,7 +184,7 @@ Before reading/copying DB file: `db.pragma('wal_checkpoint(TRUNCATE)')`.
 ### Schema Migrations
 Three files must be updated for every schema change:
 1. `lib/db/schema.ts` — base schema for fresh installs
-2. `lib/db/index.ts` — dev-mode migration + bump `_CURRENT_SCHEMA_VERSION`
+2. `lib/db/index.ts` — dev-mode migration + bump `CURRENT_SCHEMA_VERSION`
 3. `lib/services/tauri-db.ts` — Tauri migration + bump `CURRENT_SCHEMA_VERSION`
 
 All three must produce the same final schema.
