@@ -144,6 +144,12 @@ async function initializeSchema(database: TauriDatabase): Promise<void> {
     // Fresh database - run schema creation
     await execMultiple(database, SCHEMA_SQL);
     await execMultiple(database, SEED_SQL);
+
+    // SCHEMA_SQL is already the latest schema, so record that. Without this the next
+    // open finds no schema_version, assumes version 0 and replays every migration
+    // against tables that already have their columns.
+    await getSchemaVersion(database);
+    await setSchemaVersion(database, CURRENT_SCHEMA_VERSION);
   } else {
     // Existing database - run migrations
     await runMigrations(database);
@@ -350,9 +356,18 @@ async function runMigrations(database: TauriDatabase): Promise<void> {
 
   // Migration 6: Add is_active flag to upper_category
   if (currentVersion < 6) {
-    await database.execute(`
-      ALTER TABLE upper_category ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
-    `);
+    // Guarded like migrations 1 and 4: a database created from SCHEMA_SQL before fresh
+    // installs recorded their version already has the column, and reaches here at version 0
+    const columns = await database.select<{ name: string }>(
+      "SELECT name FROM pragma_table_info('upper_category') WHERE name='is_active'"
+    );
+
+    if (columns.length === 0) {
+      await database.execute(`
+        ALTER TABLE upper_category ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
+      `);
+    }
+
     await setSchemaVersion(database, 6);
   }
 

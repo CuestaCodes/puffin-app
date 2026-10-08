@@ -33,6 +33,7 @@ All notable changes to Puffin will be documented in this file.
 - Monthly Budget's month selector sits on its own row and is larger, so the month you are looking at is easier to see.
 
 ### Fixed
+- A database created by a fresh install of 2.2.1 now opens on later starts. A new database did not record which version it was, so the next start re-ran an upgrade step against a table that already had its new column and stopped with "duplicate column name: is_active". Fresh installs now record their version, and a database already caught by this opens normally. Databases created before 2.2.1 were never affected.
 - Signing in to Google no longer hides the browser behind Puffin. The app used to pull itself back to the front half a second after opening the consent page; it now stays out of the way and comes forward once sign-in finishes or times out. While it waits, a "Copy sign-in link" button lets you finish in another browser if the wrong one opened.
 - The "Select Folder" and "Connect to Existing Backup" buttons, which showed a Google "Can't access your Google Account" page inside the app window, are replaced by the folder and file choices above. Google's picker cannot run inside the desktop app.
 - The first upload to a new or empty Drive folder no longer fails with "Maximum call stack size exceeded" in the desktop app.

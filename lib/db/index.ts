@@ -56,6 +56,12 @@ export function initializeDatabase(): void {
 
     // Seed default data
     database.exec(SEED_SQL);
+
+    // SCHEMA_SQL is already the latest schema, so record that. Without this the next
+    // open finds no schema_version, assumes version 0 and replays every migration
+    // against tables that already have their columns.
+    getSchemaVersion(database);
+    setSchemaVersion(database, _CURRENT_SCHEMA_VERSION);
   } else {
     // Run migrations for existing databases
     runMigrations(database);
@@ -269,9 +275,18 @@ function runMigrations(database: Database.Database): void {
 
   // Migration 6: Add is_active flag to upper_category
   if (currentVersion < 6) {
-    database.exec(`
-      ALTER TABLE upper_category ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
-    `);
+    // Guarded like migrations 1 and 4: a database created from SCHEMA_SQL before fresh
+    // installs recorded their version already has the column, and reaches here at version 0
+    const columnExists = database.prepare(
+      "SELECT * FROM pragma_table_info('upper_category') WHERE name='is_active'"
+    ).get();
+
+    if (!columnExists) {
+      database.exec(`
+        ALTER TABLE upper_category ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1
+      `);
+    }
+
     setSchemaVersion(database, 6);
   }
 }
