@@ -189,6 +189,29 @@ Three files must be updated for every schema change:
 
 All three must produce the same final schema.
 
+A fourth place repeats the version on purpose: `CURRENT_VERSION` in `lib/db/index.test.ts`.
+Bump it with the others; the tests fail until you do.
+
+**Every migration must be safe to run against a schema that is already current.** Check before
+altering — `pragma_table_info` for a column, `IF NOT EXISTS` for a table or index:
+
+```typescript
+const columnExists = database.prepare(
+  "SELECT * FROM pragma_table_info('upper_category') WHERE name='is_active'"
+).get();
+if (!columnExists) database.exec(`ALTER TABLE upper_category ADD COLUMN ...`);
+```
+
+**`SCHEMA_SQL` alone is not a complete database.** The fresh-install path must also record
+`CURRENT_SCHEMA_VERSION` in `schema_version`. Otherwise the next open finds tables but no
+version, assumes 0 and replays every migration.
+
+Both rules were missing in v2.2.1: fresh installs recorded no version, and migration 6 added
+`is_active` unguarded, so a new database failed on its second open with
+`duplicate column name: is_active`. It went unseen because a database older than the migration
+takes the other path. A new migration is only ever tried against an old database; open a fresh
+one twice as well.
+
 ## Data Models
 
 | Model | Purpose |
@@ -280,6 +303,19 @@ a scrubbed copy before push — or storing it outside the database entirely. The
 action log took the second route: `action-log.jsonl` sits beside `puffin.db`, so it is
 untouched by both directions for free and needs no schema migration. See
 `lib/action-log-file.ts`.
+
+### Restore Is Not Pull
+Restoring a backup (Settings → Data, `app/api/data/import/backup/route.ts` and
+`handleImportBackup` in `lib/services/handlers/data.ts`) replaces the database file and does
+**none** of what pull does around it:
+
+- **`local_user` is not preserved.** The restored file's PIN replaces the current one. A file
+  with no `local_user` row lands on PIN setup after the reload. PIN hashes also differ by mode
+  (bcrypt in dev, PBKDF2 in Tauri), so a file cannot carry a PIN that works in both.
+- **The restored database is a local change.** Its hash no longer matches `syncedDbHash`, so a
+  push uploads it over the cloud copy. Anything that has the user restore a file that is not
+  their own data (a test database, a fixture) must say not to push while it is loaded.
+- **The way back is the `pre-restore` backup** written to `backups/` before the swap.
 
 ### Drive Scopes
 What the app can see in Drive depends on the scope granted, and it decides which features
@@ -415,6 +451,18 @@ Use it to check expectations *before* asking for a PowerShell run — a wrong ex
 costs a full round trip. With a ~30-line `describe`/`it`/`expect` shim the real test file runs
 this way too, which caught several wrong assertions in `date-parser.test.ts` before handover, and
 disproved a task spec's stated root cause by running the old code with one branch disabled.
+
+**SQL can be checked from WSL too.** Only `better-sqlite3` is unavailable there, not SQLite:
+
+- `python3`'s `sqlite3` module, or Node's built-in `node:sqlite` (`DatabaseSync`), will run the
+  real `SCHEMA_SQL` and any query or migration statement against it. Export the schema with
+  `node -e "import('./lib/db/schema.ts').then(m => ...)"`.
+- A module whose only `@/` imports are `import type` needs no copying or stripping: Node
+  imports it in place (`await import('/mnt/e/puffin-app/lib/csv/parser.ts')`), and runtime
+  dependencies that are pure JavaScript, such as `papaparse`, resolve from `node_modules`.
+
+The v2.2.1 migration failure was reproduced this way before any code changed, and two import
+parser faults were found by running the parsers over sample files.
 
 **This does not replace `npm run test`.** It skips mocks, jsdom and the rest of the suite, so the
 user still runs Vitest and their result is the one that counts.
@@ -720,7 +768,9 @@ Dev: in-memory (`lib/auth/rate-limit.ts`). Tauri: localStorage-based.
 
 Key permissions in `src-tauri/capabilities/default.json`:
 - `sql:*` - Database ops
-- `fs:allow-copy-file` - Backup restore
+- `fs:allow-copy-file` - Backup restore. Scoped to `$DOWNLOAD`, `$DOCUMENT`, `$HOME` and
+  `$APPDATA`: the restore picker cannot copy a file from anywhere else (the repo on another
+  drive, for instance), so a file meant to be restored has to be written to one of those
 - `dialog:allow-open/save` - File pickers
 
 **Debugging:** Permission errors include the required identifier.

@@ -28,6 +28,12 @@ For the selected task, work through each phase sequentially:
   findings were wrong or missing, and one correction (dev API routes run server-side and cannot
   read `localStorage`) changed which storage option should be recommended — presenting the spec
   as written would have steered the user to the weaker choice
+- **Confirm what the task is for before presenting decisions.** Restate in one or two lines the
+  purpose and who it serves, and ask whether that is still right; then drop any requirement that
+  only serves an audience the user rules out. On `demo-data-seed`, the spec named two audiences
+  (README photos and contributors). The user wanted only the first and did not want demo data
+  public, which moved the generator out of the repo and removed a requirement — after the plan
+  had been presented, and partly after the build
 - Present the "Key Decisions Required" to the user
 - Wait for user input on each decision
 - Update the task file with decisions made
