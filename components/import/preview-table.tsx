@@ -1,18 +1,23 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Check, X, AlertCircle, CheckCircle, Copy, Loader2 } from 'lucide-react';
+import { Check, X, AlertCircle, CheckCircle, Copy, Loader2, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ImportPreview } from '@/types/import';
 import { formatDateForDisplay } from '@/lib/csv/date-parser';
 import { MAX_IMPORT_TRANSACTIONS } from '@/lib/validations';
+import { describeSignSplit } from '@/lib/import-amount';
 
 interface PreviewTableProps {
   preview: ImportPreview;
   onRowToggle: (rowIndex: number) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
+  /** Swap one row's amount between expense and income */
+  onAmountSwap: (rowIndex: number) => void;
+  /** Swap the sign of every amount */
+  onSwapAllSigns: () => void;
   onContinue: () => void;
   onBack: () => void;
   isLoading?: boolean;
@@ -24,6 +29,8 @@ export function PreviewTable({
   onRowToggle,
   onSelectAll,
   onDeselectAll,
+  onAmountSwap,
+  onSwapAllSigns,
   onContinue,
   onBack,
   isLoading,
@@ -46,6 +53,11 @@ export function PreviewTable({
 
   const selectedCount = preview.rows.filter(r => r.isSelected).length;
   const selectedValidCount = preview.rows.filter(r => r.isSelected && r.errors.length === 0).length;
+  // Shown beside the selection count so an import with its signs the wrong way round is
+  // visible before it happens, not after
+  const signSplit = describeSignSplit(
+    preview.rows.filter(r => r.isSelected && r.errors.length === 0).map(r => r.parsed.amount)
+  );
 
   const formatAmount = (amount: number | null): string => {
     if (amount === null) return '-';
@@ -122,8 +134,15 @@ export function PreviewTable({
               ({selectedValidCount} valid)
             </span>
           )}
+          {selectedValidCount > 0 && (
+            <span className="ml-2 text-slate-300">· {signSplit}</span>
+          )}
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onSwapAllSigns}>
+            <ArrowLeftRight className="w-3 h-3 mr-1" />
+            Swap all signs
+          </Button>
           <Button variant="outline" size="sm" onClick={onSelectAll}>
             <Check className="w-3 h-3 mr-1" />
             Select All Valid
@@ -134,6 +153,11 @@ export function PreviewTable({
           </Button>
         </div>
       </div>
+
+      <p className="flex items-center gap-1 text-xs text-slate-400">
+        <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />
+        Click an amount to swap its sign
+      </p>
 
       {/* Data Table */}
       <div className="border border-slate-700 rounded-lg overflow-hidden">
@@ -209,9 +233,26 @@ export function PreviewTable({
                         ? 'text-red-400'
                         : 'text-emerald-400'
                   )}>
-                    {row.parsed.amount !== null
-                      ? formatAmount(row.parsed.amount)
-                      : 'Invalid'}
+                    {row.parsed.amount !== null && row.errors.length === 0 ? (
+                      <button
+                        onClick={() => onAmountSwap(row.rowIndex)}
+                        className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-slate-600 hover:bg-slate-700/50 transition-colors"
+                        title="Click to swap between expense and income"
+                        aria-label={`Swap sign of ${formatAmount(row.parsed.amount)}`}
+                      >
+                        <ArrowLeftRight
+                          className="w-3 h-3 text-slate-500 group-hover:text-slate-300"
+                          aria-hidden="true"
+                        />
+                        <span className="underline decoration-dotted decoration-slate-500 underline-offset-4">
+                          {formatAmount(row.parsed.amount)}
+                        </span>
+                      </button>
+                    ) : row.parsed.amount !== null ? (
+                      formatAmount(row.parsed.amount)
+                    ) : (
+                      'Invalid'
+                    )}
                   </td>
                   {showNotes && (
                     <td className="px-3 py-2 text-slate-400 max-w-[150px] truncate" title={row.parsed.notes || undefined}>

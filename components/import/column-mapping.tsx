@@ -5,6 +5,7 @@ import { ArrowRight, Check, AlertTriangle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { amountRoleFromHeader, hasAmountColumn, usesDebitCreditColumns } from '@/lib/import-amount';
 import type { ColumnMapping, DateFormat, CSVParseResult, DateDetectionHint } from '@/types/import';
 
 interface ColumnMappingProps {
@@ -27,10 +28,27 @@ const dateFormats: { value: DateFormat; label: string; example: string }[] = [
   { value: 'DD-MM-YYYY', label: 'DD-MM-YYYY', example: '18-12-2024' },
 ];
 
-const requiredFields = [
-  { key: 'date' as const, label: 'Date', description: 'Transaction date' },
-  { key: 'description' as const, label: 'Description', description: 'Transaction description/memo' },
-  { key: 'amount' as const, label: 'Amount', description: 'Transaction amount' },
+type MappableField = 'date' | 'description' | 'amount' | 'debit' | 'credit';
+
+interface FieldDefinition {
+  key: MappableField;
+  label: string;
+  description: string;
+}
+
+const baseFields: FieldDefinition[] = [
+  { key: 'date', label: 'Date', description: 'Transaction date' },
+  { key: 'description', label: 'Description', description: 'Transaction description/memo' },
+];
+
+// Amounts come from one signed column, or from a debit and a credit column
+const singleAmountFields: FieldDefinition[] = [
+  { key: 'amount', label: 'Amount', description: 'Negative for money out, positive for money in' },
+];
+
+const debitCreditFields: FieldDefinition[] = [
+  { key: 'debit', label: 'Debit', description: 'Money out — imported as negative' },
+  { key: 'credit', label: 'Credit', description: 'Money in — imported as positive' },
 ];
 
 export function ColumnMappingComponent({
@@ -48,6 +66,10 @@ export function ColumnMappingComponent({
   // Derive includeNotes from mapping prop (notes !== undefined means enabled)
   const includeNotes = mapping.notes !== undefined;
 
+  // Debit/credit mode is carried by the mapping itself, so detection can switch it on
+  const debitCreditMode = usesDebitCreditColumns(mapping);
+  const requiredFields = [...baseFields, ...(debitCreditMode ? debitCreditFields : singleAmountFields)];
+
   // Get sample values for a column (first 3 non-empty)
   const getSampleValues = (columnIndex: number): string[] => {
     const samples: string[] = [];
@@ -60,9 +82,7 @@ export function ColumnMappingComponent({
     return samples;
   };
 
-  const handleColumnSelect = (field: keyof ColumnMapping, columnIndex: number) => {
-    if (field === 'ignore') return;
-
+  const handleColumnSelect = (field: MappableField | 'notes', columnIndex: number) => {
     // Remove the column from ignore if it was there
     const newIgnore = mapping.ignore.filter(i => i !== columnIndex);
 
@@ -77,6 +97,15 @@ export function ColumnMappingComponent({
     }
     if (mapping.amount === columnIndex && field !== 'amount') {
       newMapping.amount = -1;
+    }
+    if (mapping.debit === columnIndex && field !== 'debit') {
+      newMapping.debit = -1;
+    }
+    if (mapping.credit === columnIndex && field !== 'credit') {
+      newMapping.credit = -1;
+    }
+    if (mapping.balance === columnIndex) {
+      delete newMapping.balance;
     }
     if (mapping.notes === columnIndex && field !== 'notes') {
       newMapping.notes = undefined;
@@ -102,15 +131,35 @@ export function ColumnMappingComponent({
     onMappingChange(newMapping);
   };
 
+  // Switch between one signed Amount column and separate Debit/Credit columns. Going to
+  // debit/credit, pick the columns the headers name; `-1` keeps the mode on with nothing picked.
+  const handleAmountModeToggle = () => {
+    const newMapping = { ...mapping, amount: -1 };
+    if (debitCreditMode) {
+      delete newMapping.debit;
+      delete newMapping.credit;
+    } else {
+      const roles = headers.map((header, index) =>
+        index === mapping.date || index === mapping.description ? null : amountRoleFromHeader(header)
+      );
+      newMapping.debit = roles.indexOf('debit');
+      newMapping.credit = roles.indexOf('credit');
+    }
+    onMappingChange(newMapping);
+  };
+
   const getAssignedField = (columnIndex: number): string | null => {
     if (mapping.date === columnIndex) return 'Date';
     if (mapping.description === columnIndex) return 'Description';
     if (mapping.amount === columnIndex) return 'Amount';
+    if (mapping.debit === columnIndex) return 'Debit';
+    if (mapping.credit === columnIndex) return 'Credit';
     if (mapping.notes === columnIndex) return 'Notes';
+    if (mapping.balance === columnIndex) return 'Balance (not imported)';
     return null;
   };
 
-  const isValid = mapping.date >= 0 && mapping.description >= 0 && mapping.amount >= 0;
+  const isValid = mapping.date >= 0 && mapping.description >= 0 && hasAmountColumn(mapping);
 
   return (
     <div className="space-y-6">
@@ -152,11 +201,23 @@ export function ColumnMappingComponent({
 
       {/* Required Fields */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-slate-300">Required Fields</h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-medium text-slate-300">Required Fields</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAmountModeToggle}
+            className="shrink-0 border-slate-600 text-slate-300 hover:bg-slate-700"
+          >
+            {debitCreditMode ? 'Use a single Amount column' : 'Use separate Debit / Credit columns'}
+          </Button>
+        </div>
         <div className="grid gap-2">
           {requiredFields.map((field) => {
-            const currentValue = mapping[field.key as keyof Omit<ColumnMapping, 'ignore'>];
+            const currentValue = mapping[field.key];
             const isAssigned = typeof currentValue === 'number' && currentValue >= 0;
+            // One of Debit and Credit is enough: a statement can have withdrawals only
+            const isOptional = (field.key === 'debit' || field.key === 'credit') && hasAmountColumn(mapping);
 
             return (
               <div
@@ -192,6 +253,8 @@ export function ColumnMappingComponent({
                       {headers[currentValue]}
                     </span>
                   </div>
+                ) : isOptional ? (
+                  <span className="text-xs text-slate-400">Not used</span>
                 ) : (
                   <span className="text-xs text-amber-400 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
@@ -315,7 +378,7 @@ export function ColumnMappingComponent({
                         onClick={() => handleColumnSelect(field.key, index)}
                         className={cn(
                           'px-2 py-1 text-xs rounded transition-colors',
-                          mapping[field.key as keyof Omit<ColumnMapping, 'ignore'>] === index
+                          mapping[field.key] === index
                             ? 'bg-emerald-600 text-white'
                             : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
                         )}

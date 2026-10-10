@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import { FileUpload } from './file-upload';
 import { ColumnMappingComponent } from './column-mapping';
 import { PreviewTable } from './preview-table';
-import { parseCSV, detectColumnMapping } from '@/lib/csv/parser';
+import { parseCSV, detectColumnMapping, looksLikeHeaderRow } from '@/lib/csv/parser';
+import { resolveRowAmount } from '@/lib/import-amount';
 import {
   parseDate,
   analyseDateColumn,
@@ -108,13 +109,24 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
     fetchSources();
   }, []);
 
-  // Parse file with current hasHeaders setting
-  const parseFile = useCallback(async (file: File, withHeaders: boolean) => {
+  // Parse file with the given hasHeaders setting. 'auto' is for a newly chosen file: the
+  // box starts ticked when the first row reads as column names, because header names are
+  // what column detection works from.
+  const parseFile = useCallback(async (file: File, withHeaders: boolean | 'auto') => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await parseCSV(file, { hasHeaders: withHeaders });
+      let useHeaders: boolean;
+      if (withHeaders === 'auto') {
+        const raw = await parseCSV(file, { hasHeaders: false });
+        useHeaders = raw.rows.length > 1 && looksLikeHeaderRow(raw.rows[0]);
+        setHasHeaders(useHeaders);
+      } else {
+        useHeaders = withHeaders;
+      }
+
+      const result = await parseCSV(file, { hasHeaders: useHeaders });
       setParseResult(result);
 
       // Auto-detect column mapping
@@ -141,8 +153,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
   // Step 1: Handle file upload
   const handleFileSelect = useCallback(async (file: File) => {
     setSelectedFile(file);
-    await parseFile(file, hasHeaders);
-  }, [hasHeaders, parseFile]);
+    await parseFile(file, 'auto');
+  }, [parseFile]);
 
   // Handle hasHeaders toggle - re-parse the file
   const handleHasHeadersChange = useCallback(async (checked: boolean) => {
@@ -187,21 +199,13 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
           }
         }
 
-        // Parse amount
-        const amountStr = row[columnMapping.amount];
-        let parsedAmount: number | null = null;
-        if (amountStr) {
-          // Remove currency symbols and whitespace, handle all commas globally
-          const cleanAmount = amountStr.replace(/[^0-9.\-,]/g, '').replace(/,/g, '');
-          parsedAmount = parseFloat(cleanAmount);
-          if (isNaN(parsedAmount)) {
-            errors.push(`Invalid amount: "${amountStr}"`);
-            parsedAmount = null;
-          }
-        } else {
-          errors.push('Missing amount');
+        // Parse amount - single column as written, or debit/credit columns
+        const resolved = resolveRowAmount(row, columnMapping);
+        const parsedAmount = resolved.amount;
+        if (resolved.error) {
+          errors.push(resolved.error);
         }
-        
+
         return {
           rowIndex: index,
           raw: row,
@@ -301,6 +305,36 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
         isSelected: false,
       }));
       
+      return { ...prev, rows: newRows };
+    });
+  }, []);
+
+  // Step 3: Swap an amount between expense and income, for a file whose signs run the
+  // other way (a card statement listing charges as positive)
+  const handleAmountSwap = useCallback((rowIndex: number) => {
+    setPreview(prev => {
+      if (!prev) return prev;
+
+      const newRows = prev.rows.map(row =>
+        row.rowIndex === rowIndex && row.parsed.amount !== null
+          ? { ...row, parsed: { ...row.parsed, amount: -row.parsed.amount } }
+          : row
+      );
+
+      return { ...prev, rows: newRows };
+    });
+  }, []);
+
+  const handleSwapAllSigns = useCallback(() => {
+    setPreview(prev => {
+      if (!prev) return prev;
+
+      const newRows = prev.rows.map(row =>
+        row.parsed.amount !== null
+          ? { ...row, parsed: { ...row.parsed, amount: -row.parsed.amount } }
+          : row
+      );
+
       return { ...prev, rows: newRows };
     });
   }, []);
@@ -579,6 +613,8 @@ export function ImportWizard({ onComplete, onCancel }: ImportWizardProps) {
               onRowToggle={handleRowToggle}
               onSelectAll={handleSelectAll}
               onDeselectAll={handleDeselectAll}
+              onAmountSwap={handleAmountSwap}
+              onSwapAllSigns={handleSwapAllSigns}
               onContinue={handleImport}
               onBack={() => setCurrentStep('mapping')}
               isLoading={isLoading}

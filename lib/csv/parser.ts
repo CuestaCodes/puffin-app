@@ -1,10 +1,24 @@
 // CSV parsing utilities using papaparse
 import Papa from 'papaparse';
 import type { CSVParseResult, ColumnMapping } from '@/types/import';
+import { amountRoleFromHeader, parseAmount } from '@/lib/import-amount';
+import { parseDate } from './date-parser';
 
 export interface ParseCSVOptions {
   /** Whether the first row contains headers (default: true) */
   hasHeaders?: boolean;
+}
+
+/**
+ * Whether a CSV's first row is column names rather than a transaction: it has text in at
+ * least two cells and nothing that reads as a date or an amount. Lets the wizard pre-tick
+ * "First row contains column headers" — header names are what column detection reads, so
+ * an unticked box quietly falls back to guessing by position.
+ */
+export function looksLikeHeaderRow(row: string[]): boolean {
+  const cells = row.map(cell => (cell ?? '').trim()).filter(cell => cell !== '');
+  if (cells.length < 2) return false;
+  return cells.every(cell => parseAmount(cell) === null && parseDate(cell, 'auto') === null);
 }
 
 /**
@@ -84,22 +98,27 @@ export function parseCSVString(content: string): CSVParseResult {
 }
 
 /**
- * Auto-detect column mapping based on header names
+ * Auto-detect column mapping based on header names.
+ *
+ * Amounts come from a single Amount column when one is named, otherwise from Debit and
+ * Credit columns (or Withdrawals/Deposits and the like). Debit and Credit used to be
+ * accepted as names for the single Amount column, which imported every withdrawal as
+ * income and rejected every deposit row.
  */
 export function detectColumnMapping(headers: string[]): ColumnMapping | null {
   const lowerHeaders = headers.map(h => h.toLowerCase().trim());
-  
+
   // Common patterns for date columns
   const datePatterns = ['date', 'transaction date', 'trans date', 'posted', 'posted date', 'value date'];
   // Common patterns for description columns
   const descPatterns = ['description', 'desc', 'memo', 'narrative', 'details', 'transaction', 'merchant', 'payee'];
-  // Common patterns for amount columns
-  const amountPatterns = ['amount', 'value', 'sum', 'debit', 'credit', 'money'];
-  
+  // Common patterns for a single signed amount column
+  const amountPatterns = ['amount', 'value', 'sum', 'money'];
+
   let dateIndex = -1;
   let descIndex = -1;
   let amountIndex = -1;
-  
+
   // Find date column
   for (const pattern of datePatterns) {
     const foundIdx = lowerHeaders.findIndex(h => h.includes(pattern));
@@ -108,7 +127,7 @@ export function detectColumnMapping(headers: string[]): ColumnMapping | null {
       break;
     }
   }
-  
+
   // Find description column (exclude already-mapped date column)
   for (const pattern of descPatterns) {
     const foundIdx = lowerHeaders.findIndex((h, i) => h.includes(pattern) && i !== dateIndex);
@@ -117,18 +136,43 @@ export function detectColumnMapping(headers: string[]): ColumnMapping | null {
       break;
     }
   }
-  
-  // Find amount column (exclude already-mapped columns)
+
+  // Columns whose header names a direction or a balance (exclude already-mapped columns)
+  const roles = lowerHeaders.map((h, i) =>
+    i === dateIndex || i === descIndex ? null : amountRoleFromHeader(h)
+  );
+  const debitIndex = roles.indexOf('debit');
+  const creditIndex = roles.indexOf('credit');
+  const balanceIndex = roles.indexOf('balance');
+
+  // Find a single amount column: one named as an amount without a direction, so
+  // "Debit Amount" is a debit column and not this
   for (const pattern of amountPatterns) {
-    const foundIdx = lowerHeaders.findIndex((h, i) => 
-      h.includes(pattern) && i !== dateIndex && i !== descIndex
+    const foundIdx = lowerHeaders.findIndex((h, i) =>
+      h.includes(pattern) && i !== dateIndex && i !== descIndex && roles[i] === null
     );
     if (foundIdx !== -1) {
       amountIndex = foundIdx;
       break;
     }
   }
-  
+
+  // Separate debit/credit columns, when no single Amount column carries both directions
+  if (amountIndex === -1 && (debitIndex !== -1 || creditIndex !== -1)) {
+    const mapped = [dateIndex, descIndex, debitIndex, creditIndex, balanceIndex];
+    const mapping: ColumnMapping = {
+      // Left unmapped rather than guessed by position: the guess could land on an amount column
+      date: dateIndex,
+      description: descIndex,
+      amount: -1,
+      ignore: headers.map((_, idx) => idx).filter(idx => !mapped.includes(idx)),
+    };
+    if (debitIndex !== -1) mapping.debit = debitIndex;
+    if (creditIndex !== -1) mapping.credit = creditIndex;
+    if (balanceIndex !== -1) mapping.balance = balanceIndex;
+    return mapping;
+  }
+
   // If we couldn't detect all required columns, try positional fallback
   if (dateIndex === -1 || descIndex === -1 || amountIndex === -1) {
     // Common CSV formats: Date, Description, Amount or Date, Amount, Description
@@ -142,18 +186,20 @@ export function detectColumnMapping(headers: string[]): ColumnMapping | null {
     }
     return null;
   }
-  
+
   // Build ignore list (all columns not mapped)
   const ignore = headers
     .map((_, idx) => idx)
-    .filter(idx => idx !== dateIndex && idx !== descIndex && idx !== amountIndex);
-  
-  return {
+    .filter(idx => idx !== dateIndex && idx !== descIndex && idx !== amountIndex && idx !== balanceIndex);
+
+  const mapping: ColumnMapping = {
     date: dateIndex,
     description: descIndex,
     amount: amountIndex,
     ignore,
   };
+  if (balanceIndex !== -1) mapping.balance = balanceIndex;
+  return mapping;
 }
 
 /**

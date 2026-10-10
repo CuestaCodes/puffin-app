@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   ClipboardPaste,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   CheckCircle,
   AlertTriangle,
@@ -22,7 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { parsePastedText, detectPasteColumnMapping, parseAmount } from '@/lib/paste/parser';
+import { parsePastedText, detectPasteColumnMapping, pastedTextHasHeaderRow } from '@/lib/paste/parser';
+import { resolveRowAmount, columnHasSigns, describeSignSplit } from '@/lib/import-amount';
 import {
   parseDate,
   analyseDateColumn,
@@ -81,8 +83,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
-  const [treatAsExpenses, setTreatAsExpenses] = useState(true);
-  const [hasHeaders, setHasHeaders] = useState(false);
+  // The box starts ticked when the pasted text opens with column names, because header
+  // names are what column detection works from. null means the user has not chosen.
+  const [headersChoice, setHeadersChoice] = useState<boolean | null>(null);
+  const detectedHeaderRow = useMemo(() => pastedTextHasHeaderRow(pastedText), [pastedText]);
+  const hasHeaders = headersChoice ?? detectedHeaderRow;
   // What auto-detection proposed, kept so the action log can tell an accepted
   // suggestion apart from one the user corrected. columnMapping is overwritten
   // by the user, so the original has to be stashed separately.
@@ -163,8 +168,10 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
 
     setIsLoading(true);
     setError(null);
-    // Reset to treating as expenses by default
-    setTreatAsExpenses(true);
+    // A column that carries any sign is imported as written. Only a column with no signs
+    // at all, which cannot say which way the money went, defaults to expenses.
+    const signed = columnMapping.amount >= 0 &&
+      columnHasSigns(parseResult.rows.map(row => row[columnMapping.amount] ?? ''));
 
     try {
       // Parse rows with mapping
@@ -188,45 +195,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
           errors.push('Missing date');
         }
 
-        // Parse amount - handle both single amount and debit/credit modes
-        let parsedAmount: number | null = null;
-
-        if ((columnMapping.debit !== undefined && columnMapping.debit >= 0) ||
-            (columnMapping.credit !== undefined && columnMapping.credit >= 0)) {
-          // Debit/Credit mode: combine both columns
-          const rawDebit = columnMapping.debit !== undefined && columnMapping.debit >= 0 ? row[columnMapping.debit] : '';
-          const rawCredit = columnMapping.credit !== undefined && columnMapping.credit >= 0 ? row[columnMapping.credit] : '';
-
-          const debitAmount = rawDebit ? parseAmount(rawDebit) : null;
-          const creditAmount = rawCredit ? parseAmount(rawCredit) : null;
-
-          if (debitAmount !== null && debitAmount !== 0) {
-            // Debit/withdrawal - make negative (expense)
-            parsedAmount = -Math.abs(debitAmount);
-          } else if (creditAmount !== null && creditAmount !== 0) {
-            // Credit/deposit - keep positive (income)
-            parsedAmount = Math.abs(creditAmount);
-          } else if (!rawDebit && !rawCredit) {
-            errors.push('Missing amount in both debit and credit columns');
-          } else if (rawDebit && debitAmount === null) {
-            errors.push(`Invalid debit amount: ${rawDebit}`);
-          } else if (rawCredit && creditAmount === null) {
-            errors.push(`Invalid credit amount: ${rawCredit}`);
-          }
-        } else {
-          // Single amount mode
-          const rawAmount = columnMapping.amount >= 0 ? row[columnMapping.amount] : '';
-          if (rawAmount) {
-            parsedAmount = parseAmount(rawAmount);
-            if (parsedAmount === null) {
-              errors.push(`Invalid amount: ${rawAmount}`);
-            } else {
-              // Default: treat as expense (negative)
-              parsedAmount = -Math.abs(parsedAmount);
-            }
-          } else {
-            errors.push('Missing amount');
-          }
+        // Parse amount - single column or debit/credit columns
+        const resolved = resolveRowAmount(row, columnMapping, { unsignedAsExpense: !signed });
+        const parsedAmount = resolved.amount;
+        if (resolved.error) {
+          errors.push(resolved.error);
         }
 
         // Handle description
@@ -444,11 +417,10 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
     });
   };
 
-  // Toggle between treating amounts as expenses or income (global)
-  const toggleExpenseIncomeMode = () => {
+  // Swap the sign of every amount
+  const swapAllSigns = () => {
     if (!preview) return;
 
-    setTreatAsExpenses(!treatAsExpenses);
     setPreview({
       ...preview,
       rows: preview.rows.map(row => ({
@@ -539,6 +511,7 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   // Reset to start
   const handleReset = () => {
     setPastedText('');
+    setHeadersChoice(null);
     setParseResult(null);
     setManualDateFormat(null);
     setPreview(null);
@@ -648,7 +621,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
               <Textarea
                 ref={textareaRef}
                 value={pastedText}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPastedText(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                  setPastedText(e.target.value);
+                  // Cleared text starts over: the next paste decides the headers box again
+                  if (!e.target.value) setHeadersChoice(null);
+                }}
                 placeholder="Paste your copied transaction table here...
 
 Example:
@@ -671,7 +648,7 @@ Example:
               <Checkbox
                 id="paste-has-headers"
                 checked={hasHeaders}
-                onCheckedChange={(checked) => setHasHeaders(!!checked)}
+                onCheckedChange={(checked) => setHeadersChoice(!!checked)}
                 aria-label="First row contains column headers"
               />
               <label
@@ -808,7 +785,7 @@ Example:
                   <p className="text-sm text-slate-400">
                     {useDebitCreditMode
                       ? 'Separate withdrawal/deposit columns (for tabbed data)'
-                      : 'Single amount column (toggle expense/income in preview)'}
+                      : 'Single amount column (signs are kept; unsigned amounts start as expenses)'}
                   </p>
                 </div>
                 <Button
@@ -979,23 +956,32 @@ Example:
                     {preview.errorCount} errors
                   </Badge>
                 )}
+                {/* So an import with its signs the wrong way round is visible before it happens */}
+                <Badge variant="outline" className="text-slate-300 border-slate-600">
+                  {describeSignSplit(
+                    preview.rows
+                      .filter(r => r.isSelected && r.errors.length === 0)
+                      .map(r => r.parsed.amount)
+                  )}
+                </Badge>
               </div>
-              {!useDebitCreditMode && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Click amounts to toggle individually</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleExpenseIncomeMode}
-                    className={cn(
-                      'border-slate-600 hover:bg-slate-700',
-                      treatAsExpenses ? 'text-red-400' : 'text-emerald-400'
-                    )}
-                  >
-                    {treatAsExpenses ? 'All Expenses' : 'All Income'}
-                  </Button>
-                </div>
-              )}
+              {/* The same controls whichever way the amounts were read, so a wrong sign can
+                  always be put right here */}
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />
+                  Click an amount to swap its sign
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={swapAllSigns}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                >
+                  <ArrowLeftRight className="w-4 h-4 mr-2" />
+                  Swap all signs
+                </Button>
+              </div>
             </div>
 
             {/* Selection controls */}
@@ -1062,13 +1048,20 @@ Example:
                             ? 'text-red-400'
                             : 'text-emerald-400'
                       )}>
-                        {!useDebitCreditMode && row.parsed.amount !== null && row.errors.length === 0 ? (
+                        {row.parsed.amount !== null && row.errors.length === 0 ? (
                           <button
                             onClick={() => toggleRowAmountSign(row.rowIndex)}
-                            className="hover:bg-slate-700/50 px-2 py-0.5 rounded transition-colors"
-                            title="Click to toggle expense/income"
+                            className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-slate-600 hover:bg-slate-700/50 transition-colors"
+                            title="Click to swap between expense and income"
+                            aria-label={`Swap sign of ${formatCurrency(row.parsed.amount)}`}
                           >
-                            {formatCurrency(row.parsed.amount)}
+                            <ArrowLeftRight
+                              className="w-3 h-3 text-slate-500 group-hover:text-slate-300"
+                              aria-hidden="true"
+                            />
+                            <span className="underline decoration-dotted decoration-slate-500 underline-offset-4">
+                              {formatCurrency(row.parsed.amount)}
+                            </span>
                           </button>
                         ) : (
                           formatCurrency(row.parsed.amount)

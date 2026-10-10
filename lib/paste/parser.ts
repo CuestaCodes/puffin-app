@@ -9,6 +9,7 @@
  */
 
 import type { CSVParseResult, ColumnMapping } from '@/types/import';
+import { amountRoleFromHeader } from '@/lib/import-amount';
 
 interface ParseOptions {
   /** Minimum spaces to consider as column delimiter */
@@ -264,8 +265,12 @@ function splitAmountsInLastCell(parts: string[]): string[] {
 
   const last = parts[parts.length - 1].trim();
 
-  // Pattern to match amounts (with optional currency, commas, decimals)
-  const amountPattern = /[$£€¥₹]?[\d,]+\.\d{2}(?:\s*(?:DR|CR))?/gi;
+  // Pattern to match amounts (with optional currency, commas, decimals).
+  // A sign or parentheses belongs to the amount only when attached to it and standing at
+  // the start of a word: "-84.35" and "(84.35)" are amounts, while the hyphen in
+  // "Payment Received - 1,650.00" or "REF-1,650.00" stays with the text. Without this the
+  // sign was split off as its own cell and the amount lost it.
+  const amountPattern = /(?:(?<=^|\s)(?:\([$£€¥₹]?[\d,]+\.\d{2}\)|[-−+][$£€¥₹]?[\d,]+\.\d{2}|[$£€¥₹][-−+][\d,]+\.\d{2})|[$£€¥₹]?[\d,]+\.\d{2})(?:\s*(?:DR|CR)(?![A-Za-z]))?/gi;
 
   // Find all amounts in the last cell
   const amounts = last.match(amountPattern);
@@ -508,22 +513,8 @@ function analyzeColumns(rows: string[][], headerRow: string[] | null): ColumnAna
  * Detect amount column role from header name
  */
 function detectAmountRole(header: string, samples: string[]): 'debit' | 'credit' | 'balance' | 'single' {
-  const lower = header.toLowerCase();
-
-  // Debit/withdrawal patterns
-  if (/withdraw|debit|dr\.?$|payment|expense|out/i.test(lower)) {
-    return 'debit';
-  }
-
-  // Credit/deposit patterns
-  if (/deposit|credit|cr\.?$|income|in$|received/i.test(lower)) {
-    return 'credit';
-  }
-
-  // Balance patterns
-  if (/balance|running|total$/i.test(lower)) {
-    return 'balance';
-  }
+  const fromHeader = amountRoleFromHeader(header);
+  if (fromHeader) return fromHeader;
 
   // Check if values have consistent signs (negative = debit, positive = credit)
   const hasNegatives = samples.some(s => s.startsWith('-') || s.startsWith('('));
@@ -664,8 +655,13 @@ export function isAmountLike(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) return false;
 
-  // Remove currency symbols and whitespace
-  const cleaned = trimmed.replace(/[$£€¥₹R\s]/g, '');
+  // Remove currency symbols and whitespace; read a unicode minus or a leading plus as a sign
+  // The DR/CR marker comes off first: stripping the rand's R would leave "84.35 DR" as "84.35D"
+  const cleaned = trimmed
+    .replace(/\s*(DR|CR)$/i, '')
+    .replace(/[$£€¥₹R\s]/g, '')
+    .replace(/[−–]/g, '-')
+    .replace(/^\+/, '');
 
   // Common amount patterns
   const amountPatterns = [
@@ -728,8 +724,16 @@ function generateHeaders(analysis: ColumnAnalysis[], _headerRow: string[] | null
 }
 
 /**
- * Smart column mapping that considers column types
- * Simplified to use single amount column (expense/income toggled in preview)
+ * Smart column mapping that considers column types.
+ *
+ * Amounts come from one of two places:
+ * - a single Amount column, when there is an amount column whose header names no direction;
+ * - separate debit and credit columns, when the headers name them (Debit, Withdrawals,
+ *   Credit, Deposits...). One of the pair on its own is mapped the same way.
+ *
+ * Roles are read from the header only. The sign of the sample values is not evidence here:
+ * a plain unsigned Amount column would read as "all positive, so credit" and import every
+ * expense as income.
  */
 export function detectPasteColumnMapping(headers: string[], rows: string[][]): ColumnMapping | null {
   const analysis = analyzeColumnsWithHeaders(rows, headers);
@@ -737,49 +741,93 @@ export function detectPasteColumnMapping(headers: string[], rows: string[][]): C
   let dateIndex = -1;
   let amountIndex = -1;
   let descIndex = -1;
+  let debitIndex = -1;
+  let creditIndex = -1;
+  let balanceIndex = -1;
 
-  // Find best candidates for each required field
+  // Find best candidates for each field
   for (const col of analysis) {
+    const role = col.headerHint ? amountRoleFromHeader(col.headerHint) : null;
+    // A debit or credit column with no values in this paste has nothing to detect a type
+    // from, so the header alone decides for an empty column.
+    const holdsAmounts = col.type === 'amount' || (col.type === 'unknown' && col.samples.length === 0);
+
     if (col.type === 'date' && dateIndex === -1) {
       dateIndex = col.index;
+    } else if (holdsAmounts && role === 'debit') {
+      if (debitIndex === -1) debitIndex = col.index;
+    } else if (holdsAmounts && role === 'credit') {
+      if (creditIndex === -1) creditIndex = col.index;
+    } else if (holdsAmounts && role === 'balance') {
+      if (balanceIndex === -1) balanceIndex = col.index;
     } else if (col.type === 'amount') {
-      // Skip balance columns, use first non-balance amount column
-      if (col.amountRole !== 'balance' && amountIndex === -1) {
-        amountIndex = col.index;
-      }
+      if (amountIndex === -1) amountIndex = col.index;
     } else if (col.type === 'text' && descIndex === -1) {
       descIndex = col.index;
     }
   }
 
-  // Fallback: if we have amount but no text, use another column for description
-  const usedIndices = new Set([dateIndex, amountIndex].filter((i): i is number => i !== -1));
-  if (usedIndices.size > 0 && descIndex === -1) {
+  // A plain Amount column wins over debit/credit headers: it already carries both directions
+  const useDebitCredit = amountIndex === -1 && (debitIndex !== -1 || creditIndex !== -1);
+  if (!useDebitCredit) {
+    debitIndex = -1;
+    creditIndex = -1;
+  }
+
+  // Must have at least date and somewhere to read amounts from
+  if (dateIndex === -1 || (amountIndex === -1 && !useDebitCredit)) {
+    return null;
+  }
+
+  // Fallback: if we have amounts but no text, use another column for description
+  const claimed = new Set(
+    [dateIndex, amountIndex, debitIndex, creditIndex, balanceIndex].filter(i => i !== -1)
+  );
+  if (descIndex === -1) {
     for (let i = 0; i < analysis.length; i++) {
-      if (!usedIndices.has(i) && analysis[i].type !== 'amount') {
+      if (!claimed.has(i) && analysis[i].type !== 'amount') {
         descIndex = i;
         break;
       }
     }
   }
 
-  // Must have at least date and amount
-  if (dateIndex === -1 || amountIndex === -1) {
-    return null;
-  }
-
   // Build ignore list (exclude mapped columns)
-  const mappedIndices = new Set([dateIndex, descIndex, amountIndex].filter((i): i is number => i !== -1));
+  const mappedIndices = new Set([...claimed, descIndex].filter(i => i !== -1));
   const ignore = headers
     .map((_, idx) => idx)
     .filter(idx => !mappedIndices.has(idx));
 
-  return {
+  const mapping: ColumnMapping = {
     date: dateIndex,
     description: descIndex,
     amount: amountIndex,
     ignore,
   };
+  if (debitIndex !== -1) mapping.debit = debitIndex;
+  if (creditIndex !== -1) mapping.credit = creditIndex;
+  if (balanceIndex !== -1) mapping.balance = balanceIndex;
+
+  return mapping;
+}
+
+/**
+ * Whether pasted text starts with a row of column names, by the same test the parser uses
+ * to pull one out. Lets the dialog pre-tick "First row contains column headers": header
+ * names are what debit/credit detection reads, so an unticked box quietly disables it.
+ */
+export function pastedTextHasHeaderRow(text: string): boolean {
+  const lines = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .filter(line => line.trim() !== '')
+    .slice(0, 10);
+  if (lines.length === 0) return false;
+
+  const delimiter = detectDelimiter(lines);
+  const rows = lines.slice(0, 3).map(line => splitLine(line, delimiter, 2));
+  return extractHeaderRow(rows).headerRow !== null;
 }
 
 /**
@@ -819,53 +867,4 @@ function analyzeColumnsWithHeaders(rows: string[][], headers: string[]): ColumnA
   }
 
   return analysis;
-}
-
-/**
- * Parse amount string to number
- */
-export function parseAmount(value: string): number | null {
-  if (!value || !value.trim()) return null;
-
-  let cleaned = value.trim();
-
-  // Check for DR/CR indicators
-  const isDebit = /DR$/i.test(cleaned);
-  const isCredit = /CR$/i.test(cleaned);
-  cleaned = cleaned.replace(/\s*(DR|CR)$/i, '');
-
-  // Check for parentheses (negative)
-  const isNegativeParens = /^\(.*\)$/.test(cleaned);
-  if (isNegativeParens) {
-    cleaned = cleaned.slice(1, -1);
-  }
-
-  // Remove currency symbols
-  cleaned = cleaned.replace(/[$£€¥₹R]/g, '');
-
-  // Remove thousands separators (detect format first)
-  const hasCommaDecimal = /\d,\d{1,2}$/.test(cleaned);
-  if (hasCommaDecimal) {
-    // European format: 1.234,56
-    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-  } else {
-    // US/UK format: 1,234.56
-    cleaned = cleaned.replace(/,/g, '');
-  }
-
-  // Remove any remaining whitespace
-  cleaned = cleaned.replace(/\s/g, '');
-
-  const num = parseFloat(cleaned);
-  if (isNaN(num)) return null;
-
-  // Apply sign based on indicators
-  if (isNegativeParens || isDebit) {
-    return -Math.abs(num);
-  }
-  if (isCredit) {
-    return Math.abs(num);
-  }
-
-  return num;
 }
