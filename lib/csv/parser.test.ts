@@ -70,6 +70,37 @@ describe('detectColumnMapping', () => {
     });
   });
 
+  // A common bank layout. "Value Date" matches the amount pattern "value"; taken as the
+  // single Amount column it hid Debit and Credit entirely.
+  it('does not take a second date column for the amount', () => {
+    expect(detectColumnMapping(['Date', 'Value Date', 'Description', 'Debit', 'Credit', 'Balance'])).toEqual({
+      date: 0,
+      description: 2,
+      amount: -1,
+      debit: 3,
+      credit: 4,
+      balance: 5,
+      ignore: [1],
+    });
+    expect(detectColumnMapping(['Date', 'Value Date', 'Description', 'Amount'])).toEqual({
+      date: 0,
+      description: 2,
+      amount: 3,
+      ignore: [1],
+    });
+  });
+
+  it('maps the column named Debit, not an earlier one that only mentions a payment', () => {
+    expect(detectColumnMapping(['Date', 'Narrative', 'Payment Reference', 'Debit', 'Credit'])).toEqual({
+      date: 0,
+      description: 1,
+      amount: -1,
+      debit: 3,
+      credit: 4,
+      ignore: [2],
+    });
+  });
+
   it('leaves date and description unmapped rather than guessing them in debit/credit mode', () => {
     expect(detectColumnMapping(['Foo', 'Debit', 'Credit'])).toEqual({
       date: -1,

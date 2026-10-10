@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { parsePastedText, detectPasteColumnMapping, pastedTextHasHeaderRow } from '@/lib/paste/parser';
-import { resolveRowAmount, columnHasSigns, describeSignSplit } from '@/lib/import-amount';
+import { resolveRowAmount, columnHasSigns, describeSignSplit, hasAmountColumn } from '@/lib/import-amount';
 import {
   parseDate,
   analyseDateColumn,
@@ -457,6 +457,11 @@ export function PasteImport({ onComplete, onCancel }: PasteImportProps) {
   const handleMappingChange = (field: 'date' | 'description' | 'amount' | 'debit' | 'credit', colIndex: number) => {
     setColumnMapping(prev => {
       const updated = { ...prev, [field]: colIndex === -1 ? undefined : colIndex };
+
+      // A column given a job is no longer the balance detection took it for
+      if (colIndex !== -1 && prev.balance === colIndex) {
+        delete updated.balance;
+      }
 
       // If switching to debit/credit mode, clear single amount
       if ((field === 'debit' || field === 'credit') && colIndex !== -1) {
@@ -921,8 +926,7 @@ Example:
                 disabled={
                   isLoading ||
                   columnMapping.date === -1 ||
-                  (!useDebitCreditMode && columnMapping.amount === -1) ||
-                  (useDebitCreditMode && (columnMapping.debit === undefined || columnMapping.debit < 0) && (columnMapping.credit === undefined || columnMapping.credit < 0))
+                  !hasAmountColumn(columnMapping)
                 }
                 className="bg-cyan-600 hover:bg-cyan-500"
               >

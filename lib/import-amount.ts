@@ -111,6 +111,38 @@ export function amountRoleFromHeader(header: string): AmountRole | null {
   return null;
 }
 
+// Headers that name a direction outright. "Payment Reference" and "Expense Category" also
+// read as debit by the looser patterns above, so these are looked for first.
+const STRONG_ROLE_PATTERNS: Record<AmountRole, RegExp> = {
+  debit: /debit|withdraw/,
+  credit: /credit|deposit/,
+  balance: /balance/,
+};
+
+/**
+ * The column for each amount role, going by header names alone: -1 where no header names
+ * the role. `exclude` lists columns already taken (date, description).
+ *
+ * A header that names the role outright wins over one that merely matches a looser word,
+ * wherever each sits: with `Payment Reference, Debit, Credit` the debit column is `Debit`.
+ */
+export function findAmountRoleColumns(
+  headers: string[],
+  exclude: number[] = []
+): Record<AmountRole, number> {
+  const lower = headers.map(header => header.toLowerCase());
+  const roles = headers.map((header, index) =>
+    exclude.includes(index) ? null : amountRoleFromHeader(header)
+  );
+
+  const find = (role: AmountRole): number => {
+    const strong = roles.findIndex((r, index) => r === role && STRONG_ROLE_PATTERNS[role].test(lower[index]));
+    return strong !== -1 ? strong : roles.indexOf(role);
+  };
+
+  return { debit: find('debit'), credit: find('credit'), balance: find('balance') };
+}
+
 /**
  * Debit/credit mode is on when either field is present on the mapping, including the
  * `-1` placeholder for "mode chosen, column not picked yet".

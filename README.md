@@ -71,7 +71,7 @@ A privacy-first desktop budgeting app that keeps your financial data on your com
 ### From CSV
 1. Export transactions from your bank's website as CSV
 2. Click "Import" on the Transactions page
-3. Map the columns (Date, Description, Amount)
+3. Check the column mapping (Date, Description, and either Amount or separate Debit and Credit columns)
 4. Review and confirm
 
 ### From PDF Bank Statements

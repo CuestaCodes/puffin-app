@@ -1,7 +1,7 @@
 // CSV parsing utilities using papaparse
 import Papa from 'papaparse';
 import type { CSVParseResult, ColumnMapping } from '@/types/import';
-import { amountRoleFromHeader, parseAmount } from '@/lib/import-amount';
+import { amountRoleFromHeader, findAmountRoleColumns, parseAmount } from '@/lib/import-amount';
 import { parseDate } from './date-parser';
 
 export interface ParseCSVOptions {
@@ -138,18 +138,19 @@ export function detectColumnMapping(headers: string[]): ColumnMapping | null {
   }
 
   // Columns whose header names a direction or a balance (exclude already-mapped columns)
-  const roles = lowerHeaders.map((h, i) =>
-    i === dateIndex || i === descIndex ? null : amountRoleFromHeader(h)
-  );
-  const debitIndex = roles.indexOf('debit');
-  const creditIndex = roles.indexOf('credit');
-  const balanceIndex = roles.indexOf('balance');
+  const {
+    debit: debitIndex,
+    credit: creditIndex,
+    balance: balanceIndex,
+  } = findAmountRoleColumns(headers, [dateIndex, descIndex]);
 
   // Find a single amount column: one named as an amount without a direction, so
-  // "Debit Amount" is a debit column and not this
+  // "Debit Amount" is a debit column and not this. Nor is a second date column: "Value
+  // Date" matches "value", and taking it as the amount hid the Debit and Credit beside it.
   for (const pattern of amountPatterns) {
     const foundIdx = lowerHeaders.findIndex((h, i) =>
-      h.includes(pattern) && i !== dateIndex && i !== descIndex && roles[i] === null
+      h.includes(pattern) && !h.includes('date') && i !== dateIndex && i !== descIndex &&
+      amountRoleFromHeader(h) === null
     );
     if (foundIdx !== -1) {
       amountIndex = foundIdx;

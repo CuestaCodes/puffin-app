@@ -5,7 +5,7 @@ import { ArrowRight, Check, AlertTriangle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { amountRoleFromHeader, hasAmountColumn, usesDebitCreditColumns } from '@/lib/import-amount';
+import { findAmountRoleColumns, hasAmountColumn, usesDebitCreditColumns } from '@/lib/import-amount';
 import type { ColumnMapping, DateFormat, CSVParseResult, DateDetectionHint } from '@/types/import';
 
 interface ColumnMappingProps {
@@ -139,11 +139,10 @@ export function ColumnMappingComponent({
       delete newMapping.debit;
       delete newMapping.credit;
     } else {
-      const roles = headers.map((header, index) =>
-        index === mapping.date || index === mapping.description ? null : amountRoleFromHeader(header)
-      );
-      newMapping.debit = roles.indexOf('debit');
-      newMapping.credit = roles.indexOf('credit');
+      const taken = [mapping.date, mapping.description, mapping.notes ?? -1];
+      const columns = findAmountRoleColumns(headers, taken);
+      newMapping.debit = columns.debit;
+      newMapping.credit = columns.credit;
     }
     onMappingChange(newMapping);
   };

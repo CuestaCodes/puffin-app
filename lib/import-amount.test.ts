@@ -4,6 +4,7 @@ import {
   hasExplicitSign,
   columnHasSigns,
   amountRoleFromHeader,
+  findAmountRoleColumns,
   usesDebitCreditColumns,
   hasAmountColumn,
   resolveRowAmount,
@@ -116,6 +117,48 @@ describe('amountRoleFromHeader', () => {
       expect(amountRoleFromHeader(header)).toBeNull();
     }
   );
+});
+
+describe('findAmountRoleColumns', () => {
+  it('finds each role by header', () => {
+    expect(findAmountRoleColumns(['Date', 'Description', 'Debit', 'Credit', 'Balance'])).toEqual({
+      debit: 2,
+      credit: 3,
+      balance: 4,
+    });
+  });
+
+  it('returns -1 for a role no header names', () => {
+    expect(findAmountRoleColumns(['Date', 'Description', 'Amount'])).toEqual({
+      debit: -1,
+      credit: -1,
+      balance: -1,
+    });
+  });
+
+  // "Payment" and "Expense" are debit words too, but name a text column here
+  it('prefers a header that names the role outright over a looser match before it', () => {
+    expect(findAmountRoleColumns(['Date', 'Payment Reference', 'Debit', 'Credit'])).toMatchObject({
+      debit: 2,
+      credit: 3,
+    });
+    expect(findAmountRoleColumns(['Expense Category', 'Withdrawal', 'Income Type', 'Deposit'])).toMatchObject({
+      debit: 1,
+      credit: 3,
+    });
+  });
+
+  it('falls back to a looser match when nothing names the role outright', () => {
+    expect(findAmountRoleColumns(['Date', 'Details', 'Paid out', 'Paid in'])).toMatchObject({
+      debit: 2,
+      credit: 3,
+    });
+  });
+
+  it('skips excluded columns', () => {
+    expect(findAmountRoleColumns(['Payment', 'Debit'], [1])).toMatchObject({ debit: 0 });
+    expect(findAmountRoleColumns(['Debit', 'Credit'], [0, -1])).toMatchObject({ debit: -1, credit: 1 });
+  });
 });
 
 describe('usesDebitCreditColumns / hasAmountColumn', () => {
