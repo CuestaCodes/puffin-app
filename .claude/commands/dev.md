@@ -91,6 +91,14 @@ For the selected task, work through each phase sequentially:
 - Identify what needs Vitest coverage (per CLAUDE.md: database ops, calculations, utils)
 - Skip UI component tests (no @testing-library/react)
 - Write tests in `*.test.ts` files alongside source
+- **Probe detection and matching code with look-alike inputs before asking for a test run.**
+  Code that recognises things by pattern (headers, formats, names) passes the cases it was
+  written for; its defects are in the inputs nobody listed. Write out a dozen realistic variants,
+  including ones that merely *resemble* a match, and run them from WSL. On
+  `import-column-detection`, both Major review findings came from doing this in Phase 5 instead:
+  a `Value Date` header was taken as the Amount column, and `Payment Reference` as the Debit
+  column ahead of `Debit`. Each was one line of probing, found after the user had already tested
+  by hand and run the suite, which then had to be run again
 - Run `npm run lint` and `npx tsc --noEmit` from WSL and fix any issues. Both are slow across
   `/mnt/e` (each has exceeded two minutes): give them a long timeout, and lint only the touched
   paths with `npx eslint <paths>` while iterating

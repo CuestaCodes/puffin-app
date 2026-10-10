@@ -413,6 +413,26 @@ Configurable column mapping with date format auto-detection.
 ### PDF Paste
 `lib/paste/parser.ts` - Extracts columns from pasted bank statement tables.
 
+### CSV and Paste Are Two Implementations That Must Match
+The CSV importer (`import-wizard.tsx`, `column-mapping.tsx`, `preview-table.tsx`) and the paste
+importer (`paste-import.tsx`) are separate code with separate mapping and preview screens. A
+user sees them as one feature with two ways in, so **a mapping or preview capability goes into
+both, in the same change**: debit/credit mode, "Swap all signs" and click-an-amount, the
+expenses/income split, the pre-ticked headers box.
+
+They share their rules, not their screens: a row's amount and sign come from
+`resolveRowAmount` in `lib/import-amount.ts` for both, and dates from `lib/csv/date-parser.ts`.
+Put new rules there rather than in either component.
+
+On `import-column-detection` the user reported three differences between the two in one test
+round — swap controls present in one mode but not another, and absent from CSV altogether.
+Nothing said they were meant to match, which is how the two transaction lists drifted before
+they were unified.
+
+Deliberately different, so not a defect: "First row contains column headers" sits on the Map
+Columns step for CSV (the file is already loaded) and under the text area for paste (it is
+needed before parsing). The user was asked and chose to leave it.
+
 ### Optional Columns
 Add to: `types/import.ts` → `lib/validations.ts` → UI components → preview table.
 
@@ -463,6 +483,42 @@ disproved a task spec's stated root cause by running the old code with one branc
 
 The v2.2.1 migration failure was reproduced this way before any code changed, and two import
 parser faults were found by running the parsers over sample files.
+
+**The real test files run from WSL too, including modules with runtime `@/` imports.** Node
+cannot resolve the `@/` alias or an extensionless relative import, and has no `vitest`. A
+resolve hook fixes all three:
+
+```js
+// hooks.mjs — registered from reg.mjs with: register('./hooks.mjs', import.meta.url)
+import fs from 'node:fs';
+const ROOT = '/mnt/e/puffin-app/';
+const HERE = new URL('.', import.meta.url).href;
+export async function resolve(spec, ctx, next) {
+  let s = spec;
+  if (s === 'vitest') return next(HERE + 'vitest-shim.mjs', ctx);
+  if (s.startsWith('@/')) s = 'file://' + ROOT + s.slice(2);
+  if ((s.startsWith('file://') || s.startsWith('.')) && !/\.(ts|js|mjs|json)$/.test(s)) {
+    const u = new URL(s, ctx.parentURL);
+    if (fs.existsSync(u.pathname + '.ts')) s = u.href + '.ts';
+  }
+  return next(s, ctx);
+}
+```
+
+```bash
+node --experimental-strip-types --import ./reg.mjs /mnt/e/puffin-app/lib/import-amount.test.ts
+```
+
+`vitest-shim.mjs` is a small `describe`/`it`/`it.each`/`expect` stand-in that prints a pass and
+fail count. A working set of all three files is kept in `tasks/tools/wsl-test/` (local only,
+`tasks/` is gitignored); rebuild them from the above if it is missing.
+
+The shim only has the matchers someone needed: `toBe`, `toEqual`, `toBeNull`, `toBeUndefined`,
+`toMatchObject`. A failure reading `expect(...).toContain is not a function` is the shim, not
+the code — `date-parser.test.ts` shows eight of these. Add the matcher or ignore that file.
+
+All three test files for `import-column-detection` were run this way before handover, and the
+same hook ran the parsers over the fixtures.
 
 **This does not replace `npm run test`.** It skips mocks, jsdom and the rest of the suite, so the
 user still runs Vitest and their result is the one that counts.
