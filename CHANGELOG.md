@@ -31,6 +31,11 @@ All notable changes to Puffin will be documented in this file.
 - Selected transactions stay selected when you edit or categorise a row in place; the selection used to be dropped by any change to the list.
 - The "selected" bar on transaction lists now floats at the bottom of the list, so Delete stays in reach however far down you have selected.
 - Monthly Budget's month selector sits on its own row and is larger, so the month you are looking at is easier to see.
+- Import now recognises separate Debit and Credit columns. A statement headed Debit/Credit, Withdrawals/Deposits or Paid out/Paid in is mapped without any manual work, in both CSV and paste import: withdrawals import as expenses, deposits as income, and a Balance column is recognised and left out. The CSV import gains the "separate Debit / Credit columns" mode that paste import already had, with a button on the mapping step to switch either way.
+- Import previews now show how many of the selected rows are expenses and how many are income ("3 expenses · 1 income"), so an import with its signs the wrong way round is obvious before it happens. Both previews have a "Swap all signs" button, and clicking any amount swaps just that one — the CSV preview had neither before, and the paste preview offered them only for a single amount column.
+- "First row contains column headers" now starts ticked when the first row reads as column names, in both CSV and paste import. It used to start unticked every time, and column detection cannot work from header names it has been told are not there.
+- Clicking outside a window you are typing in no longer closes it and discards what you typed. This applies to import, add/edit transaction, split transaction, notes and the net worth record. Escape and the close and cancel buttons still close them; Escape now closes the import window too.
+- The split transaction window scrolls when the app window is too short to show all of it, so its buttons can always be reached.
 
 ### Fixed
 - A database created by a fresh install of 2.2.1 now opens on later starts. A new database did not record which version it was, so the next start re-ran an upgrade step against a table that already had its new column and stopped with "duplicate column name: is_active". Fresh installs now record their version, and a database already caught by this opens normally. Databases created before 2.2.1 were never affected.
@@ -57,6 +62,12 @@ All notable changes to Puffin will be documented in this file.
 - Bulk-deleting transactions no longer nudges the list down. The "selected" bar used to sit above the rows, so every row shifted when it disappeared.
 - On the Monthly Budget list, categorising a transaction out of the current filter and then pressing Next no longer skips a page of transactions, and deleting the last rows of the final page returns you to the new last page — as the Transactions page already did.
 - A transaction that fails to unsplit now says so instead of doing nothing.
+- CSV import no longer records spending as income for statements with Debit and Credit columns. The Debit column was taken as the amount, so every withdrawal imported as a positive amount and every deposit row was rejected as having no amount.
+- CSV import now reads amounts in brackets, with a `DR` marker or with a typographic minus sign as negative. `(84.35)`, `84.35 DR` and `−84.35` all used to import as +84.35.
+- Paste import no longer loses rows when the amount is the last column and carries a sign. `-84.35` and `(84.35)` were split into two cells, which pushed unsigned amounts on other rows into the wrong column, where they were rejected as having no amount.
+- Paste import now keeps the signs in what you pasted. Every amount in a single amount column used to be imported as an expense, so a salary pasted as `3,438.75` beside `-84.35` came in as spending unless it was flipped by hand. A column with no signs at all still starts as all expenses.
+- Paste import now recognises a column of amounts marked `DR` or `CR`.
+- A row with an amount in both the Debit and the Credit column is now flagged in the preview instead of being imported as a withdrawal.
 
 ## [2.2.1] - 2026-06-09
 
