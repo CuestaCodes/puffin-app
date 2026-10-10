@@ -90,7 +90,11 @@ export function NoteDialog({ open, onOpenChange, note, onSave }: NoteDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-[600px]">
+      {/* A click outside does not close the form and lose what was typed; X, Cancel and Escape do */}
+      <DialogContent
+        className="bg-slate-900 border-slate-700 sm:max-w-[600px]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-white">
             {isEditing ? 'Edit Note' : 'New Note'}

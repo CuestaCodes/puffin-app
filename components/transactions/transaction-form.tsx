@@ -173,7 +173,11 @@ export function TransactionForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-slate-900 border-slate-700">
+      {/* A click outside does not close the form and lose what was typed; X, Cancel and Escape do */}
+      <DialogContent
+        className="sm:max-w-[500px] bg-slate-900 border-slate-700"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="text-slate-100">

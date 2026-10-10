@@ -78,6 +78,18 @@ function TransactionsPageContent() {
     return () => clearInterval(interval);
   }, []);
 
+  // Escape closes the import overlay. A dropdown or dialog inside it that used the key
+  // itself has already called preventDefault, so closing one does not also close the import.
+  useEffect(() => {
+    if (!showImport) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) setShowImport(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showImport]);
+
   const handleImportComplete = (_result: ImportResult) => {
     // Always refresh - covers both import and undo cases
     fetchTransactions();
@@ -254,16 +266,16 @@ function TransactionsPageContent() {
       {/* Import Modal */}
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowImport(false)}
-          />
+          {/* A click on the backdrop does not close the import: a stray click would throw
+              away a half-mapped file. Close with the X, Cancel Import, or Escape. */}
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
           <div className="relative z-10 w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowImport(false)}
               className="absolute -top-12 right-0 text-slate-400 hover:text-white"
+              aria-label="Close import"
             >
               <X className="w-6 h-6" />
             </Button>

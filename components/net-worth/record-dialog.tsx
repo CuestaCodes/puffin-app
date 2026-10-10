@@ -208,7 +208,11 @@ export function RecordNetWorthDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[98vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-y-auto bg-slate-900 border-slate-700">
+      {/* A click outside does not close the form and lose what was typed; X, Cancel and Escape do */}
+      <DialogContent
+        className="w-[98vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-y-auto bg-slate-900 border-slate-700"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl text-white">
             {editEntry ? 'Edit Net Worth Entry' : 'Record Net Worth'}

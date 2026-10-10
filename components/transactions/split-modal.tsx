@@ -209,7 +209,11 @@ export function SplitModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] bg-slate-900 border-slate-700">
+      {/* A click outside does not close the form and lose what was typed; X, Cancel and Escape do */}
+      <DialogContent
+        className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto bg-slate-900 border-slate-700"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-slate-100 flex items-center gap-2">
             <Split className="w-5 h-5 text-cyan-400" />
